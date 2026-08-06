@@ -1,0 +1,286 @@
+# Project Vanguard — alias table
+#
+# Resolves stage-2 of the COVERAGE computation (directive §2).
+# A job-spec requirement term matching any `aliases` entry resolves to HIT,
+# with `cv_evidence` and `source_role` carried into the Template A record.
+#
+# tier A — direct synonym or renaming. Safe. Auto-HIT.
+# tier B — domain translation. Defensible, operator-confirmed. Auto-HIT.
+# tier C — EXCLUDED. Tempting but not equivalent. Never resolves to HIT.
+#
+# RULE: no entry may exist without a canonical_cv.md line behind it.
+# Adding an alias without CV evidence converts a Type 3 gap into a false HIT,
+# which defeats the truthfulness constraint the gate exists to enforce.
+
+version: 0.4
+canonical_cv: canonical_cv.md
+
+aliases:
+
+  # ---------- TIER A — direct synonyms ----------
+
+  - canonical: ETL
+    tier: A
+    aliases: ["ETL", "ELT", "extract transform load", "data pipeline",
+              "data pipelines", "pipeline development", "batch processing"]
+    cv_evidence: "Automated data pipelines and ETL workflows in Python"
+    source_role: "Amdari Inc., Oct 2025 – Present"
+
+  - canonical: Python
+    tier: A
+    aliases: ["Python", "Python 3", "pandas", "NumPy", "scripting in Python"]
+    cv_evidence: "Programming Languages: Python; pandas, NumPy under Other Software"
+    source_role: "Multiple"
+
+  - canonical: SQL
+    tier: A
+    aliases: ["SQL", "T-SQL", "query optimisation", "relational databases",
+              "RDBMS", "PostgreSQL", "MySQL"]
+    cv_evidence: "Databases: Microsoft SQL, MySQL, PostgreSQL; query performance +35%"
+    source_role: "Amdari Inc., Oct 2025 – Present"
+
+  - canonical: data visualisation
+    tier: A
+    aliases: ["data visualisation", "data visualization", "dashboards",
+              "BI", "business intelligence", "reporting", "Tableau", "Power BI"]
+    cv_evidence: "Interactive dashboards in Tableau; real-time KPI dashboards in Power BI"
+    source_role: "Amdari Inc., Oct 2025 – Present"
+
+  - canonical: machine learning
+    tier: A
+    aliases: ["machine learning", "ML", "predictive modelling", "predictive modeling",
+              "scikit-learn", "TensorFlow", "PyTorch", "model deployment"]
+    cv_evidence: "Developed and deployed ML models using Python and Scikit-Learn"
+    source_role: "Amdari Inc., Oct 2025 – Present"
+
+  - canonical: experimental design
+    tier: A
+    aliases: ["A/B testing", "AB testing", "split testing", "cohort analysis",
+              "experimentation", "hypothesis testing"]
+    cv_evidence: "Conducted A/B testing and cohort analysis in Python"
+    source_role: "Amdari Inc., Oct 2025 – Present"
+
+  - canonical: data wrangling
+    tier: A
+    aliases: ["data wrangling", "data cleaning", "data manipulation",
+              "data preparation", "data munging", "feature engineering"]
+    cv_evidence: "Data Wrangling, Feature Engineering under Core Competencies;
+                  input validation and null-handling logic in reporting engine"
+    source_role: "Amdari Inc.; MTN NSM Specialist"
+
+  - canonical: root cause analysis
+    tier: A
+    aliases: ["root cause analysis", "RCA", "problem management",
+              "incident investigation", "fault diagnosis"]
+    cv_evidence: "Performing Root Cause Analysis (RCA) on every incident"
+    source_role: "MTN Network Services Management Engineer, Apr 2012 – Aug 2018"
+
+  - canonical: vectorisation
+    tier: A
+    aliases: ["vectorisation", "vectorization", "performance optimisation",
+              "code optimisation", "high-performance computing"]
+    cv_evidence: "Vectorized network reporting engine; 60–90 min to under 2 s
+                  on 800,000+ rows"
+    source_role: "MTN NSM Specialist, Sep 2018 – Sep 2024"
+
+  # ---------- TIER B — domain translation, operator-confirmed ----------
+
+  - canonical: time-series data
+    tier: B
+    aliases: ["time series", "time-series analysis", "temporal data",
+              "trend analysis"]
+    cv_evidence: "Capacity utilisation +18%, latency -12%; daily/weekly/annual
+                  reporting cadences over timestamped ticket data"
+    source_role: "MTN NSM Specialist, Sep 2018 – Sep 2024"
+    note: "Operational reporting cadence. For forecasting requirements see
+           the `forecasting` entry, which carries separate Amdari evidence."
+
+  - canonical: large-scale data
+    tier: B
+    aliases: ["large datasets", "high volume data", "big data",
+              "data at scale", "million+ records"]
+    cv_evidence: ">300k records at Amdari; 800,000+ rows annual reporting run"
+    source_role: "Amdari Inc.; MTN NSM Specialist"
+    note: "Hundreds of thousands of rows on a single machine. Not distributed
+           compute. Does NOT satisfy Spark/Hadoop/cluster requirements."
+
+  - canonical: service level management
+    tier: B
+    aliases: ["SLA", "service level agreement", "service levels", "KPIs",
+              "operational metrics", "uptime", "availability"]
+    cv_evidence: "99.99% network uptime; SLA commitments; SLA escalation binning
+                  in reporting engine"
+    source_role: "Avanti Communications; VGC Communications"
+
+  - canonical: stakeholder communication
+    tier: B
+    aliases: ["stakeholder management", "stakeholder communication",
+              "translating user needs", "cross-functional working",
+              "business partnering", "requirements gathering"]
+    cv_evidence: "Incident Manager for P1/P2 cases; coordinating with vendors
+                  and cross-functional NOC teams; timely communication with
+                  affected stakeholders"
+    source_role: "Avanti Communications; MTN NSMgmt Engineer"
+
+  - canonical: process improvement
+    tier: B
+    aliases: ["process improvement", "continuous improvement", "service improvement",
+              "operational efficiency", "ITIL"]
+    cv_evidence: "Process improvements reducing incident response time by 40%;
+                  service improvement analyses in alignment with ITIL frameworks"
+    source_role: "MTN NSMgmt Engineer; MTN NSM Specialist"
+
+  - canonical: technical documentation
+    tier: B
+    aliases: ["technical documentation", "documentation", "knowledge base",
+              "runbooks", "SOPs"]
+    cv_evidence: "Updated and optimized operational procedures and knowledge
+                  base documentation"
+    source_role: "Avanti Communications, Oct 2024 – Jul 2025"
+
+  - canonical: automation
+    tier: B
+    aliases: ["automation", "workflow automation", "scheduled jobs",
+              "unattended processing", "task scheduling"]
+    cv_evidence: "Scheduled the daily cycle for unattended 06:00 execution;
+                  automated ETL workflows"
+    source_role: "MTN NSM Specialist; Amdari Inc."
+
+  - canonical: concurrency
+    tier: B
+    aliases: ["concurrency", "multithreading", "parallel processing",
+              "asynchronous processing"]
+    cv_evidence: "ThreadPoolExecutor concurrent worker pool for file discovery
+                  in the reporting engine"
+    source_role: "MTN NSM Specialist / Generalized Reporting Engine project"
+    note: "Thread-based I/O concurrency only. Does NOT satisfy distributed
+           systems or async framework requirements."
+
+  - canonical: forecasting
+    tier: A
+    aliases: ["forecasting", "demand forecasting", "demand planning",
+              "predictive analytics", "statistical modelling", "statistical modeling"]
+    cv_evidence: "ML models increasing demand forecasting accuracy by 20%,
+                  optimizing inventory and resource allocation"
+    source_role: "Amdari Inc., Oct 2025 – Present"
+
+  - canonical: notebook environments
+    tier: A
+    aliases: ["Jupyter", "notebooks", "Google Colab", "interactive computing",
+              "exploratory analysis", "EDA"]
+    cv_evidence: "Implemented scalable workflows in Jupyter and Google Colab;
+                  Exploratory Data Analysis under Core Competencies"
+    source_role: "Amdari Inc., Oct 2025 – Present"
+
+  - canonical: training and knowledge transfer
+    tier: A
+    aliases: ["training", "training delivery", "mentoring", "coaching",
+              "knowledge transfer", "upskilling", "promoting best practice",
+              "capability building"]
+    cv_evidence: "Developed and delivered Cisco CCNA and CCNP training programs
+                  to IT professionals, enhancing technical competencies"
+    source_role: "Training Height, Jan 2002 – Jun 2005;
+                  MTN NSM Specialist, Sep 2018 – Sep 2024"
+    cv_evidence_secondary: "Trained peer and junior engineers on the reporting
+                  engine and associated operational procedures, producing
+                  handover documentation and supporting adoption"
+    note: "Training delivery and technical handover only. Does NOT satisfy
+           line-management requirements — see EXCLUDED_line_management."
+
+  - canonical: customer analytics
+    tier: B
+    aliases: ["customer analytics", "churn analysis", "retention analysis",
+              "segmentation", "engagement metrics"]
+    cv_evidence: "15% increase in client retention through targeted strategies;
+                  dashboards tracking revenue, churn and operational efficiency"
+    source_role: "Amdari Inc., Oct 2025 – Present"
+
+  - canonical: satellite and RF operations
+    tier: B
+    aliases: ["satellite communications", "VSAT", "SCPC", "TDMA", "teleport",
+              "RF", "satellite ground segment", "earth station"]
+    cv_evidence: "Satellite network operations across VSAT networks; TDMA and
+                  SCPC Value-Added Networks; Gateway Operations and GES antennas"
+    source_role: "MTN Satellite NOC Engineer, Jun 2007 – Apr 2012;
+                  VGC Communications; Avanti Communications"
+
+  - canonical: change and release management
+    tier: B
+    aliases: ["change management", "change control", "release management",
+              "compliance", "operational governance"]
+    cv_evidence: "Coordinated with vendors and cross-functional NOC teams to
+                  enforce change management compliance"
+    source_role: "Avanti Communications, Oct 2024 – Jul 2025"
+
+  - canonical: vendor management
+    tier: B
+    aliases: ["vendor management", "supplier management", "third-party escalation",
+              "vendor liaison", "escalation management"]
+    cv_evidence: "Escalated complex issues to specialist teams and vendors,
+                  facilitating effective NOC-to-NOC interactions"
+    source_role: "Avanti Communications; MTN NSM Specialist"
+
+  - canonical: continuous monitoring
+    tier: B
+    aliases: ["monitoring", "observability", "proactive monitoring",
+              "24/7 operations", "on-call", "alerting", "incident response"]
+    cv_evidence: "Proactive maintenance and continuous monitoring of network and
+                  hub infrastructure; first- and second-level incident response"
+    source_role: "Avanti Communications; VGC Communications; MTN Satellite NOC"
+
+  - canonical: capacity and performance engineering
+    tier: B
+    aliases: ["capacity planning", "traffic engineering", "performance tuning",
+              "network optimisation", "throughput analysis", "latency reduction"]
+    cv_evidence: "Traffic engineering reducing congestion incidents by 20%;
+                  18% better capacity utilization and 12% lower latency"
+    source_role: "MTN NSM Specialist, Sep 2018 – Sep 2024"
+
+  # ---------- TIER C — EXCLUDED. Never resolves to HIT ----------
+
+  - canonical: EXCLUDED_unit_testing
+    tier: C
+    aliases: ["pytest", "unit testing", "test coverage", "TDD",
+              "automated testing", "test suite"]
+    reason: "No test suite exists in the operator's employment history.
+             Runtime error handling and data validation are not code testing.
+             Reclassify to Tier A only when a test suite is evidenced by a
+             canonical_cv.md line."
+
+  - canonical: EXCLUDED_cicd
+    tier: C
+    aliases: ["CI/CD", "continuous integration", "continuous deployment",
+              "GitHub Actions", "Jenkins", "build pipeline"]
+    reason: "Scheduled execution at 06:00 is orchestration, not CI/CD. No
+             build-on-commit pipeline exists."
+
+  - canonical: EXCLUDED_version_control
+    tier: C
+    aliases: ["git", "version control", "branching strategy", "pull requests",
+              "code review"]
+    reason: "Git used to publish stable code to GitHub only. No branching,
+             no collaborative workflow, no review process. A requirement for
+             'version control in a technical team' is NOT met."
+
+  - canonical: EXCLUDED_cloud_platforms
+    tier: C
+    aliases: ["AWS", "Azure", "GCP", "S3", "Lambda", "EC2", "cloud infrastructure",
+              "infrastructure as code", "Terraform", "Docker", "Kubernetes"]
+    reason: "CV lists 'cloud computing' inside a software catch-all line with no
+             named platform and no supporting bullet. Insufficient for any
+             named-platform requirement."
+
+  - canonical: EXCLUDED_distributed_compute
+    tier: C
+    aliases: ["Spark", "PySpark", "Hadoop", "Databricks", "Snowflake", "dbt",
+              "Airflow", "data warehouse", "dimensional modelling"]
+    reason: "No evidence in employment history. Reporting engine is
+             single-machine pandas."
+
+  - canonical: EXCLUDED_line_management
+    tier: C
+    aliases: ["line management", "people management", "managing a team",
+              "direct reports", "performance reviews"]
+    reason: "Incident Manager is an incident-ownership role, not people
+             management. Cisco Instructor is training delivery, not line
+             management. Do not conflate."

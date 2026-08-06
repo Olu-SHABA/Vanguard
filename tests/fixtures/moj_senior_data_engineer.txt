@@ -1,0 +1,57 @@
+Senior Data Engineer
+
+Location: National
+Grade: SEO
+Vacancy Number: 19568
+
+The Role
+We're recruiting for a Senior Data Engineer here at the Ministry of Justice, to be part of our
+Data & Analytics Engineering community. This role aligns against Senior Data Engineer from the
+Government Digital and Data Framework.
+
+Key Responsibilities:
+As a Senior Data Engineer your work might involve:
+- designing and building robust and scalable automated data flows to connect operational systems, data for analytics and business intelligence (BI) systems
+- recognising opportunities to reuse and re-engineer data flows to enable scaling and repeatable use
+- designing and writing ETL (extract, transform, load) scripts and code to ensure the ETL process performs optimally
+- working with data users to understand and translate their needs into technical requirements
+- using a range of AWS services to deploy your solutions in a reproducible, sustainable manner
+- using infrastructure-as-code to deploy AWS cloud infrastructure
+- developing and optimising code, tools and services that enable people to use data effectively
+- designing and maintaining technical documentation
+- creating and promoting best practices within the team and wider
+- responding to incident reports, ensuring relevant prioritisation and detail to allow for effective investigation
+- line managing a more junior colleague
+
+Person Specification
+
+Essential
+- working in a technical team, preferably one that uses Python and SQL, as well as strong technical skills in these languages
+- understanding of the software development lifecycle, including testing (e.g. pytest), version control (e.g. git) and CI/CD (e.g. GitHub Actions)
+- working with a range of data sources
+- working with data, such as data wrangling, analysis or manipulation
+- communicating with stakeholders, and translating user needs into technical requirements
+
+Willingness to be assessed against the requirements for SC clearance
+
+How to Apply
+In Justice Digital, Data and Science, we recruit using a combination of the Government Digital and
+Data Profession Capability and Success Profiles Frameworks.
+
+Stage 1 - Application and sift:
+To apply for this position, you must submit the following as part of your application:
+- an anonymised CV, setting out your career history, key responsibilities and achievements.
+- A Personal Statement (no more than 750 words) which should outline your experience and skills.
+
+We operate an anonymous shortlisting process. Please ensure your CV and Personal Statement do not
+include your name or any other identifying details.
+
+Should we receive a high volume of applications, a pre-sift based on working in a technical team,
+preferably one using Python and SQL, together with strong technical skills in both languages will
+be conducted before the sift.
+
+Stage 2 - Interviews:
+At interview stage, you will be assessed against the following Success Profile elements -
+Experience, Technical and the following Behaviours:
+- Changing and Improving
+- Managing a Quality Service

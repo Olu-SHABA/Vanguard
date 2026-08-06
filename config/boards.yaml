@@ -1,0 +1,113 @@
+# Project Vanguard — job board registry
+# Hot-reloadable. Adding or removing a board is a config change, never a code change.
+#
+# tier:     api_official | feed | manual
+# priority: dedup rank. Lowest integer wins on collision.
+# silence_days: overrides global default for DORMANT transition.
+
+defaults:
+  silence_days: 21
+  rate_limit:
+    calls_per_hour: 60
+    backoff: exponential
+
+boards:
+
+  - id: adzuna
+    adapter: AdzunaAPIAdapter
+    enabled: true
+    tier: api_official
+    priority: 1                      # dedup master — widest aggregated corpus
+    auth:
+      app_id: ${ADZUNA_APP_ID}
+      app_key: ${ADZUNA_APP_KEY}
+    query:
+      country: gb
+      what: ["data scientist", "machine learning engineer", "network analytics"]
+      where: "{{ TARGET_LOCATION }}"
+      max_days_old: 7
+    note: "Self-service keys. Aggregates from many boards — recovers partial
+           coverage of sources that have no API of their own."
+
+  - id: reed
+    adapter: ReedAPIAdapter
+    enabled: true
+    tier: api_official
+    priority: 2
+    auth:
+      api_key: ${REED_API_KEY}
+    note: "Self-service. Jobseeker search endpoint returns title, employer,
+           description, location, salary range."
+
+  - id: nhs_jobs
+    adapter: NHSJobsAPIAdapter
+    enabled: false                   # pending NHSBSA access arrangement
+    tier: api_official
+    priority: 2
+    silence_days: 30
+    note: "Official API exists for publishing NHS Jobs vacancies to third-party
+           sites. Access arranged via NHSBSA Training and Support, not self-service."
+
+  - id: civil_service_jobs
+    adapter: EmailAlertAdapter
+    enabled: true
+    tier: feed                       # sanctioned push, not scrape
+    priority: 2
+    silence_days: 30
+    portal_url: "https://www.civilservicejobs.service.gov.uk/csr/index.cgi"
+    ingress:
+      mailbox_folder: "CS-Jobs-Alerts"
+      sender: "*.civilservicejobs.service.gov.uk"
+    note: "No public API. Portal serves a bot-detection interstitial and sets
+           meta-robots noindex — automated collection is explicitly discouraged.
+           Alert emails are the sanctioned route. portal_url is operator-facing:
+           used to configure the saved search and for manual vacancy paste.
+           NEVER fetched by the pipeline. Submission type SUCCESS_PROFILE —
+           anonymised CV plus word-limited Personal Statement, Template F."
+
+  - id: findajob_dwp
+    adapter: FindAJobAdapter
+    enabled: false                   # BLOCKED: verify platform migration status
+    tier: api_official
+    priority: 3
+    note: "Adzuna-derived corpus — high duplicate overlap with adzuna.
+           DWP in-house replacement was scheduled for June 2026.
+           Verify current API contract before enabling."
+
+  - id: linkedin
+    adapter: ManualEntryAdapter
+    enabled: true
+    tier: manual
+    priority: 9
+    note: "User Agreement prohibits automated collection. Operator pastes URL
+           or text. All downstream scoring and drafting still applies."
+
+  - id: totaljobs
+    adapter: EmailAlertAdapter
+    enabled: false
+    tier: feed
+    priority: 4
+    note: "No public jobseeker API found. StepStone-owned — expect heavy
+           duplicate overlap with cwjobs. Alert-email route available."
+
+  - id: cwjobs
+    adapter: EmailAlertAdapter
+    enabled: false
+    tier: feed
+    priority: 4
+    note: "No public jobseeker API found. StepStone-owned — see totaljobs."
+
+  - id: cv_library
+    adapter: EmailAlertAdapter
+    enabled: false
+    tier: feed
+    priority: 4
+    note: "No public jobseeker API found. Alert-email route available."
+
+  - id: monster_uk
+    adapter: EmailAlertAdapter
+    enabled: false
+    tier: feed
+    priority: 5
+    note: "No public jobseeker API found. Ownership has changed hands
+           repeatedly — verify current terms before enabling."

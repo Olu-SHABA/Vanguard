@@ -1,0 +1,300 @@
+"""
+Requirement extraction: advert text -> term list R.
+
+The hardest and least-specified component in the system. C = |matched| / |R|,
+so anything wrong here is wrong everywhere downstream.
+
+Deliberately crude by design, per BUILD_PLAN §2.2. It extracts from person-
+specification sections in preference to body prose, because a term inside
+"Essential" is a requirement and the same term in a benefits paragraph is not.
+Refinement happens against real adverts, not in advance.
+
+Two extraction kinds:
+
+  tool        a named technology from a curated vocabulary. High confidence.
+  competency  a requirement phrase with no named technology. Lower confidence,
+              matched semantically downstream.
+
+Extraction is deterministic and inspectable: every Requirement records the
+section it came from, so a wrong coverage score can always be traced back.
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+from typing import Literal
+
+__all__ = [
+    "Requirement",
+    "TECHNOLOGY_VOCABULARY",
+    "extract",
+    "extract_sections",
+]
+
+Kind = Literal["tool", "competency"]
+
+
+# ---------------------------------------------------------------------------
+# Curated technology vocabulary
+# ---------------------------------------------------------------------------
+# Canonical form -> surface variants. Matching is whole-phrase, case-insensitive,
+# word-boundary anchored. Bare-substring matching is prohibited: "R" would fire
+# on every capital R, and "Go" on "Google".
+
+TECHNOLOGY_VOCABULARY: dict[str, tuple[str, ...]] = {
+    # languages
+    "Python": ("python", "python3", "python 3"),
+    "SQL": ("sql", "t-sql", "tsql", "pl/sql"),
+    "R": ("r programming", "r language"),
+    "Java": ("java",),
+    "Scala": ("scala",),
+    "JavaScript": ("javascript", "typescript", "node.js", "nodejs"),
+    "Bash": ("bash", "shell scripting"),
+    # data stack
+    "pandas": ("pandas",),
+    "NumPy": ("numpy",),
+    "Spark": ("spark", "pyspark", "apache spark"),
+    "Hadoop": ("hadoop",),
+    "Airflow": ("airflow", "apache airflow"),
+    "dbt": ("dbt",),
+    "Kafka": ("kafka", "apache kafka"),
+    "Snowflake": ("snowflake",),
+    "Databricks": ("databricks",),
+    # databases
+    "PostgreSQL": ("postgresql", "postgres"),
+    "MySQL": ("mysql",),
+    "SQL Server": ("sql server", "microsoft sql", "mssql"),
+    "MongoDB": ("mongodb", "mongo"),
+    "Redis": ("redis",),
+    # ml
+    "scikit-learn": ("scikit-learn", "sklearn", "scikit learn"),
+    "TensorFlow": ("tensorflow",),
+    "PyTorch": ("pytorch",),
+    "MLflow": ("mlflow",),
+    # cloud
+    "AWS": ("aws", "amazon web services"),
+    "Azure": ("azure", "microsoft azure"),
+    "GCP": ("gcp", "google cloud"),
+    "S3": ("s3",),
+    "Lambda": ("aws lambda",),
+    "Terraform": ("terraform",),
+    "Docker": ("docker",),
+    "Kubernetes": ("kubernetes", "k8s"),
+    # engineering practice
+    "git": ("git", "version control"),
+    "GitHub Actions": ("github actions",),
+    "Jenkins": ("jenkins",),
+    "CI/CD": ("ci/cd", "continuous integration", "continuous deployment"),
+    "pytest": ("pytest", "unit testing", "unit tests"),
+    "SDLC": ("software development lifecycle", "sdlc"),
+    # bi
+    "Tableau": ("tableau",),
+    "Power BI": ("power bi", "powerbi"),
+    "Looker": ("looker",),
+    "Excel": ("excel", "microsoft excel"),
+    # networks / infrastructure
+    "Cisco": ("cisco",),
+    "Juniper": ("juniper",),
+    "VSAT": ("vsat",),
+    "ITIL": ("itil",),
+    "Linux": ("linux", "unix"),
+    # methods
+    "machine learning": ("machine learning", "ml models", "predictive modelling",
+                         "predictive modeling"),
+    "ETL": ("etl", "elt", "extract transform load"),
+    "A/B testing": ("a/b testing", "ab testing", "split testing"),
+    "time series": ("time series", "time-series"),
+    "NLP": ("nlp", "natural language processing"),
+    "data wrangling": ("data wrangling", "data cleaning", "data manipulation"),
+    "data visualisation": ("data visualisation", "data visualization",
+                           "dashboards", "business intelligence"),
+    "stakeholder management": ("stakeholder management", "stakeholder engagement"),
+    "agile": ("agile", "scrum", "kanban"),
+}
+
+# Headings that introduce requirements. Ordered by strength.
+_SPEC_HEADINGS = (
+    "person specification",
+    "essential criteria",
+    "essential skills",
+    "essential",
+    "requirements",
+    "we are looking for",
+    "you will have",
+    "about you",
+    "skills and experience",
+    "key skills",
+    "qualifications",
+    "desirable",
+    "key responsibilities",
+    "responsibilities",
+)
+
+_DESIRABLE = ("desirable", "nice to have", "bonus", "advantageous")
+
+_BULLET_LINE = re.compile(r"^\s*(?:[-*\u2022\u25cf\u25cb\u25aa\u2043]|\d+[.)])\s+(?P<text>.+?)\s*$")
+_STOPWORD_ONLY = re.compile(
+    r"^(?:and|or|the|a|an|of|in|to|for|with|as|is|are|be|will|you|we|our|your)\b",
+    re.IGNORECASE,
+)
+
+
+@dataclass(frozen=True)
+class Requirement:
+    """One extracted requirement. `text` is verbatim from the advert."""
+
+    text: str
+    kind: Kind
+    section: str
+    essential: bool = True
+    canonical: str | None = None  # set for tools: the vocabulary key
+
+    @property
+    def key(self) -> str:
+        """Identity for deduplication and coverage arithmetic."""
+        return (self.canonical or self.text).strip().lower()
+
+    def __str__(self) -> str:
+        tag = "tool" if self.kind == "tool" else "comp"
+        star = "" if self.essential else " (desirable)"
+        return f"[{tag}] {self.canonical or self.text}{star}"
+
+
+# ---------------------------------------------------------------------------
+# Section detection
+# ---------------------------------------------------------------------------
+
+def extract_sections(text: str) -> dict[str, list[str]]:
+    """Split advert text into named blocks keyed by the heading above them.
+
+    Lines before any recognised heading go under 'preamble'. Terms found there
+    are weaker evidence than terms under 'Essential'.
+    """
+    sections: dict[str, list[str]] = {"preamble": []}
+    current = "preamble"
+
+    for raw in text.split("\n"):
+        line = raw.rstrip()
+        if not line.strip():
+            continue
+
+        stripped = line.strip().rstrip(":").lower()
+        matched = next((h for h in _SPEC_HEADINGS if stripped == h or stripped.startswith(h)), None)
+
+        if matched and len(line.strip()) < 70 and not _BULLET_LINE.match(line):
+            current = matched
+            sections.setdefault(current, [])
+            continue
+
+        # A section runs until the next RECOGNISED heading. Unrecognised title
+        # lines do not close it: advert lead-ins such as "As a Senior Data
+        # Engineer your work might involve:" look like headings and would
+        # otherwise discard every bullet beneath them.
+        sections.setdefault(current, []).append(line)
+
+    return sections
+
+
+# ---------------------------------------------------------------------------
+# Tool matching
+# ---------------------------------------------------------------------------
+
+def _find_tools(text: str) -> list[str]:
+    """Canonical tool names present in `text`, whole-phrase anchored."""
+    low = text.lower()
+    found: list[str] = []
+    for canonical, variants in TECHNOLOGY_VOCABULARY.items():
+        for variant in variants:
+            if re.search(rf"(?<![\w/-]){re.escape(variant)}(?![\w-])", low):
+                found.append(canonical)
+                break
+    return found
+
+
+# ---------------------------------------------------------------------------
+# Extraction
+# ---------------------------------------------------------------------------
+
+def extract(advert_text: str, *, include_desirable: bool = True) -> list[Requirement]:
+    """Extract the requirement term list R from advert text.
+
+    One `Requirement` per distinct term. Tools are emitted individually so a
+    bullet naming three technologies yields three requirements — coverage must
+    be able to report exactly which one failed.
+
+    A bullet with no recognised tool becomes a single competency requirement,
+    resolved semantically downstream.
+    """
+    sections = extract_sections(advert_text)
+    seen: set[str] = set()
+    out: list[Requirement] = []
+
+    for name, lines in sections.items():
+        if name == "preamble":
+            continue
+        essential = not any(d in name for d in _DESIRABLE)
+        if not essential and not include_desirable:
+            continue
+
+        for line in lines:
+            m = _BULLET_LINE.match(line)
+            if not m:
+                continue
+            body = m.group("text").strip()
+            if len(body) < 8:
+                continue
+
+            tools = _find_tools(body)
+            for tool in tools:
+                req = Requirement(body, "tool", name, essential, canonical=tool)
+                if req.key not in seen:
+                    seen.add(req.key)
+                    out.append(req)
+
+            if not tools:
+                phrase = _to_competency(body)
+                if phrase:
+                    req = Requirement(phrase, "competency", name, essential)
+                    if req.key not in seen:
+                        seen.add(req.key)
+                        out.append(req)
+
+    # Fallback: an advert with no bullets under any recognised heading still
+    # yields its named technologies rather than scoring zero.
+    if not out:
+        for tool in _find_tools(advert_text):
+            req = Requirement(tool, "tool", "preamble", True, canonical=tool)
+            if req.key not in seen:
+                seen.add(req.key)
+                out.append(req)
+
+    return out
+
+
+def _to_competency(bullet: str) -> str | None:
+    """Reduce a requirement bullet to a matchable phrase.
+
+    Trims leading filler ("experience of", "ability to"), drops parentheticals
+    and trailing clauses, and rejects anything too short or too generic to
+    match meaningfully.
+    """
+    text = re.sub(r"\([^)]*\)", "", bullet).strip()
+    text = re.sub(
+        r"^(?:proven\s+|demonstrable\s+|strong\s+|significant\s+|excellent\s+)?"
+        r"(?:experience(?:\s+(?:of|in|with|working))?|ability\s+to|"
+        r"understanding\s+of|knowledge\s+of|skills?\s+in|track\s+record\s+of)\s+",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    ).strip()
+
+    # First clause only — everything before a comma-plus-conjunction or semicolon
+    text = re.split(r";|,\s+(?:and|as well as|including|together with)\s+", text)[0].strip()
+    text = text.rstrip(".,;: ")
+
+    if len(text) < 12 or len(text.split()) < 3:
+        return None
+    if _STOPWORD_ONLY.match(text):
+        return None
+    return text
