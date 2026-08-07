@@ -41,7 +41,14 @@ Data Profession Capability and Success Profiles Frameworks.
 Stage 1 - Application and sift:
 To apply for this position, you must submit the following as part of your application:
 - an anonymised CV, setting out your career history, key responsibilities and achievements.
-- A Personal Statement (no more than 750 words) which should outline your experience and skills.
+- A Personal Statement (no more than 750 words) which should outline your experience and skills, giving clear examples of work undertaken. It should specifically address the following criteria listed below, using a separate paragraph for each.
+
+- experience of working in a technical team, preferably one using Python and SQL, together with strong technical skills in both languages
+- understanding of the software development lifecycle, including testing (e.g. pytest), version control (e.g. git) and CI/CD (e.g. GitHub Actions)
+- working with data, such as data wrangling, analysis or manipulation
+- communicating with stakeholders and translating user needs into technical requirements
+
+A diverse sift panel will review the information in your CV and Personal Statement to assess the sift criteria specified above.
 
 We operate an anonymous shortlisting process. Please ensure your CV and Personal Statement do not
 include your name or any other identifying details.

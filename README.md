@@ -14,8 +14,9 @@ Governing documents: `PROJECT_VANGUARD_DIRECTIVE.md` (behaviour),
 |---|---|
 | M0 Foundations | Complete |
 | M1 Render chain | Code complete; PDF output unverified |
-| M2 Scoring core | Complete — 95 tests passing |
-| M3 Drafting | Not started |
+| M2 Scoring core | Complete |
+| M3 Drafting | Complete — 184 tests passing, 3 skipped |
+| M4 Ingestion | Not started |
 
 ## Install
 
@@ -64,6 +65,22 @@ for gap in report.gaps:
 `LexicalEmbedder` substitutes for the model when `[scoring]` is not installed.
 It is synonym-blind and flagged as degraded — useful for testing the pipeline,
 not for real scoring.
+
+## Draft an application
+
+```python
+from vanguard.submission import detect
+from vanguard.refactor import refactor
+from vanguard.templates import render_for, Achievement
+
+spec = detect(advert)                    # type + ANONYMISE / WORD_LIMIT / criteria
+result = refactor(requirements, cv, aliases, embedder)
+print(result.summary())                  # exit reason -> queue status
+```
+
+Injection constraints are enforced in code. An achievement whose evidence is
+absent from the CV, a figure not present in the CV, or a Type 3 gap written
+into outbound text all raise `InjectionError` rather than rendering.
 
 ## Render a CV
 
