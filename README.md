@@ -16,8 +16,9 @@ Governing documents: `PROJECT_VANGUARD_DIRECTIVE.md` (behaviour),
 | M1 Render chain | Code complete; PDF output unverified |
 | M2 Scoring core | Complete |
 | M3 Drafting | Complete |
-| M4 Ingestion | Complete — 239 tests passing, 3 skipped |
-| M5 Governance | Not started |
+| M4 Ingestion | Complete |
+| M5 Governance and queue | Complete — 321 tests passing, 3 skipped |
+| M6 Response loop | Not started |
 
 Open defects, deferrals and unverified assumptions: **`OUTSTANDING.md`**.
 
@@ -94,6 +95,28 @@ for gap in report.gaps:
 `LexicalEmbedder` substitutes for the model when `[scoring]` is not installed.
 It is synonym-blind and flagged as degraded — useful for testing the pipeline,
 not for real scoring.
+
+## Run it
+
+```bash
+vanguard boards                     # registry health, credential check
+vanguard run                        # autonomous: fetch, score, queue, exit
+vanguard paste --file advert.txt    # Tier 3: hand-feed one vacancy
+vanguard review                     # PENDING, strongest first
+vanguard review <id>                # coverage, itemised gaps, history
+vanguard approve <id>
+vanguard override <id> --why "..."  # apply despite an unreachable ceiling
+vanguard dispatch <id>              # record a submission YOU made
+vanguard stats                      # coverage distribution, recurring gaps
+vanguard score --advert advert.txt  # standalone, no database
+```
+
+`run` never blocks and never prompts — it writes state and exits. Everything
+else is interactive. **Vanguard never transmits**: `dispatch` records that you
+submitted an application, it does not send one.
+
+Credentials come from the environment: `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`,
+`REED_API_KEY`.
 
 ## Ingest vacancies
 

@@ -18,7 +18,7 @@ Status: `OPEN` · `BLOCKED` · `DEFERRED` · `CLOSED`
 | B-02 | Same precedence issue on location (`where`) | `adapters/adzuna.py`, `adapters/reed.py` | HIGH | **DEFERRED to D-01** |
 | B-03 | `ingest()` has no board filter — cannot restrict a run to named boards | `ingest.py` | MEDIUM | OPEN |
 | B-04 | Reed search returns truncated descriptions. `fetch_detail()` exists but `collect()` never calls it, so requirement extraction runs against partial adverts | `adapters/reed.py` | MEDIUM | OPEN |
-| B-05 | Runs do not record which embedder produced them. A `LexicalEmbedder` result is degraded and indistinguishable from a real one in logs | `rank.py`, `coverage.py` | MEDIUM | OPEN |
+| B-05 | Runs do not record which embedder produced them | `rank.py`, `coverage.py` | MEDIUM | **CLOSED** — `scores.embedder` column added in M5; `run`/`paste`/`score` all report it |
 
 ## 1a. Future separate projects
 
@@ -83,7 +83,7 @@ pass, not a constraint asserted here.
 | V-02 | pypdf never installed. PDF text-layer anonymisation scan untested against a real PDF | The pure `verify_text()` path is tested; the PDF path is not | BLOCKED |
 | V-03 | sentence-transformers never installed. Stage 3 has never scored with a real model | Competency phrases resolve poorly under `LexicalEmbedder`; real coverage is likely higher | BLOCKED |
 | V-04 | httpx never installed. No live API call to Adzuna or Reed | Adapters tested against injected fakes only | BLOCKED |
-| V-05 | Tests run under an offline shim, not pytest | Assertions genuinely executed, but pytest fixtures/marks unexercised | BLOCKED |
+| V-05 | Tests run under an offline shim, not pytest | **CLOSED** — 254 passed under real pytest on the operator's machine, 8 Aug 2026 |
 
 All five clear on first `pip install -e ".[dev]"` and `pytest` on the operator's machine.
 
@@ -93,8 +93,8 @@ All five clear on first `pip install -e ".[dev]"` and `pytest` on the operator's
 |---|---|---|
 | N-01 | `NHSJobsAPIAdapter` — declared in registry, raises "not yet implemented" | NHSBSA API access arranged |
 | N-02 | `FindAJobAdapter` — disabled pending platform migration status | DWP replacement platform contract confirmed |
-| N-03 | CLI (`cli.py`) with `--title` and `--boards` flags | M5 |
-| N-04 | Queue, state machine, SQLite schema | M5 |
+| N-03 | CLI (`cli.py`) | **CLOSED** — M5. `--title`/`--location` present on `run`; note B-01 still causes board config to win |
+| N-04 | Queue, state machine, SQLite schema | **CLOSED** — M5 |
 | N-05 | Mail ingestion, correlation, response classifier | M6 |
 
 ## 5. Authored parameters requiring real data
@@ -208,9 +208,11 @@ considered design.
 | Date | Change |
 |---|---|
 | 2026-08-08 | Created. Consolidates items raised across M0–M4 |
+| 2026-08-08 | M5 complete: SQLite store, queue state machine, operator CLI. `vanguard paste` added — the manual adapter had no CLI entry point, which would have left LinkedIn unusable |
 | 2026-08-08 | First PDF rendered. Compound hyphens (`cloud-based` -> `cloudbased`) were being lost from the text layer — an ATS miss and a coverage-engine miss. Fixed with U+2011 substitution in `protect_compounds()`. CSS tightened for two-page fit; orphans/widows added to keep role blocks together |
 | 2026-08-08 | Skip guard for PDF tests corrected: tested package presence, not importability, so a missing GTK runtime failed instead of skipping |
 | 2026-08-08 | B-01/B-02 deferred to D-01 (adaptive query configuration) per operator direction. Observations from M4 recorded under D-01, explicitly non-binding |
+| 2026-08-08 | M5 complete: SQLite store, queue state machine, operator CLI. `vanguard paste` added — the manual adapter had no CLI entry point, which would have left LinkedIn unusable |
 | 2026-08-08 | First PDF rendered. Compound hyphens (`cloud-based` -> `cloudbased`) were being lost from the text layer — an ATS miss and a coverage-engine miss. Fixed with U+2011 substitution in `protect_compounds()`. CSS tightened for two-page fit; orphans/widows added to keep role blocks together |
 | 2026-08-08 | Skip guard for PDF tests corrected: tested package presence, not importability, so a missing GTK runtime failed instead of skipping |
 | 2026-08-08 | B-01/B-02 deferred to D-01. Adaptive query configuration proposed as a separate project |
