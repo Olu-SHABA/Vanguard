@@ -18,6 +18,10 @@ Status: `OPEN` · `BLOCKED` · `DEFERRED` · `CLOSED`
 | B-02 | Same precedence issue on location (`where`) | `adapters/adzuna.py`, `adapters/reed.py` | HIGH | **DEFERRED to D-01** |
 | B-03 | `ingest()` has no board filter — cannot restrict a run to named boards | `ingest.py` | MEDIUM | OPEN |
 | B-04 | Reed search returns truncated descriptions. `fetch_detail()` exists but `collect()` never calls it, so requirement extraction runs against partial adverts | `adapters/reed.py` | MEDIUM | OPEN |
+| B-06 | `_to_competency()` trimmed at `", and"`, discarding the clause carrying alias evidence. Found on the first real MiniLM run | `extract.py` | HIGH | **CLOSED** — `source_bullet` retained on every Requirement |
+| B-07 | Alias lookup ran against the trimmed phrase only. "communicating with stakeholders" failed stage 2 and fell to stage 3 at 0.513 | `coverage.py` | HIGH | **CLOSED** — resolution tries trimmed then full bullet; Tier C checked across both so an exclusion cannot be evaded by trimming |
+| B-08 | Civil Service Behaviours extracted as coverage requirements. Assessed at interview, not sift — inflated \|R\| and depressed C on every Success Profile advert | `extract.py` | HIGH | **CLOSED** — named behaviours excluded; `submission.detect()` still reports them separately |
+| B-09 | Near-duplicate requirements survive dedup when the same bullet appears in two advert sections with different trimming | `extract.py` | LOW | OPEN |
 | B-05 | Runs do not record which embedder produced them | `rank.py`, `coverage.py` | MEDIUM | **CLOSED** — `scores.embedder` column added in M5; `run`/`paste`/`score` all report it |
 
 ## 1a. Future separate projects
@@ -105,7 +109,7 @@ derived and are estimates until measured.
 | ID | Parameter | Value | Validation trigger |
 |---|---|---|---|
 | P-01 | Coverage gate | 0.94 | 30–40 logged applications |
-| P-02 | MiniLM per-term soft-hit threshold | 0.75 | Soft-hit review history exists |
+| P-02 | MiniLM per-term soft-hit threshold | 0.75 | **First real measurement 8 Aug 2026.** Top stage-3 score 0.613 on the MoJ advert; nothing reached 0.75. Threshold NOT changed — the low scores were caused by B-06/B-07, and lowering to catch 0.513 would also admit 0.613, a Behaviour statement rather than a skill. Revisit once soft-hit history exists |
 | P-03 | Type 1 proposal floor (`_TYPE_1_MIN_SCORE`) | 0.45 | Gap-classification review history |
 | P-04 | `silence_days` | 21 / 30 | Real response-time data |
 | P-05 | `MAX_REFACTOR_ITER` | 2 | Refactor outcome history |
@@ -208,10 +212,12 @@ considered design.
 | Date | Change |
 |---|---|
 | 2026-08-08 | Created. Consolidates items raised across M0–M4 |
+| 2026-08-08 | First MiniLM run produced coverage identical to the lexical fallback (C=0.304), which surfaced B-06/B-07/B-08. After fixes: \|R\| 23 -> 21, C 0.304 -> 0.381. P-02 left at 0.75 on the evidence |
 | 2026-08-08 | M5 complete: SQLite store, queue state machine, operator CLI. `vanguard paste` added — the manual adapter had no CLI entry point, which would have left LinkedIn unusable |
 | 2026-08-08 | First PDF rendered. Compound hyphens (`cloud-based` -> `cloudbased`) were being lost from the text layer — an ATS miss and a coverage-engine miss. Fixed with U+2011 substitution in `protect_compounds()`. CSS tightened for two-page fit; orphans/widows added to keep role blocks together |
 | 2026-08-08 | Skip guard for PDF tests corrected: tested package presence, not importability, so a missing GTK runtime failed instead of skipping |
 | 2026-08-08 | B-01/B-02 deferred to D-01 (adaptive query configuration) per operator direction. Observations from M4 recorded under D-01, explicitly non-binding |
+| 2026-08-08 | First MiniLM run produced coverage identical to the lexical fallback (C=0.304), which surfaced B-06/B-07/B-08. After fixes: \|R\| 23 -> 21, C 0.304 -> 0.381. P-02 left at 0.75 on the evidence |
 | 2026-08-08 | M5 complete: SQLite store, queue state machine, operator CLI. `vanguard paste` added — the manual adapter had no CLI entry point, which would have left LinkedIn unusable |
 | 2026-08-08 | First PDF rendered. Compound hyphens (`cloud-based` -> `cloudbased`) were being lost from the text layer — an ATS miss and a coverage-engine miss. Fixed with U+2011 substitution in `protect_compounds()`. CSS tightened for two-page fit; orphans/widows added to keep role blocks together |
 | 2026-08-08 | Skip guard for PDF tests corrected: tested package presence, not importability, so a missing GTK runtime failed instead of skipping |

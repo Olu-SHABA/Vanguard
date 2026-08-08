@@ -105,3 +105,45 @@ def test_desirable_can_be_excluded() -> None:
     text = "Essential\n- strong Python development skills\n\nDesirable\n- exposure to Kubernetes clusters"
     assert any(r.canonical == "Kubernetes" for r in extract(text))
     assert not any(r.canonical == "Kubernetes" for r in extract(text, include_desirable=False))
+
+
+# ---------------------------------------------------------------------------
+# B-06 / B-08 — trimming must not discard evidence; behaviours are not skills
+# ---------------------------------------------------------------------------
+
+def test_full_source_bullet_is_retained(reqs: list[Requirement]) -> None:
+    """Trimming loses clauses that carry alias-matching evidence."""
+    comp = [r for r in reqs if r.kind == "competency" and r.source_bullet]
+    assert comp
+    assert any(len(r.source_bullet) > len(r.text) for r in comp)
+
+
+def test_match_texts_offers_trimmed_then_full() -> None:
+    bullet = "communicating with stakeholders, and translating user needs into technical requirements"
+    req = extract(f"Essential\n- {bullet}")[0]
+    assert req.match_texts[0] == req.text
+    assert bullet in req.match_texts[-1]
+
+
+@pytest.mark.parametrize(
+    "behaviour",
+    ["Changing and Improving", "Managing a Quality Service", "Delivering at Pace",
+     "Seeing the Big Picture", "Working Together"],
+)
+def test_named_behaviours_are_not_requirements(behaviour: str) -> None:
+    """Behaviours are assessed at interview, not in the sift. Counting them
+    inflates |R| and depresses coverage on every Success Profile advert."""
+    reqs = extract(f"Essential\n- {behaviour}")
+    assert not any(behaviour.lower() in r.text.lower() for r in reqs)
+
+
+def test_behaviours_excluded_from_moj_advert(reqs: list[Requirement]) -> None:
+    terms = " ".join(r.text.lower() for r in reqs)
+    assert "changing and improving" not in terms
+    assert "managing a quality service" not in terms
+
+
+def test_behaviour_exclusion_does_not_remove_real_requirements(reqs: list[Requirement]) -> None:
+    """'Leadership' is a behaviour name, but real requirements survive."""
+    assert any(r.canonical == "Python" for r in reqs)
+    assert any(r.canonical == "SQL" for r in reqs)

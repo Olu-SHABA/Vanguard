@@ -171,3 +171,37 @@ def test_tier_ab_without_evidence_is_rejected(tmp_path: Path) -> None:
 def test_no_duplicate_alias_terms(aliases) -> None:
     terms = [a.lower() for e in aliases.entries for a in e.aliases]
     assert len(terms) == len(set(terms))
+
+
+# ---------------------------------------------------------------------------
+# B-07 — resolution must try the full advert bullet, not only the trimmed phrase
+# ---------------------------------------------------------------------------
+
+def test_trimmed_phrase_falls_back_to_full_bullet(cv, aliases) -> None:
+    """Discovered on the first real MiniLM run: a term that should resolve
+    deterministically at stage 2 was reaching stage 3 and failing at 0.513."""
+    bullet = "communicating with stakeholders, and translating user needs into technical requirements"
+    req = extract(f"Essential\n- {bullet}")[0]
+
+    resolution = resolve_term(req, cv, aliases)
+    assert resolution.outcome is Outcome.HIT
+    assert resolution.stage == 2
+    assert resolution.alias_canonical == "stakeholder communication"
+
+
+def test_exclusion_cannot_be_evaded_by_trimming(cv, aliases) -> None:
+    """A Tier C term appearing only in the trailing clause must still block."""
+    bullet = "strong delivery focus, and hands-on experience with Spark clusters"
+    req = extract(f"Essential\n- {bullet}")[0]
+
+    resolution = resolve_term(req, cv, aliases)
+    assert resolution.outcome is Outcome.GAP
+    assert resolution.exclusion_reason
+
+
+def test_moj_coverage_improves_after_b06_b07_b08(cv, aliases) -> None:
+    """Regression guard on the measured improvement: 0.304 -> 0.381."""
+    report = compute_coverage(extract(ADVERT.read_text(encoding="utf-8")),
+                              cv, aliases, LexicalEmbedder())
+    assert report.total == 21, "behaviours must not count as requirements"
+    assert report.coverage > 0.35

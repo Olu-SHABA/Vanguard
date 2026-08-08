@@ -243,16 +243,27 @@ def resolve_term(
     term = req.canonical or req.text
     cv_low = cv.full_text().lower()
 
-    # Tier C — exclusion, checked first and terminal.
-    entry = aliases.lookup(term)
-    if entry and entry.excluded:
-        return Resolution(
-            requirement=req,
-            outcome=Outcome.GAP,
-            stage=2,
-            alias_canonical=entry.canonical,
-            exclusion_reason=entry.reason or "excluded by alias table Tier C",
-        )
+    # Candidate strings: the trimmed phrase, then the full advert bullet.
+    # B-07: matching only the trimmed phrase loses clauses that carry the
+    # evidence — "communicating with stakeholders, and translating user needs"
+    # trims to the first clause, but the second is what the alias table knows.
+    candidates = getattr(req, "match_texts", (term,))
+
+    # Tier C — exclusion, checked first and terminal. Checked across ALL
+    # candidates: an exclusion must not be evaded by trimming.
+    entry = None
+    for candidate in candidates:
+        found = aliases.lookup(candidate)
+        if found and found.excluded:
+            return Resolution(
+                requirement=req,
+                outcome=Outcome.GAP,
+                stage=2,
+                alias_canonical=found.canonical,
+                exclusion_reason=found.reason or "excluded by alias table Tier C",
+            )
+        if found and entry is None:
+            entry = found
 
     # Stage 1 — exact / lemma.
     span = _find_in_cv(term, cv_low)

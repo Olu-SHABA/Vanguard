@@ -134,6 +134,22 @@ _SPEC_HEADINGS = (
 _DESIRABLE = ("desirable", "nice to have", "bonus", "advantageous")
 
 _BULLET_LINE = re.compile(r"^\s*(?:[-*\u2022\u25cf\u25cb\u25aa\u2043]|\d+[.)])\s+(?P<text>.+?)\s*$")
+# Civil Service Behaviours are assessed at INTERVIEW, not in the sift. They are
+# not skills to be matched against a CV, and counting them inflates |R| —
+# depressing coverage on every Success Profile advert. `submission.detect()`
+# extracts them separately, where they belong.
+_BEHAVIOURS = frozenset({
+    "changing and improving",
+    "communicating and influencing",
+    "delivering at pace",
+    "developing self and others",
+    "leadership",
+    "making effective decisions",
+    "managing a quality service",
+    "seeing the big picture",
+    "working together",
+})
+
 _STOPWORD_ONLY = re.compile(
     r"^(?:and|or|the|a|an|of|in|to|for|with|as|is|are|be|will|you|we|our|your)\b",
     re.IGNORECASE,
@@ -142,13 +158,29 @@ _STOPWORD_ONLY = re.compile(
 
 @dataclass(frozen=True)
 class Requirement:
-    """One extracted requirement. `text` is verbatim from the advert."""
+    """One extracted requirement. `text` is verbatim from the advert.
+
+    `source_bullet` retains the FULL advert line. `text` may be a trimmed
+    phrase, and trimming can discard the clause that carries the evidence:
+    "communicating with stakeholders, and translating user needs" trims to the
+    first clause, but "translating user needs" is the half that matches the
+    alias table. Resolution tries both.
+    """
 
     text: str
     kind: Kind
     section: str
     essential: bool = True
     canonical: str | None = None  # set for tools: the vocabulary key
+    source_bullet: str = ""       # full advert line, before trimming
+
+    @property
+    def match_texts(self) -> tuple[str, ...]:
+        """Strings to try when resolving. Trimmed phrase first, then the full line."""
+        out = [self.canonical or self.text]
+        if self.source_bullet and self.source_bullet != self.text:
+            out.append(self.source_bullet)
+        return tuple(out)
 
     @property
     def key(self) -> str:
@@ -245,9 +277,13 @@ def extract(advert_text: str, *, include_desirable: bool = True) -> list[Require
             if len(body) < 8:
                 continue
 
+            if body.strip().lower().rstrip(".") in _BEHAVIOURS:
+                continue  # interview-stage behaviour, not a sift requirement
+
             tools = _find_tools(body)
             for tool in tools:
-                req = Requirement(body, "tool", name, essential, canonical=tool)
+                req = Requirement(body, "tool", name, essential,
+                                  canonical=tool, source_bullet=body)
                 if req.key not in seen:
                     seen.add(req.key)
                     out.append(req)
@@ -255,7 +291,8 @@ def extract(advert_text: str, *, include_desirable: bool = True) -> list[Require
             if not tools:
                 phrase = _to_competency(body)
                 if phrase:
-                    req = Requirement(phrase, "competency", name, essential)
+                    req = Requirement(phrase, "competency", name, essential,
+                                      source_bullet=body)
                     if req.key not in seen:
                         seen.add(req.key)
                         out.append(req)
@@ -264,7 +301,8 @@ def extract(advert_text: str, *, include_desirable: bool = True) -> list[Require
     # yields its named technologies rather than scoring zero.
     if not out:
         for tool in _find_tools(advert_text):
-            req = Requirement(tool, "tool", "preamble", True, canonical=tool)
+            req = Requirement(tool, "tool", "preamble", True,
+                              canonical=tool, source_bullet=tool)
             if req.key not in seen:
                 seen.add(req.key)
                 out.append(req)
