@@ -15,8 +15,11 @@ Governing documents: `PROJECT_VANGUARD_DIRECTIVE.md` (behaviour),
 | M0 Foundations | Complete |
 | M1 Render chain | Code complete; PDF output unverified |
 | M2 Scoring core | Complete |
-| M3 Drafting | Complete — 184 tests passing, 3 skipped |
-| M4 Ingestion | Not started |
+| M3 Drafting | Complete |
+| M4 Ingestion | Complete — 239 tests passing, 3 skipped |
+| M5 Governance | Not started |
+
+Open defects, deferrals and unverified assumptions: **`OUTSTANDING.md`**.
 
 ## Install
 
@@ -65,6 +68,30 @@ for gap in report.gaps:
 `LexicalEmbedder` substitutes for the model when `[scoring]` is not installed.
 It is synonym-blind and flagged as degraded — useful for testing the pipeline,
 not for real scoring.
+
+## Ingest vacancies
+
+```python
+from vanguard.adapters.base import load_registry, Query
+from vanguard.ingest import ingest, health_check_all
+
+registry = load_registry("config/boards.yaml")
+for status in health_check_all(registry):
+    print(status)
+
+run = ingest(registry, Query(keywords=("data engineer",), location="UK"))
+print(run.summary())        # collected -> kept, with per-board overlap
+```
+
+Credentials come from the environment, never from `boards.yaml`:
+`ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `REED_API_KEY`.
+
+Tier 3 boards are hand-fed and everything downstream still runs on them:
+
+```python
+from vanguard.adapters.manual import ManualEntryAdapter
+vacancy = ManualEntryAdapter(registry.get("linkedin")).submit(pasted_text, url=...)
+```
 
 ## Draft an application
 
