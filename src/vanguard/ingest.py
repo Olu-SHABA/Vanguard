@@ -35,6 +35,7 @@ from vanguard.adapters.base import (
     Query,
     RegistryEntry,
     TermsViolation,
+    Truncation,
     Vacancy,
     deduplicate,
 )
@@ -90,17 +91,26 @@ class BoardOutcome:
     collected: int = 0
     error: str = ""
     skipped: str = ""
+    truncations: tuple[Truncation, ...] = ()
 
     @property
     def ok(self) -> bool:
         return not self.error and not self.skipped
+
+    @property
+    def truncated(self) -> bool:
+        """More results existed than were collected."""
+        return bool(self.truncations)
 
     def __str__(self) -> str:
         if self.skipped:
             return f"{self.board_id}: skipped — {self.skipped}"
         if self.error:
             return f"{self.board_id}: ERROR — {self.error}"
-        return f"{self.board_id}: {self.collected} vacancies"
+        line = f"{self.board_id}: {self.collected} vacancies"
+        if self.truncated:
+            line += f"  [TRUNCATED x{len(self.truncations)}]"
+        return line
 
 
 @dataclass
@@ -128,12 +138,28 @@ class IngestionRun:
     def failures(self) -> list[BoardOutcome]:
         return [o for o in self.outcomes if o.error]
 
+    @property
+    def truncations(self) -> list[Truncation]:
+        """Every point where a board had more than was collected."""
+        return [t for o in self.outcomes for t in o.truncations]
+
+    @property
+    def complete(self) -> bool:
+        """False when any board was truncated. The run is a sample, not a census."""
+        return not self.truncations
+
     def summary(self) -> str:
         lines = [
             f"collected {self.collected}  ->  kept {self.kept}  "
             f"({self.duplicates} duplicate{'s' if self.duplicates != 1 else ''} logged)"
         ]
         lines += [f"  {o}" for o in self.outcomes]
+        if self.truncations:
+            lines.append(
+                f"  INCOMPLETE — {len(self.truncations)} truncation(s); "
+                "more vacancies existed than were collected:"
+            )
+            lines += [f"    {t}" for t in self.truncations]
         if self.dedup.overlap_by_board:
             overlap = ", ".join(
                 f"{b}:{n}" for b, n in sorted(self.dedup.overlap_by_board.items())
@@ -175,7 +201,10 @@ def ingest(
             entry.assert_fetchable()
             found = adapter.collect(query)
             harvested.extend(found)
-            outcomes.append(BoardOutcome(entry.id, entry.tier.value, collected=len(found)))
+            outcomes.append(BoardOutcome(
+                entry.id, entry.tier.value, collected=len(found),
+                truncations=tuple(getattr(adapter, "truncations", ())),
+            ))
         except TermsViolation as exc:
             outcomes.append(BoardOutcome(entry.id, entry.tier.value, skipped=str(exc)))
         except Exception as exc:

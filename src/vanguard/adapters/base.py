@@ -36,6 +36,7 @@ from typing import Any, Iterable, Sequence
 
 __all__ = [
     "Tier",
+    "Truncation",
     "Query",
     "RawVacancy",
     "Vacancy",
@@ -88,13 +89,18 @@ class Tier(str, Enum):
 
 @dataclass(frozen=True)
 class Query:
-    """What to ask a board for. Boards translate this to their own parameters."""
+    """What to ask a board for. Boards translate this to their own parameters.
+
+    `max_results` is a per-keyword ceiling across ALL pages, not a page size.
+    Adapters paginate until they reach it or the board runs out.
+    """
 
     keywords: tuple[str, ...] = ()
     location: str = ""
     country: str = "gb"
     max_days_old: int = 7
-    max_results: int = 50
+    max_results: int = 100
+    max_pages: int = 5      # hard stop, so a broad query cannot run away
 
 
 @dataclass
@@ -135,6 +141,25 @@ class Vacancy:
     @property
     def dedup_key(self) -> str:
         return dedup_key(self.employer, self.title, self.location, self.salary_band)
+
+
+@dataclass
+class Truncation:
+    """A board had more results than were collected.
+
+    Recorded rather than swallowed. Silent truncation is the same failure as
+    silent misclassification: the output looks complete and is not, and
+    nothing downstream can tell the difference.
+    """
+
+    board_id: str
+    keyword: str
+    collected: int
+    reason: str
+
+    def __str__(self) -> str:
+        term = f" for {self.keyword!r}" if self.keyword else ""
+        return f"{self.board_id}{term}: stopped at {self.collected} — {self.reason}"
 
 
 @dataclass
@@ -314,6 +339,10 @@ class BoardAdapter(ABC):
     def __init__(self, entry: RegistryEntry) -> None:
         self.entry = entry
         self.limiter = RateLimiter(entry.calls_per_hour)
+        self.truncations: list[Truncation] = []
+
+    def _note_truncation(self, keyword: str, collected: int, reason: str) -> None:
+        self.truncations.append(Truncation(self.board_id, keyword, collected, reason))
 
     @property
     def board_id(self) -> str:

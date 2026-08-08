@@ -32,6 +32,7 @@ from vanguard.adapters.base import (
 __all__ = ["AdzunaAPIAdapter", "HttpClient"]
 
 _BASE = "https://api.adzuna.com/v1/api/jobs"
+PAGE_SIZE = 50  # Adzuna hard maximum per page
 
 
 class HttpClient(Protocol):
@@ -79,23 +80,47 @@ class AdzunaAPIAdapter(BoardAdapter):
         max_age = int(cfg.get("max_days_old", query.max_days_old))
 
         out: list[RawVacancy] = []
-        for term in keywords or ("",):
-            params = {
-                "app_id": app_id,
-                "app_key": app_key,
-                "results_per_page": min(query.max_results, 50),
-                "max_days_old": max_age,
-                "content-type": "application/json",
-            }
-            if term:
-                params["what"] = term
-            if where:
-                params["where"] = where
+        self.truncations.clear()
+        page_size = min(query.max_results, PAGE_SIZE)
 
-            self.limiter.acquire()
-            payload = self._request(f"{_BASE}/{country}/search/1", params)
-            for item in payload.get("results", []) or []:
-                out.append(RawVacancy(self.board_id, item))
+        for term in keywords or ("",):
+            collected = 0
+            for page in range(1, query.max_pages + 1):
+                params = {
+                    "app_id": app_id,
+                    "app_key": app_key,
+                    "results_per_page": page_size,
+                    "max_days_old": max_age,
+                    "content-type": "application/json",
+                }
+                if term:
+                    params["what"] = term
+                if where:
+                    params["where"] = where
+
+                self.limiter.acquire()
+                payload = self._request(f"{_BASE}/{country}/search/{page}", params)
+                results = payload.get("results", []) or []
+
+                for item in results:
+                    out.append(RawVacancy(self.board_id, item))
+                collected += len(results)
+
+                # A short page means the board has no more for this term.
+                if len(results) < page_size:
+                    break
+                if collected >= query.max_results:
+                    self._note_truncation(
+                        term, collected,
+                        f"reached max_results={query.max_results}; "
+                        f"board reported {payload.get('count', 'unknown')} total",
+                    )
+                    break
+            else:
+                self._note_truncation(
+                    term, collected,
+                    f"reached max_pages={query.max_pages}; more results remain",
+                )
 
         return out
 

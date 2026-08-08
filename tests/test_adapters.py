@@ -327,3 +327,155 @@ def test_salary_band_distinguishes_postings() -> None:
     r = deduplicate([vac("adzuna", 1, "MoJ", "Data Engineer", salary="40,000"),
                      vac("adzuna", 2, "MoJ", "Data Engineer", salary="60,000")], {"adzuna": 1})
     assert len(r.kept) == 2
+
+
+# ---------------------------------------------------------------------------
+# B-11 / B-12 — pagination, and truncation must never be silent
+# ---------------------------------------------------------------------------
+
+class PagingClient:
+    """Returns full pages until `total` is exhausted, PER KEYWORD.
+
+    The pool must be per keyword, not shared. A shared pool drains on the
+    first search term and every later one comes back short, which reads as a
+    pagination bug in the adapter when it is a defect in the double.
+    """
+
+    def __init__(self, page_size: int, total: int, key: str = "results",
+                 count_key: str = "count") -> None:
+        self.page_size, self.total = page_size, total
+        self.key, self.count_key = key, count_key
+        self.served: dict[str, int] = {}
+        self.calls: list[tuple[str, dict]] = []
+
+    def get(self, url, params=None):
+        params = params or {}
+        self.calls.append((url, params))
+        term = params.get("what") or params.get("keywords") or ""
+        used = self.served.get(term, 0)
+        take = params.get("results_per_page") or params.get("resultsToTake") or self.page_size
+        n = max(0, min(take, self.total - used))
+        self.served[term] = used + n
+        payload = {
+            self.count_key: self.total,
+            self.key: [
+                {"id": str(i), "jobId": i, "title": "T", "jobTitle": "T",
+                 "description": "Python.", "jobDescription": "Python.",
+                 "company": {"display_name": "C"}, "employerName": "C",
+                 "location": {"display_name": "L"}, "locationName": "L"}
+                for i in range(n)
+            ],
+        }
+        return FakeResponse(payload)
+
+
+def _with_creds(entry, **auth):
+    entry.auth.update(auth)
+    return entry
+
+
+def test_adzuna_paginates_beyond_the_first_page(registry) -> None:
+    """B-11: page 1 was hardcoded. Everything beyond 50 was silently lost.
+
+    Note the keyword count. boards.yaml declares three `what` terms and board
+    config currently overrides the caller's query — that is B-01, deferred to
+    design proposal D-01 rather than patched. So a per-keyword ceiling of 200
+    yields 200 x 3 results across 4 pages x 3 keywords.
+    """
+    from vanguard.adapters.adzuna import AdzunaAPIAdapter
+
+    entry = _with_creds(registry.get("adzuna"), app_id="x", app_key="y")
+    keywords = len(entry.query.get("what") or [""])
+
+    client = PagingClient(50, 500)
+    adapter = AdzunaAPIAdapter(entry, client=client)
+    results = adapter.fetch(Query(max_results=200))
+
+    assert len(results) == 200 * keywords
+    assert len(client.calls) == 4 * keywords
+
+
+def test_adzuna_records_truncation(registry) -> None:
+    """B-12: the run is a sample, not a census. Say so."""
+    from vanguard.adapters.adzuna import AdzunaAPIAdapter
+
+    adapter = AdzunaAPIAdapter(
+        _with_creds(registry.get("adzuna"), app_id="x", app_key="y"),
+        client=PagingClient(50, 5000),
+    )
+    adapter.fetch(Query(keywords=("data scientist",), max_results=100))
+    assert adapter.truncations
+    assert "5000" in adapter.truncations[0].reason
+
+
+def test_short_page_ends_without_truncation(registry) -> None:
+    """A board with nothing more to give is not a truncation."""
+    from vanguard.adapters.adzuna import AdzunaAPIAdapter
+
+    entry = _with_creds(registry.get("adzuna"), app_id="x", app_key="y")
+    keywords = len(entry.query.get("what") or [""])
+
+    adapter = AdzunaAPIAdapter(entry, client=PagingClient(50, 12))
+    results = adapter.fetch(Query(max_results=200))
+
+    assert len(results) == 12 * keywords
+    assert not adapter.truncations
+
+
+def test_max_pages_is_a_hard_stop(registry) -> None:
+    """A broad query must not run away."""
+    from vanguard.adapters.adzuna import AdzunaAPIAdapter
+
+    entry = _with_creds(registry.get("adzuna"), app_id="x", app_key="y")
+    keywords = len(entry.query.get("what") or [""])
+
+    client = PagingClient(50, 10_000)
+    adapter = AdzunaAPIAdapter(entry, client=client)
+    adapter.fetch(Query(max_results=100_000, max_pages=3))
+
+    assert len(client.calls) == 3 * keywords
+    assert "max_pages" in adapter.truncations[0].reason
+
+
+def test_board_config_overrides_caller_keywords(registry) -> None:
+    """Documents B-01 rather than asserting it is correct.
+
+    A caller-supplied job title is currently ignored when boards.yaml declares
+    `what`. Deferred to D-01 (adaptive query configuration) by operator ruling;
+    inert until the CLI exposes --title. This test makes any change to the
+    behaviour deliberate rather than accidental.
+    """
+    from vanguard.adapters.adzuna import AdzunaAPIAdapter
+
+    entry = _with_creds(registry.get("adzuna"), app_id="x", app_key="y")
+    client = PagingClient(50, 10)
+    adapter = AdzunaAPIAdapter(entry, client=client)
+    adapter.fetch(Query(keywords=("quantum basket weaving",), max_results=50))
+
+    sent = [c[1].get("what") for c in client.calls]
+    assert "quantum basket weaving" not in sent
+    assert sent == list(entry.query["what"])
+
+
+def test_reed_paginates_with_offset(registry) -> None:
+    from vanguard.adapters.reed import ReedAPIAdapter
+
+    client = PagingClient(100, 250, count_key="totalResults")
+    adapter = ReedAPIAdapter(_with_creds(registry.get("reed"), api_key="k"), client=client)
+    results = adapter.fetch(Query(keywords=("data scientist",), max_results=250))
+    assert len(results) == 250
+    offsets = [c[1].get("resultsToSkip") for c in client.calls]
+    assert offsets == [0, 100, 200]
+
+
+def test_reed_rate_limit_records_truncation(registry) -> None:
+    from vanguard.adapters.reed import ReedAPIAdapter
+
+    class Limited:
+        def get(self, url, params=None):
+            return FakeResponse({}, status=429)
+
+    adapter = ReedAPIAdapter(_with_creds(registry.get("reed"), api_key="k"),
+                             client=Limited())
+    adapter.fetch(Query(keywords=("x",)))
+    assert adapter.truncations and "rate limited" in adapter.truncations[0].reason

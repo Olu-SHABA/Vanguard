@@ -30,6 +30,7 @@ __all__ = ["ReedAPIAdapter"]
 
 _SEARCH = "https://www.reed.co.uk/api/1.0/search"
 _DETAIL = "https://www.reed.co.uk/api/1.0/jobs"
+PAGE_SIZE = 100  # Reed maximum per request
 
 
 class ReedAPIAdapter(BoardAdapter):
@@ -67,31 +68,57 @@ class ReedAPIAdapter(BoardAdapter):
         where = str(cfg.get("where", query.location) or "")
 
         out: list[RawVacancy] = []
+        self.truncations.clear()
+        page_size = min(query.max_results, PAGE_SIZE)
+
         for term in keywords or ("",):
-            params: dict[str, Any] = {"resultsToTake": min(query.max_results, 100)}
-            if term:
-                params["keywords"] = term
-            if where:
-                params["locationName"] = where
+            collected = 0
+            for page in range(query.max_pages):
+                params: dict[str, Any] = {
+                    "resultsToTake": page_size,
+                    "resultsToSkip": page * page_size,
+                }
+                if term:
+                    params["keywords"] = term
+                if where:
+                    params["locationName"] = where
 
-            self.limiter.acquire()
-            response = self._http().get(_SEARCH, params=params)
-            status = getattr(response, "status_code", 200)
+                self.limiter.acquire()
+                response = self._http().get(_SEARCH, params=params)
+                status = getattr(response, "status_code", 200)
 
-            if status == 429:
-                self.limiter.penalise()
-                continue
-            if status >= 400:
-                raise IngestionError(f"{self.board_id}: HTTP {status} from search")
+                if status == 429:
+                    self.limiter.penalise()
+                    self._note_truncation(term, collected, "rate limited by board")
+                    break
+                if status >= 400:
+                    raise IngestionError(f"{self.board_id}: HTTP {status} from search")
 
-            self.limiter.reset()
-            try:
-                payload = response.json()
-            except Exception as exc:
-                raise IngestionError(f"{self.board_id}: malformed JSON") from exc
+                self.limiter.reset()
+                try:
+                    payload = response.json()
+                except Exception as exc:
+                    raise IngestionError(f"{self.board_id}: malformed JSON") from exc
 
-            for item in payload.get("results", []) or []:
-                out.append(RawVacancy(self.board_id, item))
+                results = payload.get("results", []) or []
+                for item in results:
+                    out.append(RawVacancy(self.board_id, item))
+                collected += len(results)
+
+                if len(results) < page_size:
+                    break
+                if collected >= query.max_results:
+                    self._note_truncation(
+                        term, collected,
+                        f"reached max_results={query.max_results}; "
+                        f"board reported {payload.get('totalResults', 'unknown')} total",
+                    )
+                    break
+            else:
+                self._note_truncation(
+                    term, collected,
+                    f"reached max_pages={query.max_pages}; more results remain",
+                )
 
         return out
 

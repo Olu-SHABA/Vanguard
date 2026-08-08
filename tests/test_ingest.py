@@ -170,3 +170,40 @@ def test_health_check_reports_missing_credentials(registry) -> None:
 def test_health_check_never_raises(registry) -> None:
     for s in health_check_all(registry):
         assert isinstance(s.reachable, bool)
+
+
+# ---------------------------------------------------------------------------
+# B-12 — an incomplete run must declare itself
+# ---------------------------------------------------------------------------
+
+def test_run_reports_incompleteness(registry) -> None:
+    from vanguard.adapters.base import Truncation
+
+    class Truncating(StubAdapter):
+        def fetch(self, query):
+            self.entry.assert_fetchable()
+            self._note_truncation("data scientist", 50, "reached max_results=50")
+            return []
+
+    run = ingest(registry, Query(), adapter_factory=Truncating)
+    assert not run.complete
+    assert run.truncations
+    assert "INCOMPLETE" in run.summary()
+
+
+def test_complete_run_says_nothing_about_truncation(registry) -> None:
+    run = ingest(registry, Query(), adapter_factory=StubAdapter)
+    assert run.complete
+    assert "INCOMPLETE" not in run.summary()
+
+
+def test_truncation_names_the_board_and_keyword(registry) -> None:
+    class Truncating(StubAdapter):
+        def fetch(self, query):
+            self.entry.assert_fetchable()
+            self._note_truncation("network analytics", 100, "reached max_pages=5")
+            return []
+
+    run = ingest(registry, Query(), adapter_factory=Truncating)
+    text = " ".join(str(t) for t in run.truncations)
+    assert "network analytics" in text and "adzuna" in text
