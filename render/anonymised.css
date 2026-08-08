@@ -4,7 +4,7 @@
 
 @page {
   size: A4;
-  margin: 14mm 15mm 16mm 15mm;
+  margin: 9.5mm 12mm 11mm 12mm;
   @bottom-right {
     content: counter(page) " / " counter(pages);
     font: 8pt "Source Sans Pro", Calibri, sans-serif;
@@ -12,12 +12,12 @@
   }
 }
 
-html { font-size: 10pt; }
+html { font-size: 9.4pt; }
 
 body {
   font-family: "Source Sans Pro", Calibri, "Helvetica Neue", sans-serif;
   color: #1a1a1a;
-  line-height: 1.34;
+  line-height: 1.22;
   margin: 0;
   hyphens: none;
 }
@@ -25,12 +25,12 @@ body {
 /* --- Header: name and contact line ------------------------------------- */
 
 h1 {
-  font-size: 19pt;
+  font-size: 17pt;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-align: center;
   text-transform: uppercase;
-  margin: 0 0 2mm;
+  margin: 0 0 1.4mm;
 }
 
 /* Contact line — first paragraph after the name */
@@ -46,23 +46,23 @@ h1 + p a { color: #1a4a7a; text-decoration: none; }
 /* --- Section headings --------------------------------------------------- */
 
 h2 {
-  font-size: 10.5pt;
+  font-size: 9.8pt;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #1a3a5a;
   border-bottom: 0.6pt solid #1a3a5a;
   padding-bottom: 0.8mm;
-  margin: 4.5mm 0 2mm;
+  margin: 2.6mm 0 1.2mm;
   break-after: avoid;
 }
 
 /* --- Role headings ------------------------------------------------------ */
 
 h3 {
-  font-size: 10.5pt;
+  font-size: 9.9pt;
   font-weight: 700;
-  margin: 3.2mm 0 0.4mm;
+  margin: 2.0mm 0 0.25mm;
   break-after: avoid;
 }
 
@@ -70,7 +70,7 @@ h3 {
 h3 + p {
   font-size: 9.5pt;
   color: #444;
-  margin: 0 0 1.2mm;
+  margin: 0 0 0.9mm;
   break-after: avoid;
 }
 
@@ -78,13 +78,13 @@ h3 + p strong { color: #1a1a1a; }
 
 /* --- Body --------------------------------------------------------------- */
 
-p { margin: 0 0 1.8mm; text-align: left; }
+p { margin: 0 0 1.4mm; text-align: left; }
 
-ul { margin: 0 0 2mm; padding-left: 4.5mm; }
+ul { margin: 0 0 1.2mm; padding-left: 4mm; }
 
 li {
-  margin-bottom: 1.1mm;
-  padding-left: 0.6mm;
+  margin-bottom: 0.5mm;
+  padding-left: 0.5mm;
   break-inside: avoid;
 }
 
@@ -118,10 +118,24 @@ td:not(:empty)::before { content: "• "; color: #1a3a5a; }
 /* --- Page-break discipline ---------------------------------------------- */
 
 h2, h3 { page-break-after: avoid; }
+
+/* Short trailing sections (EDUCATION, CERTIFICATIONS) must not be stranded on
+   a page of their own — a near-empty final page makes a CV look padded. */
+h2 + p, h2 + ul, h2 + table { break-before: avoid; }
 li, tr { page-break-inside: avoid; }
 
-/* Keep a role heading with at least the first two bullets of its list */
+/* Keep a role heading with the start of its list. `break-before: avoid` on the
+   list alone is not enough — WeasyPrint will still place the heading at the
+   foot of a page and the first bullets overleaf. Orphans/widows on the list
+   items force at least two lines to travel with the heading. */
 h3 + p + ul { break-before: avoid; }
+
+ul { orphans: 2; widows: 2; }
+li { orphans: 2; widows: 2; }
+
+/* A role block is heading + meta + list. Nothing may break between the first
+   three of those. */
+h3, h3 + p { break-after: avoid-page; }
 
 /* =======================================================================
    ANONYMISED OVERRIDES

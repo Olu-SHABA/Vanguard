@@ -28,6 +28,7 @@ from pathlib import Path
 
 __all__ = [
     "AnonProfile",
+    "protect_compounds",
     "Leak",
     "RenderError",
     "AnonymisationError",
@@ -211,7 +212,8 @@ def verify_text(text: str, profile: AnonProfile) -> list[Leak]:
     leak-detection logic lives so it can be tested directly.
     """
     leaks: list[Leak] = []
-    low = text.lower()
+    # Normalise the non-breaking hyphen so a scan is not defeated by rendering.
+    low = text.lower().replace(NB_HYPHEN, "-")
 
     for field_name, literal in profile.scan_terms():
         idx = low.find(literal.lower())
@@ -266,6 +268,28 @@ def verify_pdf(pdf_path: Path, profile: AnonProfile) -> list[Leak]:
 
 _MD_EXTENSIONS = ["tables", "attr_list", "sane_lists"]
 
+NB_HYPHEN = "\u2011"  # NON-BREAKING HYPHEN
+
+# A compound word: letters, a hyphen, letters. Excludes en/em dashes used as
+# punctuation, and date ranges.
+_COMPOUND = re.compile(r"(?<=[A-Za-z])-(?=[A-Za-z])")
+
+
+def protect_compounds(text: str) -> str:
+    """Replace hyphens inside compound words with U+2011 non-breaking hyphen.
+
+    A compound broken across a line loses its hyphen in the PDF text layer:
+    'cloud-based' extracts as 'cloudbased', 'real-time' as 'realtime'. The page
+    looks correct; the text layer does not.
+
+    That matters more here than typography. ATS parse the text layer, and so
+    does this project's own coverage engine — a requirement for 'real-time'
+    would score as a miss against a CV that visibly contains it.
+
+    U+2011 renders identically to a hyphen and forbids a break at that point.
+    """
+    return _COMPOUND.sub(NB_HYPHEN, text)
+
 
 def markdown_to_html(markdown_text: str, title: str = "") -> str:
     """Convert Markdown to a standalone HTML document."""
@@ -274,7 +298,7 @@ def markdown_to_html(markdown_text: str, title: str = "") -> str:
     except ImportError as exc:  # pragma: no cover
         raise RenderError("markdown required: pip install markdown") from exc
 
-    body = md.markdown(markdown_text, extensions=_MD_EXTENSIONS)
+    body = md.markdown(protect_compounds(markdown_text), extensions=_MD_EXTENSIONS)
     return (
         "<!DOCTYPE html>\n<html lang='en'><head><meta charset='utf-8'>"
         f"<title>{title}</title></head><body>\n{body}\n</body></html>\n"
@@ -312,6 +336,14 @@ def render(
         HTML(string=html, base_url=str(md_path.parent)).write_pdf(
             str(out_path), stylesheets=[CSS(filename=str(css_path))]
         )
+    except PermissionError as exc:
+        # Overwhelmingly the cause on Windows: the previous render is still open
+        # in a PDF viewer, which holds an exclusive lock on the file.
+        raise RenderError(
+            f"could not write {out_path}: permission denied. The file is most "
+            "likely open in a PDF viewer — close it and re-run. If not, check "
+            "write permissions on the output directory."
+        ) from exc
     except OSError as exc:
         raise RenderError(f"could not write {out_path}: {exc}") from exc
     except Exception as exc:

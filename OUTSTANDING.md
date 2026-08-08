@@ -79,7 +79,7 @@ pass, not a constraint asserted here.
 
 | ID | Item | Consequence | Status |
 |---|---|---|---|
-| V-01 | WeasyPrint never installed. **No PDF has ever been rendered** | `render/standard.css` and `render/anonymised.css` are written blind. Most likely component to need work | BLOCKED |
+| V-01 | First PDF rendered 8 Aug 2026 after GTK3 install. Three defects found and fixed: compound hyphens lost from the text layer, 3-page overrun, role split across a page break | CSS revised but **the revision is itself unverified** — re-render required | OPEN — re-render pending |
 | V-02 | pypdf never installed. PDF text-layer anonymisation scan untested against a real PDF | The pure `verify_text()` path is tested; the PDF path is not | BLOCKED |
 | V-03 | sentence-transformers never installed. Stage 3 has never scored with a real model | Competency phrases resolve poorly under `LexicalEmbedder`; real coverage is likely higher | BLOCKED |
 | V-04 | httpx never installed. No live API call to Adzuna or Reed | Adapters tested against injected fakes only | BLOCKED |
@@ -208,5 +208,9 @@ considered design.
 | Date | Change |
 |---|---|
 | 2026-08-08 | Created. Consolidates items raised across M0–M4 |
+| 2026-08-08 | First PDF rendered. Compound hyphens (`cloud-based` -> `cloudbased`) were being lost from the text layer — an ATS miss and a coverage-engine miss. Fixed with U+2011 substitution in `protect_compounds()`. CSS tightened for two-page fit; orphans/widows added to keep role blocks together |
+| 2026-08-08 | Skip guard for PDF tests corrected: tested package presence, not importability, so a missing GTK runtime failed instead of skipping |
 | 2026-08-08 | B-01/B-02 deferred to D-01 (adaptive query configuration) per operator direction. Observations from M4 recorded under D-01, explicitly non-binding |
+| 2026-08-08 | First PDF rendered. Compound hyphens (`cloud-based` -> `cloudbased`) were being lost from the text layer — an ATS miss and a coverage-engine miss. Fixed with U+2011 substitution in `protect_compounds()`. CSS tightened for two-page fit; orphans/widows added to keep role blocks together |
+| 2026-08-08 | Skip guard for PDF tests corrected: tested package presence, not importability, so a missing GTK runtime failed instead of skipping |
 | 2026-08-08 | B-01/B-02 deferred to D-01. Adaptive query configuration proposed as a separate project |

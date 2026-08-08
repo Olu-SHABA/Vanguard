@@ -28,9 +28,35 @@ python -m venv .venv && source .venv/bin/activate    # Windows: .venv\Scripts\ac
 pip install -e ".[dev]"
 ```
 
-WeasyPrint needs system libraries (cairo, pango, gdk-pixbuf). On Windows the
-simplest route is GTK for Windows Runtime; see the WeasyPrint install docs for
-your platform. If `import weasyprint` fails, that is the cause.
+### WeasyPrint system libraries
+
+WeasyPrint renders through cairo, pango and gdk-pixbuf. `pip` installs the
+Python package but not those.
+
+**Windows.** Install the GTK3 runtime from
+`github.com/tschoonj/GTK-for-Windows-Runtime-Environment-Installer/releases`
+(`gtk3-runtime-*-win64.exe`), accepting the default path and ticking
+*Set up PATH environment variable*.
+
+Then, in an **Administrator** PowerShell, work around a DLL naming mismatch —
+GTK ships `libgobject-2.0-0.dll`, WeasyPrint looks for `gobject-2.0-0.dll`:
+
+```powershell
+cd "C:\Program Files\GTK3-Runtime Win64\bin"
+Copy-Item libgobject-2.0-0.dll gobject-2.0-0.dll
+```
+
+**Restart the machine**, then verify:
+
+```powershell
+python -m weasyprint --info
+```
+
+**Linux.** `apt install libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0`
+**macOS.** `brew install pango`
+
+Symptom when missing: `OSError: cannot load library 'libgobject-2.0-0'`.
+The three PDF tests skip rather than fail when the runtime is absent.
 
 Milestone 2 adds torch (~2GB) and is a separate extra:
 

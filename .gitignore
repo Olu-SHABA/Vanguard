@@ -1,9 +1,101 @@
+# ---------------------------------------------------------------------------
+# Virtual environments
+# Both spellings — this project's is `venv/`, the common convention is `.venv/`.
+# ---------------------------------------------------------------------------
+venv/
 .venv/
+env/
+ENV/
+
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
+build/
+dist/
 *.egg-info/
+.eggs/
+
+# ---------------------------------------------------------------------------
+# Test and lint caches
+# ---------------------------------------------------------------------------
 .pytest_cache/
 .ruff_cache/
-out/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# ---------------------------------------------------------------------------
+# PERSONAL DATA — never commit
+#
+# canonical_cv.md carries full name, home town, email, telephone and complete
+# employment history. It was public on GitHub on 8 Aug 2026 before the
+# repository was made private. It stays local.
+#
+# The code reads it from data/ at runtime. Place it manually on any new
+# machine. If this repository is ever made public, commit a REDACTED copy
+# produced by render.anonymise() instead — see OUTSTANDING.md S-05.
+# ---------------------------------------------------------------------------
+data/canonical_cv.md
 data/*.db
+data/*.sqlite
+data/*.sqlite3
+
+# ---------------------------------------------------------------------------
+# Generated artefacts
+#
+# out/ holds rendered CVs and application packages — regenerate, never repair.
+# *.anon.md is the intermediate written during anonymised rendering.
+# ---------------------------------------------------------------------------
+out/
+Pipeline_Archive/
 *.anon.md
+
+# ---------------------------------------------------------------------------
+# Credentials
+#
+# Board API keys resolve from the environment via ${VAR} in boards.yaml:
+# ADZUNA_APP_ID, ADZUNA_APP_KEY, REED_API_KEY. Never in a tracked file.
+# ---------------------------------------------------------------------------
+.env
+.env.*
+*.key
+*.pem
+secrets.yaml
+credentials.json
+
+# ---------------------------------------------------------------------------
+# Model cache
+#
+# sentence-transformers downloads mpnet (~420MB) and MiniLM (~90MB) on first
+# use. A local model directory placed here must not be committed.
+# ---------------------------------------------------------------------------
+models/
+.cache/
+*.safetensors
+*.bin
+
+# ---------------------------------------------------------------------------
+# Local tooling — throwaway scripts, not part of the project
+# ---------------------------------------------------------------------------
+patch_*.ps1
+render_cv.py
+scratch/
+*.local.*
+
+# ---------------------------------------------------------------------------
+# Editors and OS
+# ---------------------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini

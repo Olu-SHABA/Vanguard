@@ -14,6 +14,7 @@ program.
 
 from __future__ import annotations
 
+import importlib
 import importlib.util
 from pathlib import Path
 
@@ -34,13 +35,29 @@ CV = Path(__file__).parent.parent / "data" / "canonical_cv.md"
 CSS_STD = Path(__file__).parent.parent / "render" / "standard.css"
 CSS_ANON = Path(__file__).parent.parent / "render" / "anonymised.css"
 
-def _available(*modules: str) -> bool:
-    return all(importlib.util.find_spec(m) is not None for m in modules)
+def _importable(*modules: str) -> bool:
+    """Can these actually be imported, not merely found on disk?
+
+    `find_spec` is not sufficient for weasyprint: the Python package installs
+    cleanly via pip, but importing it loads cairo/pango/gdk-pixbuf through
+    ctypes. On a machine without the GTK runtime the spec is found and the
+    import raises OSError. Checking the spec alone turns a missing system
+    dependency into a test failure instead of a skip.
+    """
+    for module in modules:
+        try:
+            importlib.import_module(module)
+        except Exception:
+            return False
+    return True
 
 
 needs_pdf = pytest.mark.skipif(
-    not _available("weasyprint", "pypdf"),
-    reason="weasyprint and pypdf required",
+    not _importable("weasyprint", "pypdf"),
+    reason=(
+        "weasyprint and pypdf must be importable. On Windows weasyprint also "
+        "needs the GTK3 runtime — see README."
+    ),
 )
 
 
@@ -213,3 +230,83 @@ def test_standard_pdf_fails_anonymisation_scan(tmp_path: Path) -> None:
 
     out = render(CV, CSS_STD, tmp_path / "cv.pdf")
     assert verify_pdf(out, CANONICAL_PROFILE), "scan passed a CV that contains the name"
+
+
+# ---------------------------------------------------------------------------
+# Compound-word protection — text-layer integrity
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "compound",
+    ["cloud-based", "real-time", "extract-clean-transform-load", "multi-vendor",
+     "cross-functional", "data-driven", "NOC-to-NOC"],
+)
+def test_compound_hyphen_made_non_breaking(compound: str) -> None:
+    """A compound broken across a line loses its hyphen in the PDF text layer.
+
+    'cloud-based' extracting as 'cloudbased' is an ATS miss, and a miss for
+    this project's own coverage engine.
+    """
+    from vanguard.render import NB_HYPHEN, protect_compounds
+
+    out = protect_compounds(compound)
+    assert "-" not in out
+    assert NB_HYPHEN in out
+
+
+def test_en_dash_is_not_touched() -> None:
+    """Date ranges use en dashes and must break normally."""
+    from vanguard.render import NB_HYPHEN, protect_compounds
+
+    assert protect_compounds("September 2018 – September 2024").count(NB_HYPHEN) == 0
+
+
+def test_numeric_ranges_untouched() -> None:
+    from vanguard.render import NB_HYPHEN, protect_compounds
+
+    assert NB_HYPHEN not in protect_compounds("60-90 minutes, 10-15%")
+
+
+def test_protection_is_idempotent() -> None:
+    from vanguard.render import protect_compounds
+
+    once = protect_compounds("cloud-based real-time")
+    assert protect_compounds(once) == once
+
+
+def test_anonymisation_scan_sees_through_non_breaking_hyphen() -> None:
+    """A rendered handle must not evade the scan because of the substitution."""
+    from vanguard.render import NB_HYPHEN, verify_text
+
+    leaks = verify_text(f"Olu{NB_HYPHEN}SHABA", CANONICAL_PROFILE)
+    assert any(lk.field == "handle" for lk in leaks)
+
+
+def test_cv_compounds_survive_html_conversion(cv_text: str) -> None:
+    from vanguard.render import NB_HYPHEN, markdown_to_html
+
+    html = markdown_to_html(cv_text)
+    assert NB_HYPHEN in html
+    assert "cloud-based" not in html
+
+
+def test_locked_output_file_explains_itself(tmp_path: Path, monkeypatch) -> None:
+    """A locked PDF is the commonest render failure. The message must say so."""
+    src = tmp_path / "cv.md"
+    src.write_text("# T\n\n## S\n\n- bullet text here\n")
+
+    def boom(*a, **kw):
+        raise PermissionError(13, "Permission denied")
+
+    import vanguard.render as r
+    monkeypatch.setattr(r, "markdown_to_html", lambda *a, **kw: "<html></html>")
+
+    class FakeHTML:
+        def __init__(self, **kw): pass
+        def write_pdf(self, *a, **kw): boom()
+
+    monkeypatch.setitem(__import__("sys").modules, "weasyprint",
+                        type("m", (), {"HTML": FakeHTML, "CSS": lambda **kw: None}))
+
+    with pytest.raises(RenderError, match="open in a PDF viewer"):
+        render(src, CSS_STD, tmp_path / "out.pdf")
