@@ -17,8 +17,10 @@ Governing documents: `PROJECT_VANGUARD_DIRECTIVE.md` (behaviour),
 | M2 Scoring core | Complete |
 | M3 Drafting | Complete |
 | M4 Ingestion | Complete |
-| M5 Governance and queue | Complete — 321 tests passing, 3 skipped |
-| M6 Response loop | Not started |
+| M5 Governance and queue | Complete |
+| **M6 Response loop** | **Complete — 417 tests passing** |
+
+**All milestones complete.**
 
 Open defects, deferrals and unverified assumptions: **`OUTSTANDING.md`**.
 
@@ -109,7 +111,17 @@ vanguard override <id> --why "..."  # apply despite an unreachable ceiling
 vanguard dispatch <id>              # record a submission YOU made
 vanguard stats                      # coverage distribution, recurring gaps
 vanguard score --advert advert.txt  # standalone, no database
+
+vanguard mail --file reply.txt      # correlate + classify one message
+vanguard dormant                    # applications silent past silence_days
+vanguard feedback <id> --name ...   # Template D draft (you send it)
+vanguard interview <id> --phase 1   # Template E, graded D1-D5
 ```
+
+Response classification: **DECLINE is checked before PROGRESS.** Rejections
+open warmly, and checking progress first would misread them as invitations.
+`DORMANT` is derived state — silence is not a rejection and never triggers
+Template D.
 
 `run` never blocks and never prompts — it writes state and exits. Everything
 else is interactive. **Vanguard never transmits**: `dispatch` records that you

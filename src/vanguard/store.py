@@ -53,7 +53,8 @@ CREATE TABLE IF NOT EXISTS vacancies (
   description  TEXT NOT NULL,
   posted       TIMESTAMP,
   fetched_at   TIMESTAMP NOT NULL,
-  dedup_key    TEXT NOT NULL
+  dedup_key    TEXT NOT NULL,
+  reference    TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS ix_vacancies_dedup ON vacancies(dedup_key);
 CREATE INDEX IF NOT EXISTS ix_vacancies_board ON vacancies(board_id);
@@ -154,8 +155,8 @@ class Store:
             conn.execute(
                 """INSERT INTO vacancies
                    (id, board_id, employer, title, location, salary_band, url,
-                    description, posted, fetched_at, dedup_key)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                    description, posted, fetched_at, dedup_key, reference)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
                    ON CONFLICT(id) DO UPDATE SET
                      description = excluded.description,
                      fetched_at  = excluded.fetched_at""",
@@ -165,6 +166,7 @@ class Store:
                     vacancy.description,
                     vacancy.posted.isoformat() if vacancy.posted else None,
                     vacancy.fetched_at.isoformat(), vacancy.dedup_key,
+                    vacancy.reference,
                 ),
             )
 

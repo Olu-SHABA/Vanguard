@@ -186,3 +186,94 @@ def test_boards_reports_health(runner: CliRunner) -> None:
     out = runner.invoke(main, ["boards", "--boards",
                                str(ROOT / "config" / "boards.yaml")]).output
     assert "registered" in out and "adzuna" in out
+
+
+# ---------------------------------------------------------------------------
+# M6 — response loop commands
+# ---------------------------------------------------------------------------
+
+DECLINE_BODY = """Thank you for your interest in the Senior Data Engineer role,
+vacancy 19568. We were very impressed and would like to keep your details on
+file. Unfortunately, on this occasion you have not been successful.
+"""
+
+
+@pytest.mark.parametrize("command", ["mail", "dormant", "feedback", "interview"])
+def test_m6_command_exists(runner: CliRunner, command: str) -> None:
+    assert runner.invoke(main, [command, "--help"]).exit_code == 0
+
+
+def test_mail_correlates_on_vacancy_reference(runner: CliRunner, tmp_path: Path) -> None:
+    """B-10: the reference is extracted from the advert and stored, so stage 1
+    correlation can fire. Before the fix it never could."""
+    _seed(runner, tmp_path)
+    body = tmp_path / "decline.txt"
+    body.write_text(DECLINE_BODY)
+
+    result = runner.invoke(main, [
+        "mail", "--file", str(body), "--sender", "recruit@justice.gov.uk",
+        "--subject", "Senior Data Engineer 19568", "--db", str(tmp_path / "v.db"),
+    ])
+    assert "via reference" in result.output
+    assert "DECLINE" in result.output
+
+
+def test_mail_never_sends(runner: CliRunner, tmp_path: Path) -> None:
+    _seed(runner, tmp_path)
+    body = tmp_path / "d.txt"
+    body.write_text(DECLINE_BODY)
+    out = runner.invoke(main, ["mail", "--file", str(body),
+                               "--db", str(tmp_path / "v.db")]).output
+    assert "no outbound action taken" in out
+
+
+def test_mail_uncorrelated_is_not_classified(runner: CliRunner, tmp_path: Path) -> None:
+    _seed(runner, tmp_path)
+    body = tmp_path / "spam.txt"
+    body.write_text("Our newsletter this week features great deals.")
+    out = runner.invoke(main, ["mail", "--file", str(body),
+                               "--sender", "marketing@random.com",
+                               "--db", str(tmp_path / "v.db")]).output
+    assert "UNCORRELATED" in out and "not classified" in out
+
+
+def test_mail_suggests_template_without_invoking_it(runner: CliRunner, tmp_path: Path) -> None:
+    """No classification state triggers an outbound action."""
+    _seed(runner, tmp_path)
+    body = tmp_path / "d.txt"
+    body.write_text(DECLINE_BODY)
+    out = runner.invoke(main, ["mail", "--file", str(body),
+                               "--subject", "vacancy 19568",
+                               "--db", str(tmp_path / "v.db")]).output
+    assert "operator may invoke Template D" in out
+
+
+def test_feedback_drafts_only(runner: CliRunner, tmp_path: Path) -> None:
+    vid = _seed(runner, tmp_path)
+    out = runner.invoke(main, ["feedback", vid, "--name", "A", "--contact", "a@b.c",
+                               "--db", str(tmp_path / "v.db")]).output
+    assert "draft only" in out and "Review and send yourself" in out
+
+
+def test_interview_generates_from_the_cv(runner: CliRunner, tmp_path: Path) -> None:
+    vid = _seed(runner, tmp_path)
+    out = runner.invoke(main, ["interview", vid, "--phase", "1", "--limit", "3",
+                               "--cv", str(ROOT / "data" / "canonical_cv.md"),
+                               "--db", str(tmp_path / "v.db")]).output
+    assert "PHASE 1" in out and "You state:" in out
+    assert "D1 = 0 is terminal" in out
+
+
+def test_interview_phase_3_includes_d5(runner: CliRunner, tmp_path: Path) -> None:
+    vid = _seed(runner, tmp_path)
+    out = runner.invoke(main, ["interview", vid, "--phase", "3",
+                               "--cv", str(ROOT / "data" / "canonical_cv.md"),
+                               "--db", str(tmp_path / "v.db")]).output
+    assert "D5" in out and "max 15" in out
+
+
+def test_dormant_reports_none_when_recent(runner: CliRunner, tmp_path: Path) -> None:
+    _seed(runner, tmp_path)
+    out = runner.invoke(main, ["dormant", "--db", str(tmp_path / "v.db"),
+                               "--boards", str(ROOT / "config" / "boards.yaml")]).output
+    assert "no dormant applications" in out

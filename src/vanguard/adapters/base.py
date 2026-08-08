@@ -120,6 +120,7 @@ class Vacancy:
     url: str = ""
     posted: datetime | None = None
     fetched_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    reference: str = ""   # employer vacancy reference — correlation stage 1
 
     def __post_init__(self) -> None:
         if not self.id:

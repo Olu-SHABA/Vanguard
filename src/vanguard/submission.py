@@ -98,6 +98,16 @@ _WORD_LIMIT_STATED = re.compile(
     r"word limit|word count|no more than\s+\w+\s+words|maximum of\s+\w+\s+words", re.I
 )
 
+# Employer vacancy reference. Correlation stage 1 depends on it: without a
+# reference, an inbound message can only be matched by sender domain or fuzzy
+# subject, both weaker. Ordered by specificity — a labelled reference beats a
+# bare number appearing anywhere.
+_REFERENCE_PATTERNS = (
+    re.compile(r"vacancy\s*(?:number|no\.?|ref(?:erence)?)\s*[:#]?\s*([A-Z0-9][\w/-]{2,19})", re.I),
+    re.compile(r"(?:job|post|role)\s*(?:reference|ref\.?|number|no\.?|id)\s*[:#]?\s*([A-Z0-9][\w/-]{2,19})", re.I),
+    re.compile(r"\bref(?:erence)?\s*[:#]\s*([A-Z0-9][\w/-]{2,19})", re.I),
+)
+
 _BULLET = re.compile(r"^\s*(?:[-*\u2022\u25cf]|\d+[.)])\s+(?P<text>.+?)\s*$")
 
 # Behaviours named in the Civil Service framework
@@ -130,6 +140,7 @@ class SubmissionSpec:
     assessed_criteria: tuple[str, ...] = ()
     lead_criterion: str = ""
     behaviours: tuple[str, ...] = ()
+    vacancy_reference: str = ""
     markers_fired: tuple[str, ...] = ()
 
     @property
@@ -170,6 +181,8 @@ class SubmissionSpec:
             bits.append(f"{len(self.assessed_criteria)} assessed criteria")
         if self.lead_criterion:
             bits.append("LEAD_CRITERION set")
+        if self.vacancy_reference:
+            bits.append(f"ref {self.vacancy_reference}")
         if self.behaviours:
             bits.append(f"behaviours: {len(self.behaviours)}")
         return "  |  ".join(bits)
@@ -225,8 +238,23 @@ def detect(advert_text: str) -> SubmissionSpec:
         assessed_criteria=criteria,
         lead_criterion=lead,
         behaviours=behaviours,
+        vacancy_reference=_vacancy_reference(advert_text),
         markers_fired=tuple(dict.fromkeys(fired)),
     )
+
+
+def _vacancy_reference(text: str) -> str:
+    """Employer vacancy reference, verbatim. Empty when none is stated.
+
+    Never invented — an absent reference degrades correlation to sender domain
+    or fuzzy subject match, which is correct. A guessed reference would attach
+    a decline to the wrong application.
+    """
+    for pattern in _REFERENCE_PATTERNS:
+        m = pattern.search(text)
+        if m:
+            return m.group(1).strip().rstrip(".,;:")
+    return ""
 
 
 def _word_limit(text: str) -> tuple[int | None, bool]:
