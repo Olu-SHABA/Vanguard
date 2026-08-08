@@ -481,14 +481,35 @@ def test_reed_rate_limit_records_truncation(registry) -> None:
     assert adapter.truncations and "rate limited" in adapter.truncations[0].reason
 
 
-def test_unresolved_placeholder_is_not_sent_as_a_value(registry) -> None:
-    """C-01: `{{ TARGET_LOCATION }}` sent literally returns nothing, which
-    reads as an empty result set rather than a configuration error."""
+@pytest.mark.parametrize(
+    "value, expected",
+    [("{{ TARGET_LOCATION }}", True), ("{{TOKEN}}", True), ("  {{ X }}  ", True),
+     ("UK", False), ("Stirling", False), ("", False), ("{{ unclosed", False)],
+)
+def test_placeholder_detection(value: str, expected: bool) -> None:
+    """C-01: a literal `{{ TOKEN }}` sent as a query value returns nothing,
+    which reads as an empty result set rather than a configuration error."""
     from vanguard.adapters.base import is_placeholder
 
-    assert is_placeholder("{{ TARGET_LOCATION }}")
-    assert not is_placeholder("Stirling")
-    assert registry.get("adzuna").query.get("where") == ""
+    assert is_placeholder(value) is expected
+
+
+def test_placeholder_is_blanked_on_load(tmp_path: Path) -> None:
+    """Behaviour, not config content — boards.yaml values are expected to change."""
+    p = tmp_path / "b.yaml"
+    p.write_text(
+        "boards:\n  - id: x\n    tier: manual\n"
+        "    query:\n      where: \"{{ TARGET_LOCATION }}\"\n      what: [\"real value\"]\n"
+    )
+    entry = load_registry(p).get("x")
+    assert entry.query["where"] == ""
+    assert entry.query["what"] == ["real value"]
+
+
+def test_real_location_survives_load(tmp_path: Path) -> None:
+    p = tmp_path / "b.yaml"
+    p.write_text("boards:\n  - id: x\n    tier: manual\n    query:\n      where: \"UK\"\n")
+    assert load_registry(p).get("x").query["where"] == "UK"
 
 
 def test_missing_credentials_are_named(registry) -> None:

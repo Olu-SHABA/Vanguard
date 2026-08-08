@@ -22,9 +22,12 @@ boards:
       app_id: ${ADZUNA_APP_ID}
       app_key: ${ADZUNA_APP_KEY}
     query:
+      # `country` is the API path segment (/gb/, /us/, /au/ ...). Changing the
+      # target country means changing THIS, not `where`. `where` is a place
+      # within the chosen country.
       country: gb
       what: ["data scientist", "machine learning engineer", "network analytics"]
-      where: "{{ TARGET_LOCATION }}"
+      where: "UK"
       max_days_old: 7
     note: "Self-service keys. Aggregates from many boards — recovers partial
            coverage of sources that have no API of their own."
