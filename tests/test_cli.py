@@ -92,9 +92,14 @@ def test_run_never_transmits(runner: CliRunner, tmp_path: Path) -> None:
 
 
 def test_run_skips_tier_3_boards(runner: CliRunner, tmp_path: Path) -> None:
+    """Skips are collapsed to a count; `vanguard boards` carries the detail."""
     result = runner.invoke(main, ["run", *base(tmp_path),
                                   "--boards", str(ROOT / "config" / "boards.yaml")])
-    assert "operator paste only" in result.output
+    assert "board(s) skipped" in result.output
+
+    detail = runner.invoke(main, ["boards", "--boards",
+                                  str(ROOT / "config" / "boards.yaml")]).output
+    assert "Operator paste is the ingress" in " ".join(detail.split())
 
 
 # --- manual ingestion -----------------------------------------------------
@@ -277,3 +282,93 @@ def test_dormant_reports_none_when_recent(runner: CliRunner, tmp_path: Path) -> 
     out = runner.invoke(main, ["dormant", "--db", str(tmp_path / "v.db"),
                                "--boards", str(ROOT / "config" / "boards.yaml")]).output
     assert "no dormant applications" in out
+
+
+# ---------------------------------------------------------------------------
+# Output discipline — width awareness and word-boundary truncation
+# ---------------------------------------------------------------------------
+
+def test_clip_never_cuts_mid_word() -> None:
+    """A half-word reads as data rather than as omission."""
+    from vanguard.cli import _clip
+
+    out = _clip("adapter NHSJobsAPIAdapter is declared but not yet implemented", 40)
+    assert out.endswith("…")
+    assert not out[:-1].endswith(("implemen", "declare", "y"))
+    assert " " not in out[-2:-1] or out[-2] != " "
+
+
+def test_clip_leaves_short_text_alone() -> None:
+    from vanguard.cli import _clip
+
+    assert _clip("Python", 40) == "Python"
+
+
+def test_clip_normalises_whitespace() -> None:
+    from vanguard.cli import _clip
+
+    assert _clip("a   b\n c", 40) == "a b c"
+
+
+def test_clip_handles_a_single_long_token() -> None:
+    """No space to break on — must still terminate, not loop or raise."""
+    from vanguard.cli import _clip
+
+    out = _clip("x" * 200, 20)
+    assert len(out) <= 20 and out.endswith("…")
+
+
+def test_wrap_preserves_every_word() -> None:
+    """Exclusion reasons say WHY no edit is permitted. Nothing may be lost."""
+    from vanguard.cli import _wrap
+
+    text = ("CV lists 'cloud computing' inside a software catch-all line with "
+            "no named platform and no supporting bullet.")
+    joined = " ".join(_wrap(text, 40))
+    assert joined == " ".join(text.split())
+
+
+def test_wrap_respects_the_width() -> None:
+    from vanguard.cli import _wrap
+
+    assert all(len(line) <= 40 for line in _wrap("word " * 60, 40))
+
+
+def test_terminal_width_has_a_floor() -> None:
+    from vanguard.cli import MIN_WIDTH, _terminal_width
+
+    assert _terminal_width() >= MIN_WIDTH
+
+
+def test_review_detail_shows_full_exclusion_reason(runner: CliRunner, tmp_path: Path) -> None:
+    """Was clipped at 56 chars, losing the operative part of the ruling."""
+    vid = _seed(runner, tmp_path)
+    out = runner.invoke(main, ["review", vid, "--db", str(tmp_path / "v.db")]).output
+    assert "Insufficient for any named-platform requirement" in " ".join(out.split())
+
+
+def test_boards_detail_is_not_cut_mid_word(runner: CliRunner) -> None:
+    out = runner.invoke(main, ["boards", "--boards",
+                               str(ROOT / "config" / "boards.yaml")]).output
+    assert "declared but n\n" not in out
+    assert "not yet implemented" in " ".join(out.split())
+
+
+def test_run_collapses_skipped_boards(runner: CliRunner, tmp_path: Path) -> None:
+    """Seven skip lines before any vacancy buried the signal."""
+    out = runner.invoke(main, ["run", *base(tmp_path),
+                               "--boards", str(ROOT / "config" / "boards.yaml")]).output
+    assert "board(s) skipped" in out
+    assert out.count("skipped —") <= 1
+
+
+def test_review_list_columns_align(runner: CliRunner, tmp_path: Path) -> None:
+    _seed(runner, tmp_path)
+    out = runner.invoke(main, ["review", "--status", "UNREACHABLE",
+                               "--db", str(tmp_path / "v.db")]).output
+    lines = [ln for ln in out.split("\n") if ln.startswith("  ")]
+    assert len(lines) >= 2
+    header, first = lines[0], lines[1]
+    assert header.index("EMPLOYER") < header.index("TITLE") < header.index("ID")
+    # employer value starts at the same column as its header
+    assert first[header.index("EMPLOYER")] not in " "

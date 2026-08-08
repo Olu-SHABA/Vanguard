@@ -22,7 +22,9 @@ application; it does not send one.
 
 from __future__ import annotations
 
+import shutil
 import sys
+import textwrap
 from pathlib import Path
 
 try:
@@ -42,6 +44,58 @@ from vanguard.rank import LexicalEmbedder, rank_score
 from vanguard.refactor import refactor
 from vanguard.store import Store, StoreError
 from vanguard.submission import detect
+
+
+# ---------------------------------------------------------------------------
+# Output helpers
+#
+# Fixed-width slicing cut mid-word and lost the operative information:
+# "adapter 'NHSJobsAPIAdapter' for board 'nhs_jobs' is declared but n" tells
+# the operator nothing about what to do. Truncate at a word boundary, mark it,
+# and size to the actual terminal rather than an assumed 100 columns.
+# ---------------------------------------------------------------------------
+
+MIN_WIDTH = 60
+
+
+def _terminal_width() -> int:
+    """Usable width. Falls back sanely when not attached to a terminal."""
+    try:
+        width = shutil.get_terminal_size(fallback=(100, 24)).columns
+    except Exception:
+        width = 100
+    return max(MIN_WIDTH, width - 1)
+
+
+def _clip(text: str, width: int) -> str:
+    """Truncate at a word boundary, marked with an ellipsis.
+
+    Never cuts mid-word: a half-word reads as data rather than as omission.
+    """
+    text = " ".join(str(text or "").split())
+    if len(text) <= width:
+        return text
+    if width <= 1:
+        return "…"
+    cut = text[: width - 1]
+    space = cut.rfind(" ")
+    if space > width * 0.6:      # only honour the boundary if it is near the end
+        cut = cut[:space]
+    return cut.rstrip(" ,.;:") + "…"
+
+
+def _wrap(text: str, width: int, indent: str = "") -> list[str]:
+    """Wrap rather than discard. For content the operator needs in full."""
+    body = " ".join(str(text or "").split())
+    if not body:
+        return []
+    return textwrap.wrap(body, width=max(20, width - len(indent))) or [""]
+
+
+def _row(*cells: tuple[str, int]) -> str:
+    """Left-aligned columns, each clipped to its own budget."""
+    return "  ".join(_clip(value, budget).ljust(budget) for value, budget in cells).rstrip()
+
 
 DEFAULTS = {
     "cv": "data/canonical_cv.md",
@@ -145,7 +199,30 @@ def run(boards, cv, aliases, db, title, location, no_model) -> None:
 
     click.echo(f"ingesting from {len(registry.automatable)} automatable board(s)")
     result = ingest(registry, Query(keywords=tuple(title), location=location))
-    click.echo(result.summary())
+
+    # Report what CONTRIBUTED. Disabled and Tier 3 boards are expected to be
+    # absent and printing a line each buries the vacancies under seven lines
+    # of noise. Collapse them; `vanguard boards` gives the per-board detail.
+    contributed = [o for o in result.outcomes if o.ok]
+    failed = result.failures
+    skipped = [o for o in result.outcomes if o.skipped]
+
+    for outcome in contributed:
+        click.echo(f"  {outcome}")
+    for outcome in failed:
+        click.echo(f"  {outcome}", err=True)
+    if skipped:
+        click.echo(f"  {len(skipped)} board(s) skipped — see: vanguard boards")
+
+    click.echo(
+        f"collected {result.collected} -> kept {result.kept} "
+        f"({result.duplicates} duplicate(s) logged)"
+    )
+    if not result.complete:
+        click.echo(f"  INCOMPLETE — {len(result.truncations)} truncation(s):")
+        width = _terminal_width()
+        for truncation in result.truncations:
+            click.echo(f"    {_clip(str(truncation), width - 4)}")
 
     if not result.vacancies:
         click.echo("no vacancies. exiting.")
@@ -248,11 +325,15 @@ def review(vacancy_id, status, db) -> None:
         rows = store.gaps_for(vacancy_id)
         unmet = [r for r in rows if r["outcome"] == "GAP"]
         if unmet:
+            width = _terminal_width()
             click.echo(f"\nunmet ({len(unmet)}):")
             for r in unmet:
                 tag = f"Type {r['gap_type']}" if r["gap_type"] else "—"
-                reason = f"  [{r['exclusion'][:56]}]" if r["exclusion"] else ""
-                click.echo(f"  {tag:<7} {r['term'][:48]}{reason}")
+                click.echo(f"  {tag:<7} {_clip(r['term'], width - 10)}")
+                # The exclusion reason is WHY no edit is permitted. Wrapping it
+                # keeps that reviewable; clipping it did not.
+                for line in _wrap(r["exclusion"], width - 12, "            "):
+                    click.echo(f"            {line}")
 
         click.echo("\nhistory:")
         for frm, to, at in queue.history(vacancy_id):
@@ -266,11 +347,25 @@ def review(vacancy_id, status, db) -> None:
         click.echo(f"no records with status {status.upper()}")
         return
     click.echo(f"{status.upper()} — {len(rows)} record(s), strongest first\n")
+
+    width = _terminal_width()
+    id_w = min(28, max(len(r["vacancy_id"]) for r in rows))
+    spare = width - 2 - 15 - id_w - 8          # indent, scores, id, gutters
+    employer_w = max(14, int(spare * 0.42))
+    title_w = max(18, spare - employer_w)
+
+    # Header built without _clip: it normalises whitespace, which collapses
+    # the deliberate spacing between the two score columns.
+    click.echo("  " + _row(("C", 5), ("S", 6), ("EMPLOYER", employer_w),
+                           ("TITLE", title_w), ("ID", id_w)))
     for r in rows:
-        click.echo(
-            f"  C={r['coverage'] or 0:.3f} S={r['rank_score'] or 0:.3f}  "
-            f"{r['employer'][:24]:<24} {r['title'][:38]:<38} {r['vacancy_id']}"
-        )
+        click.echo("  " + _row(
+            (f"{r['coverage'] or 0:.3f}", 5),
+            (f"{r['rank_score'] or 0:.3f}", 6),
+            (r["employer"], employer_w),
+            (r["title"], title_w),
+            (r["vacancy_id"], id_w),
+        ))
 
 
 @main.command()
@@ -358,14 +453,16 @@ def score(advert, cv, aliases, no_model) -> None:
 
     if report.excluded_gaps:
         click.echo("\nblocked by alias table (Tier C) — no CV edit permitted:")
+        width = _terminal_width()
         for r in report.excluded_gaps:
-            click.echo(f"  {r.requirement.canonical or r.requirement.text[:44]}")
+            label = r.requirement.canonical or r.requirement.text
+            click.echo(f"  {_clip(label, width - 4)}")
 
     other = [g for g in gaps.type_3 if not g.blocked_by_exclusion]
     if other:
         click.echo("\nunmet, not evidenced:")
         for g in other:
-            click.echo(f"  {g.term[:60]}")
+            click.echo(f"  {_clip(g.term, _terminal_width() - 4)}")
 
 
 @main.command()
@@ -396,7 +493,7 @@ def stats(db) -> None:
     if recurring:
         click.echo("\nmost frequently unmet:")
         for r in recurring:
-            click.echo(f"  {r['n']:>3}x  {r['term'][:56]}")
+            click.echo(f"  {r['n']:>3}x  {_clip(r['term'], _terminal_width() - 10)}")
 
 
 @main.command()
@@ -408,10 +505,15 @@ def boards(boards) -> None:
         f"{len(registry)} registered   {len(registry.enabled)} enabled   "
         f"{len(registry.automatable)} automatable   {len(registry.manual)} manual\n"
     )
+    width = _terminal_width()
+    detail_w = max(30, width - 40)
     for status in health_check_all(registry):
         entry = registry.get(status.board_id)
         mark = "ok " if status.reachable else "-- "
-        click.echo(f"{mark} {entry.id:<20} {entry.tier.value:<13} {status.detail[:66]}")
+        lines = _wrap(status.detail, detail_w) or [""]
+        click.echo(f"{mark} {entry.id:<20} {entry.tier.value:<13} {lines[0]}")
+        for extra in lines[1:]:
+            click.echo(f"{'':<38}{extra}")
 
 
 # ---------------------------------------------------------------------------

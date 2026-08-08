@@ -74,6 +74,27 @@ pass, not a constraint asserted here.
 
 ---
 
+### D-02 — CLI presentation layer
+
+**Status:** NOTED. Not scheduled.
+
+Three output defects were fixed 8 Aug 2026 — word-boundary truncation, terminal-width
+awareness, and collapsing skipped boards in `run`. What was NOT done, deliberately:
+
+- `rich.Table` for the list views (`review`, `boards`, `stats`). `rich` is already
+  proven in the operator's other codebase and would handle alignment and width
+  properly. Held until the CLI has been used for a fortnight — styling all nine
+  views on a guess about which matter is the wrong order.
+- `--json` output flag. Useful if any GUI or dashboard follows.
+- Any graphical interface. The system has scored two real adverts. Designing an
+  interface before the daily workflow is established risks building for imagined use.
+
+Tables suit list views. They suit the `review <id>` record view badly — exclusion
+reasons are prose of varying length and a grid would clip them, which is the defect
+that was just fixed.
+
+---
+
 ## 2. Configuration
 
 | ID | Item | Status |
@@ -216,6 +237,7 @@ considered design.
 | Date | Change |
 |---|---|
 | 2026-08-08 | Created. Consolidates items raised across M0–M4 |
+| 2026-08-08 | CLI output defects fixed: fixed-width slicing cut mid-word and lost the operative half of exclusion reasons and adapter status; widths were hardcoded to ~100 columns; `run` printed seven skip lines before any result. Now word-boundary clipping, terminal-width detection, wrapped reasons, collapsed skips. Styling (rich tables, --json, GUI) deliberately deferred — see D-02 |
 | 2026-08-08 | B-11/B-12 fixed: pagination added to both API adapters, truncation recorded rather than swallowed. Ceiling per run is now `max_results x keywords x boards`, defaults 100 x 3 x 2 = 600 before dedup. Two test doubles were themselves defective — a shared result pool across keywords, and assertions written for one keyword when board config supplies three (B-01) |
 | 2026-08-08 | M6 complete. B-10 found during the first mail test: the stored vacancy id is a content hash, and the employer's real reference (19568) was extracted nowhere — stage 1 correlation was dead on arrival. Fixed |
 | 2026-08-08 | First MiniLM run produced coverage identical to the lexical fallback (C=0.304), which surfaced B-06/B-07/B-08. After fixes: \|R\| 23 -> 21, C 0.304 -> 0.381. P-02 left at 0.75 on the evidence |
@@ -223,6 +245,7 @@ considered design.
 | 2026-08-08 | First PDF rendered. Compound hyphens (`cloud-based` -> `cloudbased`) were being lost from the text layer — an ATS miss and a coverage-engine miss. Fixed with U+2011 substitution in `protect_compounds()`. CSS tightened for two-page fit; orphans/widows added to keep role blocks together |
 | 2026-08-08 | Skip guard for PDF tests corrected: tested package presence, not importability, so a missing GTK runtime failed instead of skipping |
 | 2026-08-08 | B-01/B-02 deferred to D-01 (adaptive query configuration) per operator direction. Observations from M4 recorded under D-01, explicitly non-binding |
+| 2026-08-08 | CLI output defects fixed: fixed-width slicing cut mid-word and lost the operative half of exclusion reasons and adapter status; widths were hardcoded to ~100 columns; `run` printed seven skip lines before any result. Now word-boundary clipping, terminal-width detection, wrapped reasons, collapsed skips. Styling (rich tables, --json, GUI) deliberately deferred — see D-02 |
 | 2026-08-08 | B-11/B-12 fixed: pagination added to both API adapters, truncation recorded rather than swallowed. Ceiling per run is now `max_results x keywords x boards`, defaults 100 x 3 x 2 = 600 before dedup. Two test doubles were themselves defective — a shared result pool across keywords, and assertions written for one keyword when board config supplies three (B-01) |
 | 2026-08-08 | M6 complete. B-10 found during the first mail test: the stored vacancy id is a content hash, and the employer's real reference (19568) was extracted nowhere — stage 1 correlation was dead on arrival. Fixed |
 | 2026-08-08 | First MiniLM run produced coverage identical to the lexical fallback (C=0.304), which surfaced B-06/B-07/B-08. After fixes: \|R\| 23 -> 21, C 0.304 -> 0.381. P-02 left at 0.75 on the evidence |
