@@ -36,6 +36,7 @@ from typing import Any, Iterable, Sequence
 
 __all__ = [
     "Tier",
+    "is_placeholder",
     "Truncation",
     "Query",
     "RawVacancy",
@@ -376,11 +377,23 @@ class BoardAdapter(ABC):
 # ---------------------------------------------------------------------------
 
 _ENV = re.compile(r"\$\{(\w+)\}")
+_PLACEHOLDER = re.compile(r"^\s*\{\{.*\}\}\s*$")
+
+
+def is_placeholder(value: Any) -> bool:
+    """True for an unedited `{{ TOKEN }}` left in the config.
+
+    Sending the literal string as a query parameter returns nothing and looks
+    like an empty result set rather than a configuration error.
+    """
+    return isinstance(value, str) and bool(_PLACEHOLDER.match(value))
 
 
 def _expand(value: Any) -> Any:
     """Resolve ${ENV_VAR} references. Credentials never live in the YAML."""
     if isinstance(value, str):
+        if is_placeholder(value):
+            return ""      # unresolved token -> treat as unset, not as a value
         return _ENV.sub(lambda m: os.environ.get(m.group(1), ""), value)
     if isinstance(value, dict):
         return {k: _expand(v) for k, v in value.items()}
@@ -419,6 +432,10 @@ class RegistryEntry:
     @property
     def credentials_present(self) -> bool:
         return all(bool(v) for v in self.auth.values()) if self.auth else True
+
+    @property
+    def missing_credentials(self) -> list[str]:
+        return [k for k, v in self.auth.items() if not v]
 
 
 @dataclass

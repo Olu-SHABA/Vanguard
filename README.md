@@ -13,14 +13,17 @@ Governing documents: `PROJECT_VANGUARD_DIRECTIVE.md` (behaviour),
 | Milestone | State |
 |---|---|
 | M0 Foundations | Complete |
-| M1 Render chain | Code complete; PDF output unverified |
+| M1 Render chain | Complete — two-page PDF verified, anonymisation scan passed |
 | M2 Scoring core | Complete |
 | M3 Drafting | Complete |
 | M4 Ingestion | Complete |
 | M5 Governance and queue | Complete |
-| **M6 Response loop** | **Complete — 417 tests passing** |
+| **M6 Response loop** | **Complete — 417 tests at milestone** |
 
 **All milestones complete.**
+
+Test counts above are recorded at each milestone, not maintained between them.
+Run `pytest` for the current figure.
 
 Open defects, deferrals and unverified assumptions: **`OUTSTANDING.md`**.
 
@@ -127,8 +130,25 @@ Template D.
 else is interactive. **Vanguard never transmits**: `dispatch` records that you
 submitted an application, it does not send one.
 
-Credentials come from the environment: `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`,
-`REED_API_KEY`.
+### Credentials
+
+Copy `.env.example` to `.env` and fill in. It is gitignored and loaded by every
+command; an exported environment variable overrides it.
+
+| Board | Register at | Gives |
+|---|---|---|
+| Adzuna | `developer.adzuna.com/signup` | `ADZUNA_APP_ID` **and** `ADZUNA_APP_KEY` — two values |
+| Reed | `reed.co.uk/developers` | `REED_API_KEY` |
+
+Check they are picked up:
+
+```bash
+vanguard boards
+```
+
+Unfilled `{{ TOKEN }}` placeholders in `boards.yaml` are treated as unset rather
+than sent as literal query values — a literal placeholder returns nothing and
+reads as an empty result set instead of a configuration error.
 
 ## Ingest vacancies
 

@@ -99,7 +99,7 @@ that was just fixed.
 
 | ID | Item | Status |
 |---|---|---|
-| C-01 | `where: "{{ TARGET_LOCATION }}"` is an unresolved placeholder. Adzuna receives the literal string | OPEN |
+| C-01 | `where: "{{ TARGET_LOCATION }}"` unresolved | **PARTIALLY CLOSED** — placeholders are now detected and treated as unset rather than sent literally. The operator must still decide the target location |
 | C-02 | Target keywords are `data scientist`, `machine learning engineer`, `network analytics`. Data engineering is excluded by the directive's target domains, but the operator's CV fits it well and the one real test advert is a data engineering role | OPEN — operator ruling |
 | C-03 | Model names hardcoded in `rank.py`. Should be config if a fully airgapped setup is wanted (local filesystem paths instead of Hub repo IDs) | DEFERRED |
 
@@ -237,6 +237,7 @@ considered design.
 | Date | Change |
 |---|---|
 | 2026-08-08 | Created. Consolidates items raised across M0–M4 |
+| 2026-08-08 | `.env` loading added so credentials survive between shell sessions; `.env.example` committed. Unresolved `{{ TOKEN }}` placeholders no longer sent as literal query values (C-01, partial) |
 | 2026-08-08 | CLI output defects fixed: fixed-width slicing cut mid-word and lost the operative half of exclusion reasons and adapter status; widths were hardcoded to ~100 columns; `run` printed seven skip lines before any result. Now word-boundary clipping, terminal-width detection, wrapped reasons, collapsed skips. Styling (rich tables, --json, GUI) deliberately deferred — see D-02 |
 | 2026-08-08 | B-11/B-12 fixed: pagination added to both API adapters, truncation recorded rather than swallowed. Ceiling per run is now `max_results x keywords x boards`, defaults 100 x 3 x 2 = 600 before dedup. Two test doubles were themselves defective — a shared result pool across keywords, and assertions written for one keyword when board config supplies three (B-01) |
 | 2026-08-08 | M6 complete. B-10 found during the first mail test: the stored vacancy id is a content hash, and the employer's real reference (19568) was extracted nowhere — stage 1 correlation was dead on arrival. Fixed |
@@ -245,6 +246,7 @@ considered design.
 | 2026-08-08 | First PDF rendered. Compound hyphens (`cloud-based` -> `cloudbased`) were being lost from the text layer — an ATS miss and a coverage-engine miss. Fixed with U+2011 substitution in `protect_compounds()`. CSS tightened for two-page fit; orphans/widows added to keep role blocks together |
 | 2026-08-08 | Skip guard for PDF tests corrected: tested package presence, not importability, so a missing GTK runtime failed instead of skipping |
 | 2026-08-08 | B-01/B-02 deferred to D-01 (adaptive query configuration) per operator direction. Observations from M4 recorded under D-01, explicitly non-binding |
+| 2026-08-08 | `.env` loading added so credentials survive between shell sessions; `.env.example` committed. Unresolved `{{ TOKEN }}` placeholders no longer sent as literal query values (C-01, partial) |
 | 2026-08-08 | CLI output defects fixed: fixed-width slicing cut mid-word and lost the operative half of exclusion reasons and adapter status; widths were hardcoded to ~100 columns; `run` printed seven skip lines before any result. Now word-boundary clipping, terminal-width detection, wrapped reasons, collapsed skips. Styling (rich tables, --json, GUI) deliberately deferred — see D-02 |
 | 2026-08-08 | B-11/B-12 fixed: pagination added to both API adapters, truncation recorded rather than swallowed. Ceiling per run is now `max_results x keywords x boards`, defaults 100 x 3 x 2 = 600 before dedup. Two test doubles were themselves defective — a shared result pool across keywords, and assertions written for one keyword when board config supplies three (B-01) |
 | 2026-08-08 | M6 complete. B-10 found during the first mail test: the stored vacancy id is a content hash, and the employer's real reference (19568) was extracted nowhere — stage 1 correlation was dead on arrival. Fixed |

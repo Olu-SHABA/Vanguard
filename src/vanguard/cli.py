@@ -22,6 +22,7 @@ application; it does not send one.
 
 from __future__ import annotations
 
+import os
 import shutil
 import sys
 import textwrap
@@ -56,6 +57,30 @@ from vanguard.submission import detect
 # ---------------------------------------------------------------------------
 
 MIN_WIDTH = 60
+
+
+def _load_env(path: Path = Path(".env")) -> int:
+    """Load KEY=value pairs from a .env file into the environment.
+
+    Board credentials resolve from `${VAR}` in boards.yaml. Without this they
+    must be exported in every new shell, which is the kind of friction that
+    ends with someone pasting a key into a tracked file. `.env` is gitignored.
+
+    Existing environment variables win — an explicit export overrides the file.
+    """
+    if not path.is_file():
+        return 0
+    loaded = 0
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key, value = key.strip(), value.strip().strip("\"'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+            loaded += 1
+    return loaded
 
 
 def _terminal_width() -> int:
@@ -174,6 +199,7 @@ def _ctx(db: str):
 @click.version_option("0.1.0", prog_name="vanguard")
 def main() -> None:
     """Project Vanguard — semi-autonomous job application pipeline."""
+    _load_env()
 
 
 # ---------------------------------------------------------------------------

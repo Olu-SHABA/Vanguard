@@ -479,3 +479,17 @@ def test_reed_rate_limit_records_truncation(registry) -> None:
                              client=Limited())
     adapter.fetch(Query(keywords=("x",)))
     assert adapter.truncations and "rate limited" in adapter.truncations[0].reason
+
+
+def test_unresolved_placeholder_is_not_sent_as_a_value(registry) -> None:
+    """C-01: `{{ TARGET_LOCATION }}` sent literally returns nothing, which
+    reads as an empty result set rather than a configuration error."""
+    from vanguard.adapters.base import is_placeholder
+
+    assert is_placeholder("{{ TARGET_LOCATION }}")
+    assert not is_placeholder("Stirling")
+    assert registry.get("adzuna").query.get("where") == ""
+
+
+def test_missing_credentials_are_named(registry) -> None:
+    assert registry.get("adzuna").missing_credentials == ["app_id", "app_key"]

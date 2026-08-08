@@ -64,6 +64,7 @@ Pipeline_Archive/
 # ---------------------------------------------------------------------------
 .env
 .env.*
+!.env.example
 *.key
 *.pem
 secrets.yaml

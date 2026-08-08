@@ -372,3 +372,38 @@ def test_review_list_columns_align(runner: CliRunner, tmp_path: Path) -> None:
     assert header.index("EMPLOYER") < header.index("TITLE") < header.index("ID")
     # employer value starts at the same column as its header
     assert first[header.index("EMPLOYER")] not in " "
+
+
+# ---------------------------------------------------------------------------
+# Credentials and configuration
+# ---------------------------------------------------------------------------
+
+def test_env_file_populates_credentials(tmp_path: Path, monkeypatch) -> None:
+    """Without this, keys must be exported in every new shell — the friction
+    that ends with someone pasting a key into a tracked file."""
+    from vanguard.cli import _load_env
+
+    env = tmp_path / ".env"
+    env.write_text("ADZUNA_APP_ID=abc\nADZUNA_APP_KEY='def'\n# comment\n\n")
+    monkeypatch.delitem(__import__("os").environ, "ADZUNA_APP_ID", raising=False)
+
+    assert _load_env(env) == 2
+    import os
+    assert os.environ["ADZUNA_APP_ID"] == "abc"
+    assert os.environ["ADZUNA_APP_KEY"] == "def"
+
+
+def test_exported_variable_wins_over_env_file(tmp_path: Path, monkeypatch) -> None:
+    from vanguard.cli import _load_env
+    import os
+
+    monkeypatch.setitem(os.environ, "REED_API_KEY", "exported")
+    env = tmp_path / ".env"
+    env.write_text("REED_API_KEY=from-file\n")
+    _load_env(env)
+    assert os.environ["REED_API_KEY"] == "exported"
+
+
+def test_missing_env_file_is_not_an_error(tmp_path: Path) -> None:
+    from vanguard.cli import _load_env
+    assert _load_env(tmp_path / "absent.env") == 0
