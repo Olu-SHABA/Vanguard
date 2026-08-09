@@ -385,8 +385,16 @@ def extract(advert_text: str, *, include_desirable: bool = True) -> list[Require
 
     A bullet with no recognised tool becomes a single competency requirement,
     resolved semantically downstream.
+
+    HTML adverts are parsed structurally first. Only bullets under a heading
+    classified as REQUIREMENT contribute: a duty list under "What you will do"
+    describes the job rather than a qualification, and counting duties and
+    benefits as requirements drove |R| to 38 and coverage to 0.026.
     """
     if looks_like_html(advert_text):
+        structured = _extract_structured(advert_text, include_desirable)
+        if structured is not None:
+            return structured
         advert_text = html_to_text(advert_text)
     sections = extract_sections(advert_text)
     seen: set[str] = set()
@@ -438,6 +446,54 @@ def extract(advert_text: str, *, include_desirable: bool = True) -> list[Require
                 out.append(req)
 
     return out
+
+
+def _extract_structured(body: str, include_desirable: bool) -> list[Requirement] | None:
+    """Requirements from classified HTML sections, or None if unusable.
+
+    Returns None when the advert has no recognisable requirement section, so
+    the caller falls back to flat-text extraction rather than reporting zero.
+    """
+    from vanguard.structure import SectionKind, parse_advert
+
+    structure = parse_advert(body)
+    if not structure.has_requirement_section:
+        return None
+
+    seen: set[str] = set()
+    out: list[Requirement] = []
+
+    for block in structure.of_kind(SectionKind.REQUIREMENT):
+        essential = "desirable" not in block.heading.lower()
+        if not essential and not include_desirable:
+            continue
+        section = block.heading or "requirements"
+
+        for body_text in [*block.bullets, *block.paragraphs]:
+            body_text = body_text.strip()
+            if len(body_text) < 8:
+                continue
+            if body_text.lower().rstrip(".") in _BEHAVIOURS:
+                continue
+
+            tools = _find_tools(body_text)
+            for tool in tools:
+                req = Requirement(body_text, "tool", section, essential,
+                                  canonical=tool, source_bullet=body_text)
+                if req.key not in seen:
+                    seen.add(req.key)
+                    out.append(req)
+
+            if not tools:
+                phrase = _to_competency(body_text)
+                if phrase:
+                    req = Requirement(phrase, "competency", section, essential,
+                                      source_bullet=body_text)
+                    if req.key not in seen:
+                        seen.add(req.key)
+                        out.append(req)
+
+    return out or None
 
 
 def _to_competency(bullet: str) -> str | None:
