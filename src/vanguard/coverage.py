@@ -46,6 +46,7 @@ __all__ = [
     "resolve_term",
     "compute_coverage",
     "SOFT_HIT_THRESHOLD",
+    "MIN_TERMS_FOR_CONFIDENCE",
 ]
 
 SOFT_HIT_THRESHOLD = 0.75  # authored estimate — requires tuning against real data
@@ -305,12 +306,18 @@ def resolve_term(
 # Coverage
 # ---------------------------------------------------------------------------
 
+# Below this, |R| is too small for a ratio to mean anything. A denominator of
+# 1 or 2 turns "the snippet mentioned Python" into C = 1.000.
+MIN_TERMS_FOR_CONFIDENCE = 6
+
+
 @dataclass
 class CoverageReport:
     """Result of scoring one vacancy. Every term is accounted for."""
 
     resolutions: tuple[Resolution, ...]
     threshold: float = 0.94
+    source_is_partial: bool = False   # description was a search snippet
 
     @property
     def total(self) -> int:
@@ -342,8 +349,42 @@ class CoverageReport:
         return [r for r in self.gaps if r.is_excluded]
 
     @property
+    def too_few_terms(self) -> bool:
+        """|R| too small for the ratio to carry information."""
+        return 0 < self.total < MIN_TERMS_FOR_CONFIDENCE
+
+    @property
+    def unreliable(self) -> bool:
+        """The score should not be trusted, whatever its value.
+
+        Either the advert text was a snippet, or so few requirements were
+        extracted that the denominator makes the ratio meaningless. Both
+        produce confident-looking numbers from nothing: a Service Centre Team
+        Manager scored C = 1.000 on a two-term extraction.
+        """
+        return self.source_is_partial or self.too_few_terms or self.total == 0
+
+    @property
+    def unreliable_reason(self) -> str:
+        if self.total == 0:
+            return "no requirement terms extracted from the advert"
+        if self.source_is_partial:
+            return "advert text is a search snippet, not the full posting"
+        if self.too_few_terms:
+            return (
+                f"only {self.total} requirement term(s) extracted — "
+                f"below {MIN_TERMS_FOR_CONFIDENCE}, the ratio is not meaningful"
+            )
+        return ""
+
+    @property
     def passes(self) -> bool:
-        return self.coverage >= self.threshold
+        """An unreliable score never passes the gate.
+
+        Letting C = 1.000 from a two-term snippet reach PENDING puts a Service
+        Centre Team Manager at the top of the review queue.
+        """
+        return self.coverage >= self.threshold and not self.unreliable
 
     @property
     def ceiling(self) -> float:
@@ -362,6 +403,11 @@ class CoverageReport:
         return self.ceiling >= self.threshold
 
     def summary(self) -> str:
+        if self.unreliable:
+            return (
+                f"C = {self.coverage:.3f}  ({self.matched}/{self.total})   "
+                f"UNRELIABLE — {self.unreliable_reason}"
+            )
         return (
             f"C = {self.coverage:.3f}  ({self.matched}/{self.total})   "
             f"ceiling {self.ceiling:.3f}   "
@@ -377,10 +423,12 @@ def compute_coverage(
     *,
     threshold: float = 0.94,
     soft_hit_threshold: float = SOFT_HIT_THRESHOLD,
+    source_is_partial: bool = False,
 ) -> CoverageReport:
     """Score every requirement. Never drops a term — |resolutions| == |R|."""
     resolutions = tuple(
         resolve_term(r, cv, aliases, embedder, threshold=soft_hit_threshold)
         for r in requirements
     )
-    return CoverageReport(resolutions, threshold=threshold)
+    return CoverageReport(resolutions, threshold=threshold,
+                          source_is_partial=source_is_partial)

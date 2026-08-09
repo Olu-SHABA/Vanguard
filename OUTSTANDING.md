@@ -17,13 +17,18 @@ Status: `OPEN` · `BLOCKED` · `DEFERRED` · `CLOSED`
 | B-01 | Board config overrides caller query. `cfg.get("what") or query.keywords` — a CLI-supplied job title is silently ignored | `adapters/adzuna.py:77`, `adapters/reed.py:66` | HIGH | **DEFERRED to D-01** — operator ruling: do not patch precedence in isolation |
 | B-02 | Same precedence issue on location (`where`) | `adapters/adzuna.py`, `adapters/reed.py` | HIGH | **DEFERRED to D-01** |
 | B-03 | `ingest()` has no board filter — cannot restrict a run to named boards | `ingest.py` | MEDIUM | OPEN |
-| B-04 | Reed search returns truncated descriptions. `fetch_detail()` exists but `collect()` never calls it, so requirement extraction runs against partial adverts | `adapters/reed.py` | MEDIUM | OPEN |
+| B-04 | Reed search returns truncated descriptions; `collect()` never called `fetch_detail()`. Requirement extraction ran against snippets | `adapters/reed.py` | **HIGH** | **CLOSED** — `BoardAdapter.hydrate()` hook added; Reed fetches the full advert per vacancy |
+| B-13 | A snippet produced a confident score. First live run: Service Centre Team Manager scored C=1.000 on \|R\|=1 while a Senior Data Engineer scored 0.000. Coverage on a denominator of 1-2 is meaningless | `coverage.py`, `refactor.py` | **HIGH** | **CLOSED** — `CoverageReport.unreliable` blocks the gate when the source is partial or \|R\| < 6; refactor exits `UNRELIABLE_SOURCE` -> FLAGGED |
 | B-06 | `_to_competency()` trimmed at `", and"`, discarding the clause carrying alias evidence. Found on the first real MiniLM run | `extract.py` | HIGH | **CLOSED** — `source_bullet` retained on every Requirement |
 | B-07 | Alias lookup ran against the trimmed phrase only. "communicating with stakeholders" failed stage 2 and fell to stage 3 at 0.513 | `coverage.py` | HIGH | **CLOSED** — resolution tries trimmed then full bullet; Tier C checked across both so an exclusion cannot be evaded by trimming |
 | B-08 | Civil Service Behaviours extracted as coverage requirements. Assessed at interview, not sift — inflated \|R\| and depressed C on every Success Profile advert | `extract.py` | HIGH | **CLOSED** — named behaviours excluded; `submission.detect()` still reports them separately |
 | B-11 | Adzuna hardcoded to `search/1`; Reed sent no `resultsToSkip`. Everything past the first page was silently discarded | `adapters/adzuna.py`, `adapters/reed.py` | HIGH | **CLOSED** — both paginate to `Query.max_results`, capped by `max_pages` |
 | B-12 | Truncation was not reported. A partial harvest was indistinguishable from a complete one | `adapters/base.py`, `ingest.py` | HIGH | **CLOSED** — `Truncation` records board, keyword, count and reason; `IngestionRun.complete` is False and the summary says INCOMPLETE |
 | B-10 | No vacancy reference extracted or stored, so correlation stage 1 (reference match) could never fire for any vacancy | `submission.py`, `adapters/base.py`, `store.py` | HIGH | **CLOSED** — M6. Reference extracted from advert text, persisted, used in correlation |
+| B-14 | Adzuna free API caps every description at exactly 500 characters with no detail endpoint. 255 vacancies scored on two sentences | `config/boards.yaml` | **HIGH** | **CLOSED** — demoted to `tier: manual`, `supplies_full_text: false`. Discovery only; assessment by paste |
+| B-15 | `collect()` swallowed `RateLimitExceeded` during hydration. ~240 of 300 Reed vacancies scored on snippets with no indication | `adapters/base.py` | **HIGH** | **CLOSED** — hydration stops on rate limit and records a truncation naming the count |
+| B-16 | `description_is_partial` was never persisted, so degraded scores could not be queried — it had to be inferred from average description length | `store.py` | MEDIUM | **CLOSED** — `vacancies.partial` column, migrated |
+| B-17 | Requirement extraction assumes a "Person Specification" / "Essential" section. Commercial adverts are prose. 516 of 530 scored on fewer than six terms | `extract.py` | **HIGH** | **OPEN** — see D-03 |
 | B-09 | Near-duplicate requirements survive dedup when the same bullet appears in two advert sections with different trimming | `extract.py` | LOW | OPEN |
 | B-05 | Runs do not record which embedder produced them | `rank.py`, `coverage.py` | MEDIUM | **CLOSED** — `scores.embedder` column added in M5; `run`/`paste`/`score` all report it |
 
@@ -92,6 +97,38 @@ awareness, and collapsing skipped boards in `run`. What was NOT done, deliberate
 Tables suit list views. They suit the `review <id>` record view badly — exclusion
 reasons are prose of varying length and a grid would clip them, which is the defect
 that was just fixed.
+
+---
+
+### D-03 — Coverage assumes structured adverts
+
+**Status:** NOTED. Not scheduled.
+
+Coverage-as-gate assumes an advert states discrete, extractable requirements.
+Government Success Profiles do. Commercial adverts largely do not — they are
+prose. On the first live run, 516 of 530 vacancies extracted fewer than six
+terms.
+
+Of the 27 that extracted properly, the ranking was still poor: an AI Trainer
+scored 0.700 against a Senior Data Engineer at 0.444, and two identically
+titled Senior Data Engineer roles scored 0.625 and 0.444.
+
+> Observations, not a design. Recorded 9 Aug 2026 so they need not be
+> rediscovered. Whoever scopes D-03 owns every choice.
+
+The original audit replaced cosine with coverage because cosine could not
+answer *which requirement failed*. That reasoning stands. What was not
+tested is that extraction only works on one advert type — the metric was
+validated against a single MoJ Success Profile advert.
+
+Open questions:
+
+1. Should coverage gate at all when \|R\| is small, or should such vacancies
+   route to a different assessment path entirely?
+2. Is there a reliable way to extract requirements from prose adverts, or is
+   the honest answer that only structured adverts can be scored?
+3. What ranks the rest — rank score alone, operator triage, something else?
+4. Does the Type 1/2/3 gap taxonomy survive if requirements are not discrete?
 
 ---
 
@@ -238,6 +275,8 @@ considered design.
 |---|---|
 | 2026-08-08 | Created. Consolidates items raised across M0–M4 |
 | 2026-08-08 | `.env` loading added so credentials survive between shell sessions; `.env.example` committed. Unresolved `{{ TOKEN }}` placeholders no longer sent as literal query values (C-01, partial) |
+| 2026-08-09 | Operator ruling: a board that cannot supply full advert text is not processed through its API — it defaults to operator paste. Implemented as `supplies_full_text`, validated at config load. Adzuna and Civil Service demoted; Reed retained via its detail endpoint. Board topology now 1 automatable, 3 manual |
+| 2026-08-09 | First live run against Adzuna and Reed exposed B-04 and B-13. Reed search returns snippets, so extraction found 1-2 terms per advert and produced C=1.000 for irrelevant roles. Hydration added; unreliable scores can no longer pass the gate. Five further tests were found to depend on machine credentials — they passed only on an unconfigured machine |
 | 2026-08-08 | CLI output defects fixed: fixed-width slicing cut mid-word and lost the operative half of exclusion reasons and adapter status; widths were hardcoded to ~100 columns; `run` printed seven skip lines before any result. Now word-boundary clipping, terminal-width detection, wrapped reasons, collapsed skips. Styling (rich tables, --json, GUI) deliberately deferred — see D-02 |
 | 2026-08-08 | B-11/B-12 fixed: pagination added to both API adapters, truncation recorded rather than swallowed. Ceiling per run is now `max_results x keywords x boards`, defaults 100 x 3 x 2 = 600 before dedup. Two test doubles were themselves defective — a shared result pool across keywords, and assertions written for one keyword when board config supplies three (B-01) |
 | 2026-08-08 | M6 complete. B-10 found during the first mail test: the stored vacancy id is a content hash, and the employer's real reference (19568) was extracted nowhere — stage 1 correlation was dead on arrival. Fixed |
@@ -247,6 +286,8 @@ considered design.
 | 2026-08-08 | Skip guard for PDF tests corrected: tested package presence, not importability, so a missing GTK runtime failed instead of skipping |
 | 2026-08-08 | B-01/B-02 deferred to D-01 (adaptive query configuration) per operator direction. Observations from M4 recorded under D-01, explicitly non-binding |
 | 2026-08-08 | `.env` loading added so credentials survive between shell sessions; `.env.example` committed. Unresolved `{{ TOKEN }}` placeholders no longer sent as literal query values (C-01, partial) |
+| 2026-08-09 | Operator ruling: a board that cannot supply full advert text is not processed through its API — it defaults to operator paste. Implemented as `supplies_full_text`, validated at config load. Adzuna and Civil Service demoted; Reed retained via its detail endpoint. Board topology now 1 automatable, 3 manual |
+| 2026-08-09 | First live run against Adzuna and Reed exposed B-04 and B-13. Reed search returns snippets, so extraction found 1-2 terms per advert and produced C=1.000 for irrelevant roles. Hydration added; unreliable scores can no longer pass the gate. Five further tests were found to depend on machine credentials — they passed only on an unconfigured machine |
 | 2026-08-08 | CLI output defects fixed: fixed-width slicing cut mid-word and lost the operative half of exclusion reasons and adapter status; widths were hardcoded to ~100 columns; `run` printed seven skip lines before any result. Now word-boundary clipping, terminal-width detection, wrapped reasons, collapsed skips. Styling (rich tables, --json, GUI) deliberately deferred — see D-02 |
 | 2026-08-08 | B-11/B-12 fixed: pagination added to both API adapters, truncation recorded rather than swallowed. Ceiling per run is now `max_results x keywords x boards`, defaults 100 x 3 x 2 = 600 before dedup. Two test doubles were themselves defective — a shared result pool across keywords, and assertions written for one keyword when board config supplies three (B-01) |
 | 2026-08-08 | M6 complete. B-10 found during the first mail test: the stored vacancy id is a content hash, and the employer's real reference (19568) was extracted nowhere — stage 1 correlation was dead on arrival. Fixed |

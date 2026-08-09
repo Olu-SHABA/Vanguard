@@ -177,6 +177,10 @@ class AdzunaAPIAdapter(BoardAdapter):
             url=p.get("redirect_url", ""),
             posted=_parse_dt(p.get("created")),
             fetched_at=raw.fetched_at,
+            # Adzuna truncates the search description and marks it with an
+            # ellipsis. There is no detail endpoint on the free tier, so the
+            # flag records unreliability rather than enabling a fix.
+            description_is_partial=_looks_truncated(p.get("description", "")),
         )
 
     def health_check(self) -> AdapterStatus:
@@ -186,6 +190,12 @@ class AdzunaAPIAdapter(BoardAdapter):
         except Exception as exc:
             return AdapterStatus(self.board_id, False, str(exc))
         return AdapterStatus(self.board_id, True, "credentials present, tier 1 api_official")
+
+
+def _looks_truncated(text: str) -> bool:
+    """Adzuna marks a cut description with a trailing ellipsis."""
+    stripped = (text or "").rstrip()
+    return stripped.endswith(("…", "...")) or len(stripped) < 400
 
 
 def _parse_dt(value: Any) -> datetime | None:

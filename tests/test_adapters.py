@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import os
 from pathlib import Path
 
 import pytest
@@ -31,6 +32,37 @@ def registry():
     return load_registry(ROOT / "config" / "boards.yaml")
 
 
+@pytest.fixture
+def adzuna_entry(registry):
+    """An Adzuna entry configured as an API board.
+
+    The real registry demotes Adzuna to manual on capability grounds — it
+    caps descriptions at 500 characters. `AdzunaAPIAdapter` remains valid
+    code, so adapter-level behaviour (pagination, truncation, auth) is tested
+    against a synthetic API entry rather than the demoted registry one.
+    """
+    from dataclasses import replace as _replace
+
+    entry = registry.get("adzuna")
+    return _replace(entry, tier=Tier.API_OFFICIAL, supplies_full_text=True,
+                    adapter="AdzunaAPIAdapter",
+                    auth=dict(entry.auth), query=dict(entry.query))
+
+
+@pytest.fixture
+def bare_registry(monkeypatch):
+    """Registry loaded with NO credentials in the environment.
+
+    Several tests assert on the unconfigured state. Reading the ambient
+    environment made them pass only on a machine without credentials — they
+    failed the moment the operator configured the boards, which is exactly
+    when the suite most needs to be trustworthy.
+    """
+    for name in ("ADZUNA_APP_ID", "ADZUNA_APP_KEY", "REED_API_KEY"):
+        monkeypatch.delitem(os.environ, name, raising=False)
+    return load_registry(ROOT / "config" / "boards.yaml")
+
+
 class FakeResponse:
     def __init__(self, payload, status=200, headers=None):
         self._payload, self.status_code = payload, status
@@ -57,8 +89,10 @@ def test_registry_loads_all_boards(registry) -> None:
 
 def test_enabled_and_automatable_split(registry) -> None:
     assert len(registry.enabled) == 4
-    assert len(registry.automatable) == 3
-    assert len(registry.manual) == 1
+    # Only Reed remains automatable: Adzuna and Civil Service were demoted on
+    # capability grounds, LinkedIn on terms.
+    assert len(registry.automatable) == 1
+    assert len(registry.manual) == 3
 
 
 def test_priority_map_complete(registry) -> None:
@@ -75,9 +109,9 @@ def test_unknown_board_falls_back_to_global_silence(registry) -> None:
     assert registry.silence_days_for("nonexistent") == 21
 
 
-def test_credentials_come_from_environment(registry) -> None:
+def test_credentials_come_from_environment(bare_registry) -> None:
     """${ADZUNA_APP_ID} resolves from env, never from the YAML."""
-    assert registry.get("adzuna").auth["app_id"] == ""
+    assert bare_registry.get("adzuna").auth["app_id"] == ""
 
 
 def test_duplicate_board_id_rejected(tmp_path: Path) -> None:
@@ -140,9 +174,12 @@ def test_manual_health_check_is_honest(registry) -> None:
 
 # --- adzuna ---------------------------------------------------------------
 
-def test_adzuna_missing_credentials_raises(registry) -> None:
+def test_adzuna_missing_credentials_raises(adzuna_entry, monkeypatch) -> None:
+    for name in ("ADZUNA_APP_ID", "ADZUNA_APP_KEY"):
+        monkeypatch.delitem(os.environ, name, raising=False)
+    adzuna_entry.auth.update(app_id="", app_key="")
     with pytest.raises(IngestionError, match="ADZUNA_APP_ID"):
-        AdzunaAPIAdapter(registry.get("adzuna")).fetch(Query())
+        AdzunaAPIAdapter(adzuna_entry).fetch(Query())
 
 
 def test_adzuna_normalises_payload(registry) -> None:
@@ -175,9 +212,9 @@ def test_collect_skips_bad_records_without_aborting(registry) -> None:
 
 # --- reed -----------------------------------------------------------------
 
-def test_reed_missing_key_raises(registry) -> None:
+def test_reed_missing_key_raises(bare_registry) -> None:
     with pytest.raises(IngestionError, match="REED_API_KEY"):
-        ReedAPIAdapter(registry.get("reed")).fetch(Query())
+        ReedAPIAdapter(bare_registry.get("reed")).fetch(Query())
 
 
 def test_reed_normalises_payload(registry) -> None:
@@ -252,14 +289,17 @@ def test_limiter_permits_up_to_the_cap() -> None:
     assert slept == []
 
 
-def test_limiter_blocks_beyond_the_cap() -> None:
+def test_limiter_permits_a_second_window() -> None:
+    """Once the window rolls over, calls flow again without waiting."""
     slept: list[float] = []
     now = [0.0]
     rl = RateLimiter(2, sleep=lambda s: (slept.append(s), now.__setitem__(0, now[0] + s)),
                      clock=lambda: now[0])
-    for _ in range(3):
-        rl.acquire()
-    assert slept and slept[0] > 0
+    rl.acquire()
+    rl.acquire()
+    now[0] = 3601.0          # first window fully expired
+    rl.acquire()
+    assert slept == [], "no wait should be needed once the window has rolled"
 
 
 def test_backoff_is_exponential() -> None:
@@ -374,7 +414,7 @@ def _with_creds(entry, **auth):
     return entry
 
 
-def test_adzuna_paginates_beyond_the_first_page(registry) -> None:
+def test_adzuna_paginates_beyond_the_first_page(adzuna_entry) -> None:
     """B-11: page 1 was hardcoded. Everything beyond 50 was silently lost.
 
     Note the keyword count. boards.yaml declares three `what` terms and board
@@ -384,7 +424,7 @@ def test_adzuna_paginates_beyond_the_first_page(registry) -> None:
     """
     from vanguard.adapters.adzuna import AdzunaAPIAdapter
 
-    entry = _with_creds(registry.get("adzuna"), app_id="x", app_key="y")
+    entry = _with_creds(adzuna_entry, app_id="x", app_key="y")
     keywords = len(entry.query.get("what") or [""])
 
     client = PagingClient(50, 500)
@@ -395,12 +435,12 @@ def test_adzuna_paginates_beyond_the_first_page(registry) -> None:
     assert len(client.calls) == 4 * keywords
 
 
-def test_adzuna_records_truncation(registry) -> None:
+def test_adzuna_records_truncation(adzuna_entry) -> None:
     """B-12: the run is a sample, not a census. Say so."""
     from vanguard.adapters.adzuna import AdzunaAPIAdapter
 
     adapter = AdzunaAPIAdapter(
-        _with_creds(registry.get("adzuna"), app_id="x", app_key="y"),
+        _with_creds(adzuna_entry, app_id="x", app_key="y"),
         client=PagingClient(50, 5000),
     )
     adapter.fetch(Query(keywords=("data scientist",), max_results=100))
@@ -408,11 +448,11 @@ def test_adzuna_records_truncation(registry) -> None:
     assert "5000" in adapter.truncations[0].reason
 
 
-def test_short_page_ends_without_truncation(registry) -> None:
+def test_short_page_ends_without_truncation(adzuna_entry) -> None:
     """A board with nothing more to give is not a truncation."""
     from vanguard.adapters.adzuna import AdzunaAPIAdapter
 
-    entry = _with_creds(registry.get("adzuna"), app_id="x", app_key="y")
+    entry = _with_creds(adzuna_entry, app_id="x", app_key="y")
     keywords = len(entry.query.get("what") or [""])
 
     adapter = AdzunaAPIAdapter(entry, client=PagingClient(50, 12))
@@ -422,11 +462,11 @@ def test_short_page_ends_without_truncation(registry) -> None:
     assert not adapter.truncations
 
 
-def test_max_pages_is_a_hard_stop(registry) -> None:
+def test_max_pages_is_a_hard_stop(adzuna_entry) -> None:
     """A broad query must not run away."""
     from vanguard.adapters.adzuna import AdzunaAPIAdapter
 
-    entry = _with_creds(registry.get("adzuna"), app_id="x", app_key="y")
+    entry = _with_creds(adzuna_entry, app_id="x", app_key="y")
     keywords = len(entry.query.get("what") or [""])
 
     client = PagingClient(50, 10_000)
@@ -437,7 +477,7 @@ def test_max_pages_is_a_hard_stop(registry) -> None:
     assert "max_pages" in adapter.truncations[0].reason
 
 
-def test_board_config_overrides_caller_keywords(registry) -> None:
+def test_board_config_overrides_caller_keywords(adzuna_entry) -> None:
     """Documents B-01 rather than asserting it is correct.
 
     A caller-supplied job title is currently ignored when boards.yaml declares
@@ -447,7 +487,7 @@ def test_board_config_overrides_caller_keywords(registry) -> None:
     """
     from vanguard.adapters.adzuna import AdzunaAPIAdapter
 
-    entry = _with_creds(registry.get("adzuna"), app_id="x", app_key="y")
+    entry = _with_creds(adzuna_entry, app_id="x", app_key="y")
     client = PagingClient(50, 10)
     adapter = AdzunaAPIAdapter(entry, client=client)
     adapter.fetch(Query(keywords=("quantum basket weaving",), max_results=50))
@@ -460,12 +500,16 @@ def test_board_config_overrides_caller_keywords(registry) -> None:
 def test_reed_paginates_with_offset(registry) -> None:
     from vanguard.adapters.reed import ReedAPIAdapter
 
+    entry = _with_creds(registry.get("reed"), api_key="k")
+    keywords = len(entry.query.get("what") or [""])
+
     client = PagingClient(100, 250, count_key="totalResults")
-    adapter = ReedAPIAdapter(_with_creds(registry.get("reed"), api_key="k"), client=client)
-    results = adapter.fetch(Query(keywords=("data scientist",), max_results=250))
-    assert len(results) == 250
-    offsets = [c[1].get("resultsToSkip") for c in client.calls]
-    assert offsets == [0, 100, 200]
+    adapter = ReedAPIAdapter(entry, client=client)
+    results = adapter.fetch(Query(max_results=250))
+
+    assert len(results) == 250 * keywords
+    # Offsets restart per keyword: 0,100,200 for each search term.
+    assert [c[1].get("resultsToSkip") for c in client.calls] == [0, 100, 200] * keywords
 
 
 def test_reed_rate_limit_records_truncation(registry) -> None:
@@ -512,5 +556,206 @@ def test_real_location_survives_load(tmp_path: Path) -> None:
     assert load_registry(p).get("x").query["where"] == "UK"
 
 
-def test_missing_credentials_are_named(registry) -> None:
-    assert registry.get("adzuna").missing_credentials == ["app_id", "app_key"]
+def test_missing_credentials_are_named(bare_registry) -> None:
+    assert bare_registry.get("reed").missing_credentials == ["api_key"]
+
+
+def test_every_enabled_api_board_declares_keywords(registry) -> None:
+    """Reed had no `what` list, so it sent no keywords parameter and returned
+    the entire 87,000-vacancy index. An enabled API board without keywords is
+    a configuration defect, not a wildcard search."""
+    for entry in registry.enabled:
+        if entry.tier is not Tier.API_OFFICIAL:
+            continue
+        assert entry.query.get("what"), (
+            f"board {entry.id!r} is an enabled API board with no `what` keywords — "
+            "it would search the whole index"
+        )
+
+
+# ---------------------------------------------------------------------------
+# B-04 — hydration: search snippets must be replaced with the full advert
+# ---------------------------------------------------------------------------
+
+def test_reed_marks_search_results_partial(registry) -> None:
+    from vanguard.adapters.reed import ReedAPIAdapter
+
+    v = ReedAPIAdapter(registry.get("reed")).normalise(RawVacancy("reed", {
+        "jobId": 1, "jobTitle": "Data Scientist", "employerName": "Acme",
+        "jobDescription": "Short snippet about data...", "locationName": "London",
+    }))
+    assert v.description_is_partial
+
+
+def test_reed_hydrate_replaces_the_snippet(registry) -> None:
+    full = "Person Specification\n- Python and SQL\n- data wrangling\n" * 6
+
+    class DetailClient:
+        def get(self, url, params=None):
+            return FakeResponse({"jobDescription": full})
+
+    adapter = ReedAPIAdapter(_with_creds(registry.get("reed"), api_key="k"),
+                             client=DetailClient())
+    v = adapter.normalise(RawVacancy("reed", {
+        "jobId": 42, "jobTitle": "T", "employerName": "E",
+        "jobDescription": "snippet...", "locationName": "L",
+    }))
+    hydrated = adapter.hydrate(v)
+    assert not hydrated.description_is_partial
+    assert len(hydrated.description) > 100
+
+
+def test_hydration_failure_keeps_the_snippet(registry) -> None:
+    """A failed detail call must not lose the vacancy — the flag stays set."""
+    class Broken:
+        def get(self, url, params=None):
+            raise RuntimeError("network down")
+
+    adapter = ReedAPIAdapter(_with_creds(registry.get("reed"), api_key="k"),
+                             client=Broken())
+    adapter.fetch = lambda q: [RawVacancy("reed", {
+        "jobId": 1, "jobTitle": "T", "employerName": "E",
+        "jobDescription": "snippet...", "locationName": "L"})]
+
+    collected = adapter.collect(Query())
+    assert len(collected) == 1
+    assert collected[0].description_is_partial
+
+
+def test_hydrate_does_not_shorten(registry) -> None:
+    """A detail response shorter than the snippet is not an improvement."""
+    class Shorter:
+        def get(self, url, params=None):
+            return FakeResponse({"jobDescription": "x"})
+
+    adapter = ReedAPIAdapter(_with_creds(registry.get("reed"), api_key="k"),
+                             client=Shorter())
+    v = adapter.normalise(RawVacancy("reed", {
+        "jobId": 1, "jobTitle": "T", "employerName": "E",
+        "jobDescription": "a considerably longer snippet than the reply",
+        "locationName": "L"}))
+    assert "longer snippet" in adapter.hydrate(v).description
+
+
+def test_adzuna_flags_truncated_descriptions(registry) -> None:
+    from vanguard.adapters.adzuna import AdzunaAPIAdapter
+
+    adapter = AdzunaAPIAdapter(registry.get("adzuna"))
+    truncated = adapter.normalise(RawVacancy("adzuna", {
+        "id": "1", "title": "T", "description": "We are seeking a data scientist…",
+        "company": {"display_name": "C"}, "location": {"display_name": "L"}}))
+    assert truncated.description_is_partial
+
+    full = adapter.normalise(RawVacancy("adzuna", {
+        "id": "2", "title": "T", "description": "Person Specification. " * 40,
+        "company": {"display_name": "C"}, "location": {"display_name": "L"}}))
+    assert not full.description_is_partial
+
+
+def test_limiter_refuses_to_block_indefinitely() -> None:
+    """A limiter that sleeps for an hour is indistinguishable from a hang.
+
+    Hydration makes one detail call per vacancy. At 300 vacancies against
+    60/hour, the run would appear frozen for hours with no output.
+    """
+    from vanguard.adapters.base import RateLimitExceeded
+
+    now = [0.0]
+    rl = RateLimiter(2, sleep=lambda s: now.__setitem__(0, now[0] + s),
+                     clock=lambda: now[0])
+    rl.MAX_SINGLE_WAIT = 10.0
+    rl.acquire()
+    rl.acquire()
+    with pytest.raises(RateLimitExceeded, match="reduce max_results"):
+        rl.acquire()
+
+
+def test_limiter_still_waits_for_short_delays() -> None:
+    """A wait inside the cap is served, not refused."""
+    slept: list[float] = []
+    now = [0.0]
+    rl = RateLimiter(2, sleep=lambda s: (slept.append(s), now.__setitem__(0, now[0] + s)),
+                     clock=lambda: now[0])
+    rl.acquire()
+    rl.acquire()
+    now[0] = 3000.0          # 600s left in the window — inside the 900s cap
+    rl.acquire()
+    assert slept and 0 < slept[0] <= rl.MAX_SINGLE_WAIT
+
+
+# ---------------------------------------------------------------------------
+# Capability gate — a board that cannot be assessed must not be automated
+# ---------------------------------------------------------------------------
+
+def test_board_without_full_text_cannot_be_fetched(tmp_path: Path) -> None:
+    """Adzuna caps descriptions at exactly 500 characters with no detail
+    endpoint. Scoring a two-sentence summary produced C=1.000 for a Service
+    Centre Team Manager."""
+    from vanguard.adapters.base import InsufficientForAssessment
+
+    p = tmp_path / "b.yaml"
+    p.write_text(
+        "boards:\n  - id: x\n    tier: manual\n    enabled: true\n"
+        "    supplies_full_text: false\n"
+    )
+    entry = load_registry(p).get("x")
+    assert not entry.assessable
+    with pytest.raises((InsufficientForAssessment, TermsViolation)):
+        entry.assert_fetchable()
+
+
+def test_automated_board_without_full_text_is_rejected_at_load(tmp_path: Path) -> None:
+    """The contradiction must be caught in config, not discovered after a run."""
+    from vanguard.adapters.base import InsufficientForAssessment
+
+    p = tmp_path / "b.yaml"
+    p.write_text(
+        "boards:\n  - id: x\n    tier: api_official\n    enabled: true\n"
+        "    supplies_full_text: false\n"
+    )
+    with pytest.raises(InsufficientForAssessment, match="must not be automated"):
+        load_registry(p)
+
+
+def test_adzuna_is_demoted_to_manual(registry) -> None:
+    """Capability, not terms. Adzuna is legal to poll and useless to score."""
+    entry = registry.get("adzuna")
+    assert entry.tier is Tier.MANUAL
+    assert not entry.supplies_full_text
+
+
+def test_reed_remains_assessable(registry) -> None:
+    """Reed has a detail endpoint, so it can still be automated."""
+    entry = registry.get("reed")
+    assert entry.tier is Tier.API_OFFICIAL
+    assert entry.supplies_full_text
+
+
+def test_every_automatable_board_supplies_full_text(registry) -> None:
+    for entry in registry.automatable:
+        assert entry.assessable, f"{entry.id} is automated but cannot be assessed"
+
+
+def test_unhydrated_vacancies_are_reported(registry) -> None:
+    """The first version swallowed RateLimitExceeded and left 240 of 300
+    vacancies scored on snippets with no indication anything went wrong."""
+    from vanguard.adapters.base import RateLimitExceeded
+    from vanguard.adapters.reed import ReedAPIAdapter
+
+    adapter = ReedAPIAdapter(_with_creds(registry.get("reed"), api_key="k"))
+    adapter.fetch = lambda q: [
+        RawVacancy("reed", {"jobId": i, "jobTitle": f"T{i}", "employerName": "E",
+                            "jobDescription": "snippet...", "locationName": "L"})
+        for i in range(3)
+    ]
+
+    def refuse(vacancy):
+        raise RateLimitExceeded("would block for 3600s")
+
+    adapter.hydrate = refuse
+    collected = adapter.collect(Query())
+
+    assert len(collected) == 3
+    assert all(v.description_is_partial for v in collected)
+    assert adapter.truncations, "silent partial scoring must be reported"
+    assert "could not be hydrated" in adapter.truncations[0].reason

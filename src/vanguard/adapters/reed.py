@@ -151,7 +151,23 @@ class ReedAPIAdapter(BoardAdapter):
             url=p.get("jobUrl", ""),
             posted=_parse_date(p.get("date")),
             fetched_at=raw.fetched_at,
+            # The search endpoint returns a snippet. Only fetch_detail() has
+            # the Person Specification that requirement extraction needs.
+            description_is_partial=True,
         )
+
+    def hydrate(self, vacancy: Vacancy) -> Vacancy:
+        """Fetch the full advert for one vacancy. Costs one extra API call."""
+        job_id = vacancy.id.split(":", 1)[-1]
+        if not job_id:
+            return vacancy
+        payload = self.fetch_detail(job_id)
+        full = (payload.get("jobDescription") or "").strip()
+        if len(full) <= len(vacancy.description):
+            return vacancy        # no improvement; keep the flag set
+        vacancy.description = full
+        vacancy.description_is_partial = False
+        return vacancy
 
     def health_check(self) -> AdapterStatus:
         try:

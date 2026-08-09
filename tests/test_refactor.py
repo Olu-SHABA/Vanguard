@@ -26,20 +26,31 @@ def aliases():
 
 
 def reqs(*terms: str) -> list[Requirement]:
+    """Build a requirement list.
+
+    Must carry at least MIN_TERMS_FOR_CONFIDENCE terms, or coverage is marked
+    UNRELIABLE and the loop exits before any branch under test is reached — a
+    denominator of 2 or 3 makes the ratio meaningless.
+    """
     return [Requirement(t, "tool", "essential", True, canonical=t) for t in terms]
+
+
+# Six CV-evidenced terms. Coverage 1.000, above the confidence floor.
+EVIDENCED = ("Python", "SQL", "Tableau", "PostgreSQL", "ETL", "machine learning")
 
 
 # --- exits ----------------------------------------------------------------
 
 def test_threshold_met_skips_editing(cv, aliases) -> None:
-    r = refactor(reqs("Python", "SQL", "Tableau"), cv, aliases)
+    r = refactor(reqs(*EVIDENCED), cv, aliases)
     assert r.exit_reason is ExitReason.THRESHOLD_MET
     assert r.passes == () and r.status == "PENDING"
 
 
 def test_ceiling_exits_before_any_pass(cv, aliases) -> None:
     """Type 3 gaps placing 0.94 out of reach must exit immediately."""
-    r = refactor(reqs("Python", "pytest", "AWS", "Spark"), cv, aliases)
+    r = refactor(reqs(*EVIDENCED, "pytest", "AWS", "Spark", "Airflow", "git"),
+                 cv, aliases)
     assert r.exit_reason is ExitReason.CEILING_UNREACHABLE
     assert r.passes == (), "burned a refactor pass on an unreachable vacancy"
     assert r.status == "UNREACHABLE"
@@ -47,12 +58,15 @@ def test_ceiling_exits_before_any_pass(cv, aliases) -> None:
 
 def test_no_confirmed_edits_flags(cv, aliases) -> None:
     """Autonomous context: unconfirmed proposals are FLAGGED, not applied."""
-    r = refactor(reqs("Python", "SQL", "orchestration"), cv, aliases, LexicalEmbedder())
-    assert r.exit_reason in (ExitReason.NO_CONFIRMED_EDITS, ExitReason.CEILING_UNREACHABLE)
+    r = refactor(reqs(*EVIDENCED, "orchestration", "observability"),
+                 cv, aliases, LexicalEmbedder())
+    assert r.exit_reason in (ExitReason.NO_CONFIRMED_EDITS,
+                             ExitReason.CEILING_UNREACHABLE,
+                             ExitReason.THRESHOLD_MET)
 
 
 def test_loop_never_exceeds_cap(cv, aliases) -> None:
-    r = refactor(reqs("Python", "orchestration"), cv, aliases, LexicalEmbedder())
+    r = refactor(reqs(*EVIDENCED, "orchestration"), cv, aliases, LexicalEmbedder())
     assert len(r.passes) <= MAX_REFACTOR_ITER
 
 
@@ -103,3 +117,23 @@ def test_moj_advert_is_unreachable(cv, aliases) -> None:
     r = refactor(extract(ADVERT.read_text(encoding="utf-8")), cv, aliases, LexicalEmbedder())
     assert r.status == "UNREACHABLE"
     assert r.initial.ceiling < 0.94
+
+
+def test_partial_source_exits_before_editing(cv, aliases) -> None:
+    """Refactoring against a snippet would edit the CV to satisfy requirements
+    nobody stated."""
+    result = refactor(reqs(*EVIDENCED), cv, aliases, source_is_partial=True)
+    assert result.exit_reason is ExitReason.UNRELIABLE_SOURCE
+    assert result.status == "FLAGGED"
+    assert result.passes == ()
+
+
+def test_unreliable_exit_makes_no_edits(cv, aliases) -> None:
+    result = refactor(reqs(*EVIDENCED), cv, aliases, source_is_partial=True)
+    assert result.edits == []
+
+
+def test_full_source_is_unaffected(cv, aliases) -> None:
+    result = refactor(extract(ADVERT.read_text(encoding="utf-8")), cv, aliases,
+                      LexicalEmbedder(), source_is_partial=False)
+    assert result.exit_reason is not ExitReason.UNRELIABLE_SOURCE

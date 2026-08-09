@@ -205,3 +205,52 @@ def test_moj_coverage_improves_after_b06_b07_b08(cv, aliases) -> None:
                               cv, aliases, LexicalEmbedder())
     assert report.total == 21, "behaviours must not count as requirements"
     assert report.coverage > 0.35
+
+
+# ---------------------------------------------------------------------------
+# B-04 — a snippet must not produce a confident score
+# ---------------------------------------------------------------------------
+
+def test_partial_source_never_passes_the_gate(cv, aliases) -> None:
+    """The first live run scored a Service Centre Team Manager at C = 1.000
+    because the Reed snippet said "data" and the CV says "data". |R| was 1."""
+    reqs = extract("Essential\n- strong Python skills required for this role")
+    report = compute_coverage(reqs, cv, aliases, source_is_partial=True)
+
+    assert report.coverage == 1.0
+    assert not report.passes
+    assert report.unreliable
+    assert "snippet" in report.unreliable_reason
+
+
+def test_too_few_terms_never_passes(cv, aliases) -> None:
+    """Even from a full posting, a denominator of 1 carries no information."""
+    reqs = extract("Essential\n- strong Python skills required for this role")
+    report = compute_coverage(reqs, cv, aliases)
+
+    assert report.total == 1 and report.coverage == 1.0
+    assert not report.passes and report.too_few_terms
+
+
+def test_zero_terms_is_unreliable(cv, aliases) -> None:
+    report = compute_coverage([], cv, aliases)
+    assert report.unreliable
+    assert "no requirement terms" in report.unreliable_reason
+
+
+def test_full_advert_is_reliable(cv, aliases) -> None:
+    reqs = extract(ADVERT.read_text(encoding="utf-8"))
+    report = compute_coverage(reqs, cv, aliases, LexicalEmbedder())
+    assert not report.unreliable
+    assert report.total >= 6
+
+
+def test_summary_states_why_a_score_is_unreliable(cv, aliases) -> None:
+    reqs = extract("Essential\n- strong Python skills required for this role")
+    assert "UNRELIABLE" in compute_coverage(reqs, cv, aliases, source_is_partial=True).summary()
+
+
+def test_reliable_summary_is_unchanged(cv, aliases) -> None:
+    reqs = extract(ADVERT.read_text(encoding="utf-8"))
+    summary = compute_coverage(reqs, cv, aliases).summary()
+    assert "ceiling" in summary and "UNRELIABLE" not in summary

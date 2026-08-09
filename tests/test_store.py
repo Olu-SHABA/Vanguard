@@ -25,6 +25,28 @@ def store(tmp_path: Path) -> Store:
     return s
 
 
+
+def legacy_schema() -> str:
+    """SCHEMA as it stood before the post-release columns were added.
+
+    Built by removing the migrated columns, so it stays correct as more are
+    added — an earlier version stripped one line by hand and broke the moment
+    a second column landed after it.
+    """
+    from vanguard.store import SCHEMA
+
+    migrated = {column for _table, column, _ddl in Store.MIGRATIONS}
+    out = []
+    for line in SCHEMA.splitlines():
+        name = line.strip().split(" ")[0].rstrip(",")
+        if name in migrated:
+            continue
+        out.append(line)
+    text = "\n".join(out)
+    # The last column before the closing paren must not keep a trailing comma.
+    return text.replace(",\n);", "\n);")
+
+
 def vac(vid="b:1", employer="MoJ", title="Data Engineer") -> Vacancy:
     return Vacancy(id=vid, board_id="b", employer=employer, title=title,
                    description="Python and SQL required.", location="London")
@@ -189,3 +211,75 @@ def test_counts_by_status(store: Store) -> None:
         store.upsert_vacancy(vac(f"b:{i}", title=f"Role {i}"))
         store.create_queue_record(f"b:{i}", s)
     assert store.counts_by_status() == {"PENDING": 2, "FLAGGED": 1}
+
+
+# ---------------------------------------------------------------------------
+# Schema migration — a column added after release must reach old databases
+# ---------------------------------------------------------------------------
+
+def test_column_added_to_an_existing_database(tmp_path: Path) -> None:
+    """`CREATE TABLE IF NOT EXISTS` does not alter an existing table.
+
+    A database created before `reference` existed silently lacked it, and
+    every insert failed at runtime with 'table vacancies has no column named
+    reference' — after the vacancies had already been fetched and scored.
+    """
+    import sqlite3
+
+    from vanguard.store import SCHEMA
+
+    path = tmp_path / "old.db"
+    conn = sqlite3.connect(str(path))
+    conn.executescript(legacy_schema())
+    conn.close()
+
+    columns = {r[1] for r in sqlite3.connect(str(path)).execute("PRAGMA table_info(vacancies)")}
+    assert "reference" not in columns and "partial" not in columns
+
+    Store(path).initialise()
+
+    columns = {r[1] for r in sqlite3.connect(str(path)).execute("PRAGMA table_info(vacancies)")}
+    assert {"reference", "partial"} <= columns
+
+
+def test_migration_is_idempotent(tmp_path: Path) -> None:
+    store = Store(tmp_path / "v.db")
+    store.initialise()
+    store.initialise()
+    store.initialise()
+    store.upsert_vacancy(vac())
+    assert store.count_vacancies() == 1
+
+
+def test_migrated_database_accepts_writes(tmp_path: Path) -> None:
+    """The failure was at insert time, after fetching and scoring. Prove the
+    round trip, not merely that the column exists."""
+    import sqlite3
+
+    from vanguard.store import SCHEMA
+
+    path = tmp_path / "old.db"
+    conn = sqlite3.connect(str(path))
+    conn.executescript(legacy_schema())
+    conn.close()
+
+    store = Store(path)
+    store.initialise()
+    v = vac()
+    v.reference = "19568"
+    store.upsert_vacancy(v)
+    assert store.vacancy("b:1")["reference"] == "19568"
+
+
+def test_partial_flag_is_persisted(store: Store) -> None:
+    """Without this the operator cannot query which scores were degraded —
+    it had to be inferred from average description lengths."""
+    v = vac()
+    v.description_is_partial = True
+    store.upsert_vacancy(v)
+    assert store.vacancy("b:1")["partial"] == 1
+
+
+def test_full_text_vacancy_is_not_flagged(store: Store) -> None:
+    store.upsert_vacancy(vac())
+    assert store.vacancy("b:1")["partial"] == 0

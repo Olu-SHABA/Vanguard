@@ -1,6 +1,7 @@
 """CLI — command surface, autonomous non-blocking guarantee, error reporting."""
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -17,6 +18,33 @@ ADVERT = Path(__file__).parent / "fixtures" / "moj_senior_data_engineer.txt"
 @pytest.fixture
 def runner() -> CliRunner:
     return CliRunner()
+
+
+@pytest.fixture(autouse=True)
+def no_live_network(monkeypatch):
+    """Clear board credentials for EVERY CLI test.
+
+    `main()` calls `_load_env()`, which reads the operator's real `.env`. Once
+    credentials were configured, any test invoking `run` began making live API
+    calls — fetching hundreds of vacancies, hydrating each with a detail call,
+    and blocking on the 60/hour rate limiter. The suite hung, and it was
+    consuming the operator's API quota to do it.
+
+    A test suite must never touch a live endpoint.
+    """
+    for name in ("ADZUNA_APP_ID", "ADZUNA_APP_KEY", "REED_API_KEY"):
+        monkeypatch.delitem(os.environ, name, raising=False)
+
+    # Neutralise the .env read that `main()` performs at group level, without
+    # replacing the function itself — three tests below exercise `_load_env`
+    # directly and stubbing it would remove the code under test.
+    import vanguard.cli as cli_module
+
+    real = cli_module._load_env
+    monkeypatch.setattr(
+        cli_module, "_load_env",
+        lambda path=Path(".env"): 0 if path == Path(".env") else real(path),
+    )
 
 
 def base(tmp_path: Path) -> list[str]:
@@ -380,28 +408,34 @@ def test_review_list_columns_align(runner: CliRunner, tmp_path: Path) -> None:
 
 def test_env_file_populates_credentials(tmp_path: Path, monkeypatch) -> None:
     """Without this, keys must be exported in every new shell — the friction
-    that ends with someone pasting a key into a tracked file."""
+    that ends with someone pasting a key into a tracked file.
+
+    Uses names that cannot collide with real credentials. An earlier version
+    asserted on ADZUNA_APP_ID/KEY and passed only on a machine with no Adzuna
+    credentials configured — it failed the moment the feature started working.
+    """
     from vanguard.cli import _load_env
 
+    for name in ("VANGUARD_TEST_A", "VANGUARD_TEST_B"):
+        monkeypatch.delitem(os.environ, name, raising=False)
+
     env = tmp_path / ".env"
-    env.write_text("ADZUNA_APP_ID=abc\nADZUNA_APP_KEY='def'\n# comment\n\n")
-    monkeypatch.delitem(__import__("os").environ, "ADZUNA_APP_ID", raising=False)
+    env.write_text("VANGUARD_TEST_A=abc\nVANGUARD_TEST_B='def'\n# comment\n\n")
 
     assert _load_env(env) == 2
-    import os
-    assert os.environ["ADZUNA_APP_ID"] == "abc"
-    assert os.environ["ADZUNA_APP_KEY"] == "def"
+    assert os.environ["VANGUARD_TEST_A"] == "abc"
+    assert os.environ["VANGUARD_TEST_B"] == "def"      # quotes stripped
 
 
 def test_exported_variable_wins_over_env_file(tmp_path: Path, monkeypatch) -> None:
     from vanguard.cli import _load_env
-    import os
 
-    monkeypatch.setitem(os.environ, "REED_API_KEY", "exported")
+    monkeypatch.setitem(os.environ, "VANGUARD_TEST_C", "exported")
     env = tmp_path / ".env"
-    env.write_text("REED_API_KEY=from-file\n")
-    _load_env(env)
-    assert os.environ["REED_API_KEY"] == "exported"
+    env.write_text("VANGUARD_TEST_C=from-file\n")
+
+    assert _load_env(env) == 0, "an already-set variable must not be counted as loaded"
+    assert os.environ["VANGUARD_TEST_C"] == "exported"
 
 
 def test_missing_env_file_is_not_an_error(tmp_path: Path) -> None:

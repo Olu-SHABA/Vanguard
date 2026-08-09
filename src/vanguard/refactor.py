@@ -52,6 +52,7 @@ class ExitReason(str, Enum):
     CEILING_UNREACHABLE = "CEILING_UNREACHABLE"
     ITERATION_CAP = "ITERATION_CAP"
     NO_CONFIRMED_EDITS = "NO_CONFIRMED_EDITS"
+    UNRELIABLE_SOURCE = "UNRELIABLE_SOURCE"
 
     @property
     def status(self) -> str:
@@ -61,6 +62,7 @@ class ExitReason(str, Enum):
             "CEILING_UNREACHABLE": "UNREACHABLE",
             "ITERATION_CAP": "UNREACHABLE",
             "NO_CONFIRMED_EDITS": "FLAGGED",
+            "UNRELIABLE_SOURCE": "FLAGGED",
         }[self.value]
 
 
@@ -137,6 +139,7 @@ def refactor(
     threshold: float = 0.94,
     max_iter: int = MAX_REFACTOR_ITER,
     confirm: bool = False,
+    source_is_partial: bool = False,
 ) -> RefactorResult:
     """Run the bounded refactor loop.
 
@@ -148,8 +151,14 @@ def refactor(
     The `confirm=True` path exists for the interactive session and for tests,
     where the operator has already ruled.
     """
-    initial = compute_coverage(requirements, cv, aliases, embedder, threshold=threshold)
+    initial = compute_coverage(requirements, cv, aliases, embedder,
+                               threshold=threshold, source_is_partial=source_is_partial)
     gaps = classify_all(initial, cv)
+
+    # Exit 0 — the score cannot be trusted. Refactoring against a snippet
+    # would edit the CV to satisfy requirements nobody stated.
+    if initial.unreliable:
+        return RefactorResult(cv, initial, initial, gaps, (), ExitReason.UNRELIABLE_SOURCE)
 
     # Exit 1 — already met. No edit needed.
     if initial.passes:

@@ -157,7 +157,8 @@ def _score_and_queue(vacancy, store, queue, canonical, alias_table, embedder, na
         vacancy.reference = spec_early.vacancy_reference
     store.upsert_vacancy(vacancy)
     requirements = extract(vacancy.description)
-    outcome = refactor(requirements, canonical, alias_table, embedder)
+    outcome = refactor(requirements, canonical, alias_table, embedder,
+                       source_is_partial=vacancy.description_is_partial)
     gaps = classify_all(outcome.final, canonical)
     spec = detect(vacancy.description)
 
@@ -182,10 +183,16 @@ def _score_and_queue(vacancy, store, queue, canonical, alias_table, embedder, na
                "CRITERIA": len(spec.assessed_criteria)},
         note=note,
     )
-    click.echo(
-        f"  {status.value:<12} C={outcome.final.coverage:.3f} "
-        f"ceiling={outcome.final.ceiling:.3f}  {vacancy.title[:44]}"
-    )
+    if outcome.final.unreliable:
+        click.echo(
+            f"  {status.value:<12} C={outcome.final.coverage:.3f} "
+            f"UNRELIABLE   {_clip(vacancy.title, 40)}"
+        )
+    else:
+        click.echo(
+            f"  {status.value:<12} C={outcome.final.coverage:.3f} "
+            f"ceiling={outcome.final.ceiling:.3f}  {_clip(vacancy.title, 40)}"
+        )
     return status.value
 
 

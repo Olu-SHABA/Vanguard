@@ -54,7 +54,8 @@ CREATE TABLE IF NOT EXISTS vacancies (
   posted       TIMESTAMP,
   fetched_at   TIMESTAMP NOT NULL,
   dedup_key    TEXT NOT NULL,
-  reference    TEXT NOT NULL DEFAULT ''
+  reference    TEXT NOT NULL DEFAULT '',
+  partial      INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS ix_vacancies_dedup ON vacancies(dedup_key);
 CREATE INDEX IF NOT EXISTS ix_vacancies_board ON vacancies(board_id);
@@ -144,9 +145,29 @@ class Store:
         finally:
             conn.close()
 
+    # Columns added after the first release. `CREATE TABLE IF NOT EXISTS` does
+    # not alter an existing table, so a database created before a column was
+    # introduced silently lacks it and every insert fails at runtime.
+    MIGRATIONS: tuple[tuple[str, str, str], ...] = (
+        ("vacancies", "reference", "TEXT NOT NULL DEFAULT ''"),
+        ("vacancies", "partial", "INTEGER NOT NULL DEFAULT 0"),
+    )
+
     def initialise(self) -> None:
         with self.connect() as conn:
             conn.executescript(SCHEMA)
+            self._migrate(conn)
+
+    def _migrate(self, conn: sqlite3.Connection) -> None:
+        """Add columns missing from an older database. Idempotent."""
+        for table, column, ddl in self.MIGRATIONS:
+            existing = {
+                row["name"] for row in conn.execute(f"PRAGMA table_info({table})")
+            }
+            if not existing:
+                continue          # table absent; the schema script will create it
+            if column not in existing:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
 
     # -- vacancies ---------------------------------------------------------
 
@@ -155,8 +176,8 @@ class Store:
             conn.execute(
                 """INSERT INTO vacancies
                    (id, board_id, employer, title, location, salary_band, url,
-                    description, posted, fetched_at, dedup_key, reference)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                    description, posted, fetched_at, dedup_key, reference, partial)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
                    ON CONFLICT(id) DO UPDATE SET
                      description = excluded.description,
                      fetched_at  = excluded.fetched_at""",
@@ -167,6 +188,7 @@ class Store:
                     vacancy.posted.isoformat() if vacancy.posted else None,
                     vacancy.fetched_at.isoformat(), vacancy.dedup_key,
                     vacancy.reference,
+                    1 if vacancy.description_is_partial else 0,
                 ),
             )
 

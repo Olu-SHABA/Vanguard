@@ -14,9 +14,10 @@ defaults:
 boards:
 
   - id: adzuna
-    adapter: AdzunaAPIAdapter
+    adapter: ManualEntryAdapter
     enabled: true
-    tier: api_official
+    tier: manual                     # NOT a terms restriction — a capability one
+    supplies_full_text: false
     priority: 1                      # dedup master — widest aggregated corpus
     auth:
       app_id: ${ADZUNA_APP_ID}
@@ -29,18 +30,34 @@ boards:
       what: ["data scientist", "machine learning engineer", "network analytics"]
       where: "UK"
       max_days_old: 7
-    note: "Self-service keys. Aggregates from many boards — recovers partial
-           coverage of sources that have no API of their own."
+    note: "DEMOTED TO MANUAL 9 Aug 2026. The free API caps every description at
+           exactly 500 characters and offers no detail endpoint, so requirement
+           extraction finds one or two terms and coverage becomes meaningless —
+           a Service Centre Team Manager scored C=1.000. Good for DISCOVERY,
+           useless for ASSESSMENT. Browse at adzuna.co.uk, paste with
+           `vanguard paste --board adzuna`. Credentials retained in case a
+           full-text tier becomes available."
 
   - id: reed
     adapter: ReedAPIAdapter
     enabled: true
     tier: api_official
     priority: 2
+    supplies_full_text: true         # via the /jobs/{id} detail endpoint
     auth:
       api_key: ${REED_API_KEY}
+    query:
+      # Without `what`, no keywords parameter is sent and the search returns
+      # the entire Reed index — 87,000+ vacancies of HGV drivers and
+      # optometrists. Every enabled API board needs its own keyword list.
+      what: ["data scientist", "machine learning engineer", "network analytics"]
+      # `locationName` is a PLACE and carries a 10-mile default radius. "UK" is
+      # not a place; leaving it unset searches nationwide, which is what is
+      # wanted here.
+      where: ""
     note: "Self-service. Jobseeker search endpoint returns title, employer,
-           description, location, salary range."
+           description, location, salary range. Keyword list is mandatory —
+           an absent `what` returns the whole index."
 
   - id: nhs_jobs
     adapter: NHSJobsAPIAdapter
@@ -54,7 +71,8 @@ boards:
   - id: civil_service_jobs
     adapter: EmailAlertAdapter
     enabled: true
-    tier: feed                       # sanctioned push, not scrape
+    tier: manual                     # alert emails carry summaries, not adverts
+    supplies_full_text: false
     priority: 2
     silence_days: 30
     portal_url: "https://www.civilservicejobs.service.gov.uk/csr/index.cgi"

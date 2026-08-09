@@ -36,6 +36,8 @@ from typing import Any, Iterable, Sequence
 
 __all__ = [
     "Tier",
+    "InsufficientForAssessment",
+    "RateLimitExceeded",
     "is_placeholder",
     "Truncation",
     "Query",
@@ -61,11 +63,25 @@ class IngestionError(RuntimeError):
     """A source could not be ingested."""
 
 
+class RateLimitExceeded(IngestionError):
+    """A call would have blocked longer than the permitted single wait."""
+
+
 class TermsViolation(IngestionError):
     """A fetch was attempted that the board's terms or tier prohibit.
 
     Raised rather than logged. A terms breach is not a degraded outcome to be
     recovered from — it is a request that must never leave the process.
+    """
+
+
+class InsufficientForAssessment(IngestionError):
+    """A board was configured for automation but cannot supply full advert text.
+
+    Coverage is computed from requirement terms extracted from the advert. A
+    board that returns a 500-character summary cannot support that: extraction
+    finds one or two terms and the ratio becomes meaningless. Scoring it
+    anyway produces numbers that look like measurements and are not.
     """
 
 
@@ -128,6 +144,7 @@ class Vacancy:
     posted: datetime | None = None
     fetched_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     reference: str = ""   # employer vacancy reference — correlation stage 1
+    description_is_partial: bool = False   # search snippet, not the full advert
 
     def __post_init__(self) -> None:
         if not self.id:
@@ -289,8 +306,16 @@ class RateLimiter:
         while self._calls and now - self._calls[0] >= self.window:
             self._calls.popleft()
 
+    #: Refuse to block longer than this in one acquire. A limiter that sleeps
+    #: for an hour is indistinguishable from a hang, and a caller that hits it
+    #: needs to know rather than wait.
+    MAX_SINGLE_WAIT = 900.0
+
     def acquire(self) -> float:
-        """Block until a call is permitted. Returns seconds waited."""
+        """Block until a call is permitted. Returns seconds waited.
+
+        Raises RateLimitExceeded rather than sleeping past MAX_SINGLE_WAIT.
+        """
         with self._lock:
             waited = 0.0
             now = self._clock()
@@ -303,6 +328,13 @@ class RateLimiter:
             self._prune(now)
             if len(self._calls) >= self.calls_per_hour:
                 delay = self.window - (now - self._calls[0])
+                if delay > self.MAX_SINGLE_WAIT:
+                    raise RateLimitExceeded(
+                        f"rate limit would block for {delay:.0f}s "
+                        f"(cap {self.MAX_SINGLE_WAIT:.0f}s) at "
+                        f"{self.calls_per_hour} calls/hour — reduce max_results "
+                        "or narrow the keyword list"
+                    )
                 if delay > 0:
                     waited += delay
                     self._sleep(delay)
@@ -361,14 +393,60 @@ class BoardAdapter(ABC):
     def health_check(self) -> AdapterStatus:
         """Is the source reachable and are its terms still as recorded?"""
 
-    def collect(self, query: Query) -> list[Vacancy]:
-        """fetch + normalise. Skips records that fail validation, never aborts."""
+    def hydrate(self, vacancy: Vacancy) -> Vacancy:
+        """Replace a search snippet with the full advert text.
+
+        Search endpoints return a truncated description. Requirement extraction
+        against a snippet finds one or two technology names and no Person
+        Specification, which produces coverage denominators of 1 or 2 — a
+        Service Centre Team Manager scores 1.000 because the snippet said
+        "data" and the CV says "data".
+
+        Default is a no-op. Boards whose search response is already complete
+        need do nothing; boards with a detail endpoint override this.
+        """
+        return vacancy
+
+    def collect(self, query: Query, *, hydrate: bool = True) -> list[Vacancy]:
+        """fetch + normalise + hydrate. Skips bad records, never aborts.
+
+        Hydration failure is not fatal: a partial description still scores,
+        and `description_is_partial` records that the number is unreliable.
+        """
         out: list[Vacancy] = []
+        unhydrated = 0
+
         for raw in self.fetch(query):
             try:
-                out.append(self.normalise(raw))
+                vacancy = self.normalise(raw)
             except IngestionError:
                 continue
+
+            if hydrate and vacancy.description_is_partial:
+                try:
+                    vacancy = self.hydrate(vacancy)
+                except RateLimitExceeded:
+                    # Hydration is now impossible for the rest of this run.
+                    # Stop trying, and SAY SO — the first version swallowed
+                    # this and left 240 of 300 vacancies scored on snippets
+                    # with no indication anything had gone wrong.
+                    unhydrated += 1
+                    hydrate = False
+                except Exception:
+                    unhydrated += 1
+                if vacancy.description_is_partial and hydrate:
+                    unhydrated += 1
+
+            out.append(vacancy)
+
+        remaining = sum(1 for v in out if v.description_is_partial)
+        if remaining:
+            self._note_truncation(
+                "", len(out) - remaining,
+                f"{remaining} of {len(out)} vacancies could not be hydrated — "
+                f"scored on partial text at {self.entry.calls_per_hour} calls/hour. "
+                "Reduce max_results.",
+            )
         return out
 
 
@@ -404,12 +482,22 @@ def _expand(value: Any) -> Any:
 
 @dataclass
 class RegistryEntry:
-    """One board's configuration."""
+    """One board's configuration.
+
+    `supplies_full_text` is a CAPABILITY declaration, separate from tier.
+    Tier records what a board's terms permit; this records whether what it
+    returns is sufficient to assess against. A board may be perfectly legal to
+    poll and still useless for scoring.
+
+    Operator ruling, 9 Aug 2026: a board that cannot supply full advert text
+    is not processed through its API at all. It defaults to operator paste.
+    """
 
     id: str
     adapter: str
     enabled: bool
     tier: Tier
+    supplies_full_text: bool = True
     priority: int = 99
     silence_days: int = DEFAULT_SILENCE_DAYS
     calls_per_hour: int = DEFAULT_CALLS_PER_HOUR
@@ -428,6 +516,17 @@ class RegistryEntry:
                 f"board {self.id!r} is Tier 3 (manual): automated collection is "
                 "prohibited by its terms. Operator pastes URL or text."
             )
+        if not self.supplies_full_text:
+            raise InsufficientForAssessment(
+                f"board {self.id!r} cannot supply full advert text, so nothing "
+                "fetched from it can be scored. Register it as tier: manual and "
+                "paste vacancies with `vanguard paste`."
+            )
+
+    @property
+    def assessable(self) -> bool:
+        """Can a vacancy from this board be scored at all?"""
+        return self.supplies_full_text
 
     @property
     def credentials_present(self) -> bool:
@@ -521,6 +620,7 @@ def load_registry(path: Path | str) -> BoardRegistry:
                 priority=int(raw.get("priority", 99)),
                 silence_days=int(raw.get("silence_days", default_silence)),
                 calls_per_hour=int(rate),
+                supplies_full_text=bool(raw.get("supplies_full_text", True)),
                 auth=_expand(raw.get("auth", {}) or {}),
                 query=_expand(raw.get("query", {}) or {}),
                 portal_url=str(raw.get("portal_url", "")),
@@ -528,5 +628,13 @@ def load_registry(path: Path | str) -> BoardRegistry:
                 note=re.sub(r"\s+", " ", str(raw.get("note", ""))).strip(),
             )
         )
+
+    for entry in entries:
+        if entry.enabled and entry.tier.automatable and not entry.supplies_full_text:
+            raise InsufficientForAssessment(
+                f"board {entry.id!r} is enabled at tier {entry.tier.value} but declares "
+                "supplies_full_text: false. A board that cannot be assessed must not "
+                "be automated — set tier: manual."
+            )
 
     return BoardRegistry(tuple(entries), defaults)
