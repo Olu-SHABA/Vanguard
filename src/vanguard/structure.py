@@ -213,36 +213,87 @@ _SHOUTED = re.compile(r"^[^a-z]{25,}$")
 
 
 def is_probable_heading(text: str, *, job_title: str = "") -> bool:
-    """Reject runs that look like emphasis, labels or boilerplate.
+    """Reject runs that cannot be section headings.
 
-    A false positive is not harmless: it opens a new block, so the bullets
-    that belonged to the previous heading are attributed to the wrong section
-    or lost entirely.
+    REVERTED to a permissive form on 9 Aug 2026. The strict version rejected
+    real headings — anything two words or fewer ending in a colon, which
+    covers `Requirements:`, `Essential:`, `About you:` — and reliable scores
+    fell from 20 of 31 to 13 of 31, losing the only PENDING vacancy.
+
+    Only rejections that provably cannot be headings are kept. A tolerated
+    false heading costs some noise in diagnostics; a rejected real one costs
+    the whole advert.
     """
     candidate = _norm(text)
-    if not candidate or len(candidate) < MIN_HEADING_CHARS:
-        return False
-    if len(candidate) > MAX_HEADING_CHARS:
+    if not candidate or len(candidate) > MAX_HEADING_CHARS:
         return False
     if _PUNCT_ONLY.match(candidate):
-        return False
-    if _FIELD_LABEL.match(candidate):
-        return False
-    if _CONTRACT_TERM.match(candidate):
-        return False
-    if _RECRUITER.search(candidate):
-        return False
-    if _SHOUTED.match(candidate):
         return False
     # A run matching the job title is the advert's own title, repeated.
     if job_title and _norm(job_title).lower() == candidate.lower():
         return False
-    # A single word is usually a label — but not when it is a known section
-    # name. "Essential", "Requirements", "Benefits" and "Responsibilities"
-    # are all single words and all legitimate headings.
-    if len(candidate.split()) < 2:
-        return classify_heading(candidate) is not SectionKind.UNKNOWN
     return True
+
+
+@dataclass
+class Block:
+    """One heading and the content beneath it."""
+
+    heading: str = ""
+    kind: SectionKind = SectionKind.UNKNOWN
+    bullets: list[str] = field(default_factory=list)
+    paragraphs: list[str] = field(default_factory=list)
+
+    @property
+    def is_empty(self) -> bool:
+        return not self.bullets and not self.paragraphs
+
+    def text(self) -> str:
+        return "\n".join([*self.paragraphs, *(f"- {b}" for b in self.bullets)])
+
+
+@dataclass
+class AdvertStructure:
+    """A parsed advert: ordered blocks plus flat text for fallback use."""
+
+    blocks: list[Block]
+    plain_text: str
+
+    def of_kind(self, *kinds: SectionKind) -> list[Block]:
+        return [b for b in self.blocks if b.kind in kinds]
+
+    @property
+    def requirement_bullets(self) -> list[str]:
+        """Bullets under requirement headings only."""
+        return [b for block in self.blocks if block.kind.carries_requirements
+                for b in block.bullets]
+
+    @property
+    def requirement_text(self) -> str:
+        return "\n".join(b.text() for b in self.of_kind(SectionKind.REQUIREMENT))
+
+    @property
+    def has_requirement_section(self) -> bool:
+        return any(b.kind.carries_requirements and not b.is_empty for b in self.blocks)
+
+    def summary(self) -> str:
+        counts: dict[str, int] = {}
+        for block in self.blocks:
+            counts[block.kind.value] = counts.get(block.kind.value, 0) + 1
+        return "  ".join(f"{k}:{v}" for k, v in sorted(counts.items()))
+
+
+# ---------------------------------------------------------------------------
+# Parser
+# ---------------------------------------------------------------------------
+
+_HEADING_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
+_EMPHASIS_TAGS = {"strong", "b"}
+_BREAK_TAGS = {"br", "p", "div", "tr", "li", "ul", "ol", "table"}
+_SKIP_CONTENT = {"script", "style"}
+
+# An inline <strong> only counts as a heading if it is short and stands alone.
+MAX_HEADING_CHARS = 90
 
 
 class _AdvertParser(HTMLParser):
