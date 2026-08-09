@@ -283,3 +283,81 @@ def test_partial_flag_is_persisted(store: Store) -> None:
 def test_full_text_vacancy_is_not_flagged(store: Store) -> None:
     store.upsert_vacancy(vac())
     assert store.vacancy("b:1")["partial"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Score history must not multiply queue rows
+# ---------------------------------------------------------------------------
+
+def test_repeated_scoring_yields_one_queue_row(store: Store) -> None:
+    """`scores` holds one row per run by design. Joining it naively rendered
+    two vacancies as twenty rows after ten runs."""
+    from vanguard.coverage import compute_coverage, load_aliases
+    from vanguard.cv import load as load_cv
+    from vanguard.extract import extract
+
+    store.upsert_vacancy(vac())
+    store.create_queue_record("b:1", "PENDING")
+
+    cv = load_cv(ROOT / "data" / "canonical_cv.md")
+    aliases = load_aliases(ROOT / "config" / "alias_table.yaml")
+    report = compute_coverage(extract("Essential\n- strong Python skills here"), cv, aliases)
+
+    from vanguard.store import utcnow
+    for i in range(5):
+        with store.connect() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO scores (vacancy_id, coverage, rank_score,"
+                " ceiling, terms_total, terms_matched, soft_hits, embedder, computed_at)"
+                " VALUES (?,?,?,?,?,?,?,?,?)",
+                ("b:1", 0.1 * i, 0.5 + i / 100, 1.0, 10, i, 0, "test",
+                 f"2026-08-0{i + 1}T00:00:00+00:00"),
+            )
+
+    assert len(store.list_queue("PENDING")) == 1
+
+
+def test_latest_score_is_the_one_shown(store: Store) -> None:
+    store.upsert_vacancy(vac())
+    store.create_queue_record("b:1", "PENDING")
+    with store.connect() as conn:
+        for day, coverage in ((1, 0.20), (2, 0.90), (3, 0.55)):
+            conn.execute(
+                "INSERT INTO scores (vacancy_id, coverage, rank_score, ceiling,"
+                " terms_total, terms_matched, soft_hits, embedder, computed_at)"
+                " VALUES (?,?,?,?,?,?,?,?,?)",
+                ("b:1", coverage, 0.5, 1.0, 10, 5, 0, "test",
+                 f"2026-08-0{day}T00:00:00+00:00"),
+            )
+    assert store.list_queue("PENDING")[0]["coverage"] == 0.55
+
+
+def test_score_history_is_retained(store: Store) -> None:
+    """Seeing 0.333 -> 0.636 -> 1.000 across runs is how you tell whether a
+    change to extraction helped. The history is deliberate."""
+    store.upsert_vacancy(vac())
+    with store.connect() as conn:
+        for day in (1, 2, 3):
+            conn.execute(
+                "INSERT INTO scores (vacancy_id, coverage, rank_score, ceiling,"
+                " terms_total, terms_matched, soft_hits, embedder, computed_at)"
+                " VALUES (?,?,?,?,?,?,?,?,?)",
+                ("b:1", 0.3, 0.5, 1.0, 10, 3, 0, "test",
+                 f"2026-08-0{day}T00:00:00+00:00"),
+            )
+    assert len(store.score_history("b:1")) == 3
+
+
+def test_coverage_distribution_counts_each_vacancy_once(store: Store) -> None:
+    store.upsert_vacancy(vac())
+    with store.connect() as conn:
+        for day in (1, 2, 3):
+            conn.execute(
+                "INSERT INTO scores (vacancy_id, coverage, rank_score, ceiling,"
+                " terms_total, terms_matched, soft_hits, embedder, computed_at)"
+                " VALUES (?,?,?,?,?,?,?,?,?)",
+                ("b:1", 0.3, 0.5, 1.0, 10, 3, 0, "test",
+                 f"2026-08-0{day}T00:00:00+00:00"),
+            )
+    assert len(store.coverage_distribution()) == 1
+    assert len(store.coverage_distribution(latest_only=False)) == 3

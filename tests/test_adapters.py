@@ -758,12 +758,31 @@ def test_unhydrated_vacancies_are_reported(registry) -> None:
         raise RateLimitExceeded("would block for 3600s")
 
     adapter.hydrate = refuse
-    collected = adapter.collect(Query())
+    collected = adapter.collect(Query(), hydrate=True)
 
     assert len(collected) == 3
     assert all(v.description_is_partial for v in collected)
     assert adapter.truncations, "silent partial scoring must be reported"
     assert "could not be hydrated" in adapter.truncations[0].reason
+
+
+def test_no_false_alarm_when_hydration_is_not_attempted(registry) -> None:
+    """With `hydrate=False` every vacancy is partial BY DESIGN — the caller
+    ranks first and hydrates the survivors. Reporting that as a failure
+    raised a false alarm on a run that had worked correctly."""
+    from vanguard.adapters.reed import ReedAPIAdapter
+
+    adapter = ReedAPIAdapter(_with_creds(registry.get("reed"), api_key="k"))
+    adapter.fetch = lambda q: [
+        RawVacancy("reed", {"jobId": i, "jobTitle": f"T{i}", "employerName": "E",
+                            "jobDescription": "snippet...", "locationName": "L"})
+        for i in range(3)
+    ]
+    collected = adapter.collect(Query())
+
+    assert len(collected) == 3
+    assert all(v.description_is_partial for v in collected)
+    assert not any("could not be hydrated" in t.reason for t in adapter.truncations)
 
 
 # ---------------------------------------------------------------------------

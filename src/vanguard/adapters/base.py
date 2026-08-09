@@ -451,6 +451,10 @@ class BoardAdapter(ABC):
         out: list[Vacancy] = []
         unhydrated = 0
         expired = 0
+        # Distinct from `hydrate`, which is flipped off when the rate limiter
+        # refuses. Using `hydrate` to decide whether to report would suppress
+        # exactly the failure that needs reporting.
+        attempted_hydration = False
 
         for raw in self.fetch(query):
             try:
@@ -467,6 +471,7 @@ class BoardAdapter(ABC):
                 continue
 
             if hydrate and vacancy.description_is_partial:
+                attempted_hydration = True
                 try:
                     vacancy = self.hydrate(vacancy)
                 except RateLimitExceeded:
@@ -489,14 +494,19 @@ class BoardAdapter(ABC):
                 f"{expired} vacanc(ies) skipped — closing date already passed",
             )
 
-        remaining = sum(1 for v in out if v.description_is_partial)
-        if remaining:
-            self._note_truncation(
-                "", len(out) - remaining,
-                f"{remaining} of {len(out)} vacancies could not be hydrated — "
-                f"scored on partial text at {self.entry.calls_per_hour} calls/hour. "
-                "Reduce max_results.",
-            )
+        # Only report a hydration failure when hydration was ATTEMPTED. With
+        # `hydrate=False` every vacancy is partial by design — the caller
+        # ranks first and hydrates the survivors — and reporting that as a
+        # failure raised a false alarm on a run that had worked correctly.
+        if attempted_hydration:
+            remaining = sum(1 for v in out if v.description_is_partial)
+            if remaining:
+                self._note_truncation(
+                    "", len(out) - remaining,
+                    f"{remaining} of {len(out)} vacancies could not be hydrated — "
+                    f"scored on partial text at {self.entry.calls_per_hour} "
+                    "calls/hour. Reduce max_results.",
+                )
         return out
 
 

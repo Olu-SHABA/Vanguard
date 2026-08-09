@@ -272,17 +272,52 @@ class Store:
             ).fetchone()
 
     def unmet_term_frequency(self, limit: int = 20) -> list[sqlite3.Row]:
-        """Which requirements recur as unmet. Standing skills gaps, not noise."""
+        """Which requirements recur as unmet. Standing skills gaps, not noise.
+
+        Counts DISTINCT vacancies. `record_score` replaces a vacancy's gap
+        rows on each run, so this is already one set per vacancy — but the
+        count is stated explicitly so a future change cannot inflate it.
+        """
         with self.connect() as conn:
             return conn.execute(
-                """SELECT term, COUNT(*) AS n FROM gaps
+                """SELECT term, COUNT(DISTINCT vacancy_id) AS n FROM gaps
                    WHERE outcome = 'GAP' GROUP BY term
                    ORDER BY n DESC, term LIMIT ?""",
                 (limit,),
             ).fetchall()
 
-    def coverage_distribution(self) -> list[sqlite3.Row]:
-        """Every logged coverage value. The input to threshold recalibration."""
+    def score_history(self, vacancy_id: str) -> list[sqlite3.Row]:
+        """Every score this vacancy has received, oldest first.
+
+        Retained deliberately: seeing 0.333 -> 0.636 -> 1.000 across runs is
+        how you tell whether a change to extraction helped.
+        """
+        with self.connect() as conn:
+            return conn.execute(
+                "SELECT * FROM scores WHERE vacancy_id = ? ORDER BY computed_at",
+                (vacancy_id,),
+            ).fetchall()
+
+    def coverage_distribution(self, latest_only: bool = True) -> list[sqlite3.Row]:
+        """Logged coverage values. The input to threshold recalibration.
+
+        `latest_only` counts each vacancy once. Passing False returns the full
+        history, which mixes scores produced by different extraction logic.
+        """
+        if not latest_only:
+            return self._all_scores()
+        with self.connect() as conn:
+            return conn.execute(
+                """SELECT s.vacancy_id, s.coverage, s.ceiling, s.rank_score,
+                          s.embedder, s.computed_at
+                     FROM scores s
+                    WHERE s.computed_at = (
+                          SELECT MAX(computed_at) FROM scores s2
+                           WHERE s2.vacancy_id = s.vacancy_id)
+                    ORDER BY s.computed_at"""
+            ).fetchall()
+
+    def _all_scores(self) -> list[sqlite3.Row]:
         with self.connect() as conn:
             return conn.execute(
                 "SELECT vacancy_id, coverage, ceiling, rank_score, embedder, "
@@ -351,11 +386,20 @@ class Store:
 
     def list_queue(self, status: str | None = None, limit: int = 50) -> list[sqlite3.Row]:
         """Queue records ordered by rank score, strongest first."""
+        # `scores` holds one row PER RUN by design — that history is the input
+        # to threshold recalibration. Joining it naively multiplied each queue
+        # record by its number of scoring runs: two vacancies rendered as
+        # twenty rows after ten runs.
         sql = """SELECT q.*, v.employer, v.title, v.url, v.board_id,
-                        s.coverage, s.rank_score, s.ceiling
+                        s.coverage, s.rank_score, s.ceiling, s.embedder,
+                        s.computed_at
                  FROM queue q
                  JOIN vacancies v ON v.id = q.vacancy_id
-                 LEFT JOIN scores s ON s.vacancy_id = q.vacancy_id"""
+                 LEFT JOIN scores s
+                        ON s.vacancy_id = q.vacancy_id
+                       AND s.computed_at = (
+                             SELECT MAX(computed_at) FROM scores s2
+                              WHERE s2.vacancy_id = q.vacancy_id)"""
         params: list[Any] = []
         if status:
             sql += " WHERE q.status = ?"
