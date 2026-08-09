@@ -115,10 +115,15 @@ def test_unknown_sections_do_not_carry_requirements() -> None:
 
 # --- robustness -----------------------------------------------------------
 
-def test_advert_without_requirement_section_falls_back() -> None:
-    """None from the structured path, so flat extraction still runs."""
+def test_html_prose_without_a_requirement_section_refuses() -> None:
+    """Superseded 9 Aug 2026. This previously asserted a flat-text fallback.
+
+    The fallback counted duties and benefits as requirements, so an advert
+    with no recognised requirement heading produced a confident-looking wrong
+    number. It now returns nothing and the vacancy is reported UNRELIABLE.
+    """
     prose = "<p>We need a Python developer with SQL experience for this role.</p>"
-    assert {r.canonical for r in extract(prose)} >= {"Python", "SQL"}
+    assert extract(prose) == []
 
 
 def test_malformed_markup_does_not_lose_the_advert() -> None:
@@ -144,3 +149,60 @@ def test_entities_decoded_in_headings() -> None:
 def test_script_content_excluded() -> None:
     result = parse_advert("<p>Real</p><script>var x='Python';</script>")
     assert "var x" not in result.plain_text
+
+
+# ---------------------------------------------------------------------------
+# No flat fallback for HTML — a refusal beats a plausible wrong number
+# ---------------------------------------------------------------------------
+
+def test_unrecognised_heading_yields_nothing() -> None:
+    """Falling back to flat extraction counted duties, benefits and
+    application steps as requirements: |R| reached 38 with ceiling 1.000, the
+    system asserting an AI Marketing role was fully attainable."""
+    advert = ("<strong>Our Ideal Teammate Vibe</strong><br /><br />"
+              "<ul><li>25 days holiday</li><li>Free parking</li>"
+              "<li>Deliver quarterly reports</li></ul>")
+    assert extract(advert) == []
+
+
+def test_benefits_only_advert_yields_nothing() -> None:
+    advert = ("<strong>What we offer</strong><br /><br />"
+              "<ul><li>Competitive salary</li><li>Private healthcare</li></ul>")
+    assert extract(advert) == []
+
+
+def test_duties_only_advert_yields_nothing() -> None:
+    """A duty list is not a requirements list, however long it is."""
+    advert = ("<strong>What you will do</strong><br /><br /><ul>"
+              + "".join(f"<li>Deliver workstream {i} to schedule</li>" for i in range(12))
+              + "</ul>")
+    assert extract(advert) == []
+
+
+def test_recognised_heading_still_extracts() -> None:
+    advert = ("<strong>What you will have</strong><br /><br /><ul>"
+              "<li>Python and SQL</li><li>AWS experience</li>"
+              "<li>ETL pipelines</li></ul>")
+    assert {r.canonical for r in extract(advert)} >= {"Python", "SQL", "AWS", "ETL"}
+
+
+def test_plain_text_still_uses_flat_extraction() -> None:
+    """The refusal applies to MARKUP only. Plain-text adverts, including
+    pasted ones, keep the section-heading path."""
+    assert {r.canonical for r in extract("Essential\n- strong Python and SQL skills")} \
+        >= {"Python", "SQL"}
+
+
+def test_refusal_reports_unreliable_not_zero_coverage() -> None:
+    """C=0.000 would read as 'no match'. UNRELIABLE reads as 'not measured'."""
+    from vanguard.coverage import compute_coverage, load_aliases
+    from vanguard.cv import load as load_cv
+
+    root = __import__("pathlib").Path(__file__).parent.parent
+    report = compute_coverage(
+        extract("<strong>Vibe</strong><ul><li>Free parking</li></ul>"),
+        load_cv(root / "data" / "canonical_cv.md"),
+        load_aliases(root / "config" / "alias_table.yaml"),
+    )
+    assert report.unreliable
+    assert "no requirement terms" in report.unreliable_reason

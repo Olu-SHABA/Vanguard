@@ -390,12 +390,25 @@ def extract(advert_text: str, *, include_desirable: bool = True) -> list[Require
     classified as REQUIREMENT contribute: a duty list under "What you will do"
     describes the job rather than a qualification, and counting duties and
     benefits as requirements drove |R| to 38 and coverage to 0.026.
+
+    An HTML advert with NO recognised requirement section returns an empty
+    list. There is no flat-text fallback for markup — a wrong score that looks
+    right is worse than a refusal, and the refusal surfaces the advert for
+    manual review instead.
     """
     if looks_like_html(advert_text):
         structured = _extract_structured(advert_text, include_desirable)
         if structured is not None:
             return structured
-        advert_text = html_to_text(advert_text)
+        # No recognised requirement section. Falling back to flat extraction
+        # would count duties, benefits and application steps as requirements —
+        # which produced |R| of 38 with ceiling 1.000, the system asserting an
+        # AI Marketing Operations Manager role was fully attainable.
+        #
+        # Returning nothing is the honest answer: coverage reports UNRELIABLE
+        # ("no requirement terms extracted") and the vacancy is FLAGGED for
+        # the operator rather than given a plausible-looking wrong number.
+        return []
     sections = extract_sections(advert_text)
     seen: set[str] = set()
     out: list[Requirement] = []
