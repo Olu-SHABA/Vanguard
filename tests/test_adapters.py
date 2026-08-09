@@ -503,6 +503,11 @@ def test_reed_paginates_with_offset(registry) -> None:
     entry = _with_creds(registry.get("reed"), api_key="k")
     keywords = len(entry.query.get("what") or [""])
 
+    # Override the production cap: this test is about offset arithmetic, not
+    # about the rate-limit budget. Reading it from config would couple the
+    # test to a value that exists to be tuned.
+    entry.query["max_results"] = 250
+
     client = PagingClient(100, 250, count_key="totalResults")
     adapter = ReedAPIAdapter(entry, client=client)
     results = adapter.fetch(Query(max_results=250))
@@ -759,3 +764,52 @@ def test_unhydrated_vacancies_are_reported(registry) -> None:
     assert all(v.description_is_partial for v in collected)
     assert adapter.truncations, "silent partial scoring must be reported"
     assert "could not be hydrated" in adapter.truncations[0].reason
+
+
+# ---------------------------------------------------------------------------
+# Per-board result cap — hydration is the bottleneck, not the search
+# ---------------------------------------------------------------------------
+
+def test_configured_cap_limits_the_fetch(adzuna_entry) -> None:
+    """`max_results: 15` in boards.yaml was inert: the adapter only read
+    Query.max_results, so Reed fetched 300 and hydrated 57 of them."""
+    entry = _with_creds(adzuna_entry, app_id="x", app_key="y")
+    entry.query["max_results"] = 10
+    keywords = len(entry.query.get("what") or [""])
+
+    client = PagingClient(50, 500)
+    results = AdzunaAPIAdapter(entry, client=client).fetch(Query(max_results=200))
+
+    assert len(results) == 10 * keywords
+
+
+def test_caller_may_request_fewer_than_the_cap(adzuna_entry) -> None:
+    """Both are limits, so the smaller wins — no precedence ruling needed."""
+    entry = _with_creds(adzuna_entry, app_id="x", app_key="y")
+    entry.query["max_results"] = 50
+    keywords = len(entry.query.get("what") or [""])
+
+    client = PagingClient(50, 500)
+    results = AdzunaAPIAdapter(entry, client=client).fetch(Query(max_results=5))
+
+    assert len(results) == 5 * keywords
+
+
+def test_absent_cap_falls_back_to_the_query(adzuna_entry) -> None:
+    entry = _with_creds(adzuna_entry, app_id="x", app_key="y")
+    entry.query.pop("max_results", None)
+    assert entry.effective_max_results(Query(max_results=42)) == 42
+
+
+def test_reed_cap_fits_inside_the_rate_limit(registry) -> None:
+    """3 keywords x cap hydration calls must fit inside 60 calls/hour, or the
+    run silently scores most vacancies on snippets."""
+    entry = registry.get("reed")
+    cap = entry.query.get("max_results")
+    keywords = len(entry.query.get("what") or [""])
+
+    assert cap, "an assessable board that hydrates must declare max_results"
+    assert cap * keywords < entry.calls_per_hour, (
+        f"{cap} x {keywords} keywords exceeds {entry.calls_per_hour} calls/hour — "
+        "most vacancies would go unhydrated"
+    )

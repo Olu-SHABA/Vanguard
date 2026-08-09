@@ -523,6 +523,20 @@ class RegistryEntry:
                 "paste vacancies with `vanguard paste`."
             )
 
+    def effective_max_results(self, query: Query) -> int:
+        """Smaller of the caller's ceiling and this board's configured cap.
+
+        Both are limits, not selections, so taking the minimum is unambiguous
+        and sidesteps the caller-vs-config precedence question (B-01/D-01).
+
+        Boards that hydrate need a small cap: every vacancy costs a second API
+        call, and 300 vacancies at 60 calls/hour is a five-hour run.
+        """
+        configured = self.query.get("max_results")
+        if isinstance(configured, int) and configured > 0:
+            return min(configured, query.max_results)
+        return query.max_results
+
     @property
     def assessable(self) -> bool:
         """Can a vacancy from this board be scored at all?"""

@@ -81,7 +81,8 @@ class AdzunaAPIAdapter(BoardAdapter):
 
         out: list[RawVacancy] = []
         self.truncations.clear()
-        page_size = min(query.max_results, PAGE_SIZE)
+        cap = self.entry.effective_max_results(query)
+        page_size = min(cap, PAGE_SIZE)
 
         for term in keywords or ("",):
             collected = 0
@@ -109,10 +110,10 @@ class AdzunaAPIAdapter(BoardAdapter):
                 # A short page means the board has no more for this term.
                 if len(results) < page_size:
                     break
-                if collected >= query.max_results:
+                if collected >= cap:
                     self._note_truncation(
                         term, collected,
-                        f"reached max_results={query.max_results}; "
+                        f"reached max_results={cap}; "
                         f"board reported {payload.get('count', 'unknown')} total",
                     )
                     break

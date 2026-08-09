@@ -55,6 +55,11 @@ boards:
       # not a place; leaving it unset searches nationwide, which is what is
       # wanted here.
       where: ""
+      # Every vacancy costs a SECOND api call to fetch its full text, against
+      # a 60 calls/hour limit. 3 keywords x 15 = 45 hydration calls plus a
+      # handful of search calls fits inside one hour. Raising this does not
+      # get more assessable vacancies — it gets more unhydrated ones.
+      max_results: 15
     note: "Self-service. Jobseeker search endpoint returns title, employer,
            description, location, salary range. Keyword list is mandatory —
            an absent `what` returns the whole index."
