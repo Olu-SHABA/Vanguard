@@ -206,3 +206,68 @@ def test_refusal_reports_unreliable_not_zero_coverage() -> None:
     )
     assert report.unreliable
     assert "no requirement terms" in report.unreliable_reason
+
+
+# ---------------------------------------------------------------------------
+# Heading detector — tightened from live diagnostics, 9 Aug 2026
+#
+# The first diagnose run showed the detector firing on job titles, field
+# labels, recruiter names, contract terms and bare punctuation. A false
+# heading opens a new block, orphaning the content that belonged to the real
+# one — which is how `empty_requirement_section` refusals arose.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "text",
+    [",", "*", "-", "Location:", "Daily Rate:", "Databases:",
+     "3-month initial contract", "6 month initial",
+     "Alexander Booth - Talent Acquisition Specialist",
+     "PLEASE NOTE YOU MUST BE BASED IN THE UK AND HAVE FULL RIGHT TO WORK",
+     "Sanderson", "Widgets"],
+)
+def test_observed_false_headings_are_rejected(text: str) -> None:
+    from vanguard.structure import is_probable_heading
+
+    assert not is_probable_heading(text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["What you will have", "Person Specification", "About you",
+     "What you'll work on", "Why consider it?", "Apply Now"],
+)
+def test_real_headings_survive(text: str) -> None:
+    from vanguard.structure import is_probable_heading
+
+    assert is_probable_heading(text)
+
+
+@pytest.mark.parametrize("text", ["Essential", "Requirements", "Benefits",
+                                  "Responsibilities", "Qualifications"])
+def test_known_single_word_headings_survive(text: str) -> None:
+    """A single word is usually a label — but not when it names a section."""
+    from vanguard.structure import is_probable_heading
+
+    assert is_probable_heading(text)
+
+
+def test_repeated_job_title_is_not_a_heading() -> None:
+    """Reed adverts restate the role in bold before the body."""
+    from vanguard.structure import is_probable_heading
+
+    assert not is_probable_heading("Machine Learning Engineer",
+                                   job_title="Machine Learning Engineer")
+    assert is_probable_heading("Machine Learning Engineer",
+                               job_title="Data Scientist")
+
+
+def test_noise_headings_do_not_orphan_requirements() -> None:
+    """The end-to-end effect: bullets stay bound to the real heading."""
+    advert = ("<strong>Machine Learning Engineer</strong><br />"
+              "<strong>Location:</strong> London<br />"
+              "<strong>What you will have</strong><br /><br />"
+              "<ul><li>Python and SQL</li><li>PyTorch</li><li>AWS</li></ul>"
+              "<strong>,</strong>")
+    parsed = parse_advert(advert, job_title="Machine Learning Engineer")
+    assert [b.heading for b in parsed.blocks if b.heading] == ["What you will have"]
+    assert len(parsed.requirement_bullets) == 3

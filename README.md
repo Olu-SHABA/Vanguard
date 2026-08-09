@@ -114,6 +114,7 @@ vanguard approve <id>
 vanguard override <id> --why "..."  # apply despite an unreachable ceiling
 vanguard dispatch <id>              # record a submission YOU made
 vanguard stats                      # coverage distribution, recurring gaps
+vanguard diagnose                   # why adverts refuse; unrecognised headings
 vanguard score --advert advert.txt  # standalone, no database
 
 vanguard mail --file reply.txt      # correlate + classify one message

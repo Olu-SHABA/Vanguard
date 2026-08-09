@@ -114,6 +114,28 @@ CREATE TABLE IF NOT EXISTS transitions (
   note        TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_transitions_vacancy ON transitions(vacancy_id);
+
+-- Parser observations. Not troubleshooting alone: the unrecognised headings
+-- recorded here are the evidence for widening classify_heading(), which is
+-- currently the binding constraint on how many adverts can be scored at all.
+CREATE TABLE IF NOT EXISTS diagnostics (
+  vacancy_id          TEXT NOT NULL,
+  board_id            TEXT,
+  is_html             INTEGER NOT NULL DEFAULT 0,
+  description_chars   INTEGER NOT NULL DEFAULT 0,
+  partial             INTEGER NOT NULL DEFAULT 0,
+  headings            TEXT,
+  heading_kinds       TEXT,
+  block_count         INTEGER NOT NULL DEFAULT 0,
+  bullet_count        INTEGER NOT NULL DEFAULT 0,
+  requirement_bullets INTEGER NOT NULL DEFAULT 0,
+  terms_extracted     INTEGER NOT NULL DEFAULT 0,
+  refusal             TEXT,
+  decisions           TEXT,
+  recorded_at         TIMESTAMP NOT NULL,
+  PRIMARY KEY (vacancy_id, recorded_at)
+);
+CREATE INDEX IF NOT EXISTS ix_diagnostics_refusal ON diagnostics(refusal);
 """
 
 
@@ -255,6 +277,82 @@ class Store:
                    VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
                 rows,
             )
+
+    # -- diagnostics -------------------------------------------------------
+
+    def record_diagnostic(self, diagnostic) -> None:
+        """Persist one advert's parse observations. Never fails a run."""
+        try:
+            with self.connect() as conn:
+                conn.execute(
+                    """INSERT OR REPLACE INTO diagnostics
+                       (vacancy_id, board_id, is_html, description_chars, partial,
+                        headings, heading_kinds, block_count, bullet_count,
+                        requirement_bullets, terms_extracted, refusal, decisions,
+                        recorded_at)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    diagnostic.as_row(),
+                )
+        except StoreError:
+            pass      # diagnostics are observational; losing one is not fatal
+
+    def unrecognised_headings(self, limit: int = 30) -> list[sqlite3.Row]:
+        """Headings that classified as UNKNOWN, most frequent first.
+
+        The direct input to widening `classify_heading()`. Each row is a
+        heading real adverts use that the parser does not yet understand.
+        """
+        import json as _json
+
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT headings, heading_kinds FROM diagnostics "
+                "WHERE heading_kinds IS NOT NULL"
+            ).fetchall()
+
+        counts: dict[str, int] = {}
+        for row in rows:
+            try:
+                kinds = _json.loads(row["heading_kinds"] or "{}")
+            except ValueError:
+                continue
+            for heading, kind in kinds.items():
+                if kind == "unknown" and heading.strip():
+                    counts[heading.strip()] = counts.get(heading.strip(), 0) + 1
+
+        ordered = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+        return [{"heading": h, "n": n} for h, n in ordered[:limit]]
+
+    def refusal_counts(self) -> dict[str, int]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT refusal, COUNT(DISTINCT vacancy_id) AS n FROM diagnostics "
+                "WHERE refusal IS NOT NULL AND refusal != '' GROUP BY refusal"
+            ).fetchall()
+        return {r["refusal"]: r["n"] for r in rows}
+
+    def diagnostic_for(self, vacancy_id: str) -> sqlite3.Row | None:
+        with self.connect() as conn:
+            return conn.execute(
+                "SELECT * FROM diagnostics WHERE vacancy_id = ? "
+                "ORDER BY recorded_at DESC LIMIT 1",
+                (vacancy_id,),
+            ).fetchone()
+
+    def parse_health(self) -> dict[str, int]:
+        """How many adverts parse, refuse, or were never HTML."""
+        with self.connect() as conn:
+            row = conn.execute(
+                """SELECT COUNT(DISTINCT vacancy_id) AS total,
+                          SUM(CASE WHEN terms_extracted > 0 THEN 1 ELSE 0 END) AS scored,
+                          SUM(CASE WHEN is_html = 1 THEN 1 ELSE 0 END) AS html
+                     FROM diagnostics"""
+            ).fetchone()
+        return {
+            "total": row["total"] or 0,
+            "scored": row["scored"] or 0,
+            "html": row["html"] or 0,
+        }
 
     def gaps_for(self, vacancy_id: str) -> list[sqlite3.Row]:
         with self.connect() as conn:

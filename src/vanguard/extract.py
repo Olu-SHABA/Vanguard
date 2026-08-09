@@ -376,7 +376,8 @@ def _find_tools(text: str) -> list[str]:
 # Extraction
 # ---------------------------------------------------------------------------
 
-def extract(advert_text: str, *, include_desirable: bool = True) -> list[Requirement]:
+def extract(advert_text: str, *, include_desirable: bool = True,
+            job_title: str = "") -> list[Requirement]:
     """Extract the requirement term list R from advert text.
 
     One `Requirement` per distinct term. Tools are emitted individually so a
@@ -397,7 +398,7 @@ def extract(advert_text: str, *, include_desirable: bool = True) -> list[Require
     manual review instead.
     """
     if looks_like_html(advert_text):
-        structured = _extract_structured(advert_text, include_desirable)
+        structured = _extract_structured(advert_text, include_desirable, job_title)
         if structured is not None:
             return structured
         # No recognised requirement section. Falling back to flat extraction
@@ -461,7 +462,8 @@ def extract(advert_text: str, *, include_desirable: bool = True) -> list[Require
     return out
 
 
-def _extract_structured(body: str, include_desirable: bool) -> list[Requirement] | None:
+def _extract_structured(body: str, include_desirable: bool,
+                        job_title: str = "") -> list[Requirement] | None:
     """Requirements from classified HTML sections, or None if unusable.
 
     Returns None when the advert has no recognisable requirement section, so
@@ -469,7 +471,7 @@ def _extract_structured(body: str, include_desirable: bool) -> list[Requirement]
     """
     from vanguard.structure import SectionKind, parse_advert
 
-    structure = parse_advert(body)
+    structure = parse_advert(body, job_title=job_title)
     if not structure.has_requirement_section:
         return None
 

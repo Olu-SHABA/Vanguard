@@ -153,11 +153,25 @@ def _embedder(prefer_model: bool):
 def _score_and_queue(vacancy, store, queue, canonical, alias_table, embedder, name,
                      *, gate: float = 0.94, rank: float | None = None) -> str:
     """Score one vacancy, classify, and write the queue record. Returns status."""
+    from vanguard.diagnostics import Decision, diagnose_advert
+
     spec_early = detect(vacancy.description)
     if spec_early.vacancy_reference and not vacancy.reference:
         vacancy.reference = spec_early.vacancy_reference
     store.upsert_vacancy(vacancy)
-    requirements = extract(vacancy.description)
+    requirements = extract(vacancy.description, job_title=vacancy.title)
+
+    # Observe how the advert parsed. Never changes behaviour; the unrecognised
+    # headings recorded here are the evidence for widening classify_heading().
+    diagnostic = diagnose_advert(
+        vacancy.id, vacancy.description, board_id=vacancy.board_id,
+        partial=vacancy.description_is_partial, terms_extracted=len(requirements),
+        job_title=vacancy.title,
+    )
+    diagnostic.record(
+        Decision.HYDRATION_NOT_ATTEMPTED if vacancy.description_is_partial
+        else Decision.HYDRATED
+    )
     outcome = refactor(requirements, canonical, alias_table, embedder,
                        threshold=gate,
                        source_is_partial=vacancy.description_is_partial)
@@ -178,6 +192,12 @@ def _score_and_queue(vacancy, store, queue, canonical, alias_table, embedder, na
     elif gaps.requires_operator and status is Status.PENDING:
         status = Status.FLAGGED
         note = f"{len(gaps.unconfirmed)} gap proposal(s) awaiting confirmation"
+
+    diagnostic.record(
+        Decision.SCORE_UNRELIABLE if outcome.final.unreliable else Decision.SCORED,
+        f"C={outcome.final.coverage:.3f}",
+    )
+    store.record_diagnostic(diagnostic)
 
     queue.enqueue(
         vacancy.id, status,
@@ -398,10 +418,10 @@ def review(vacancy_id, status, db) -> None:
                 f"[{score['embedder']}]"
             )
 
+        width = _terminal_width()
         rows = store.gaps_for(vacancy_id)
         unmet = [r for r in rows if r["outcome"] == "GAP"]
         if unmet:
-            width = _terminal_width()
             click.echo(f"\nunmet ({len(unmet)}):")
             for r in unmet:
                 tag = f"Type {r['gap_type']}" if r["gap_type"] else "—"
@@ -410,6 +430,25 @@ def review(vacancy_id, status, db) -> None:
                 # keeps that reviewable; clipping it did not.
                 for line in _wrap(r["exclusion"], width - 12, "            "):
                     click.echo(f"            {line}")
+
+        diagnostic = store.diagnostic_for(vacancy_id)
+        if diagnostic and diagnostic["refusal"]:
+            from vanguard.diagnostics import RefusalReason
+            click.echo(f"\nnot scored: {diagnostic['refusal']}")
+            try:
+                for line in _wrap(RefusalReason(diagnostic["refusal"]).explanation, width - 4):
+                    click.echo(f"  {line}")
+            except ValueError:
+                pass
+            import json as _json
+            try:
+                found = _json.loads(diagnostic["headings"] or "[]")
+            except ValueError:
+                found = []
+            if found:
+                click.echo("  headings found:")
+                for heading in found[:8]:
+                    click.echo(f"    {_clip(heading, width - 6)}")
 
         click.echo("\nhistory:")
         for frm, to, at in queue.history(vacancy_id):
@@ -596,6 +635,53 @@ def boards(boards) -> None:
         click.echo(f"{mark} {entry.id:<20} {entry.tier.value:<13} {lines[0]}")
         for extra in lines[1:]:
             click.echo(f"{'':<38}{extra}")
+
+
+@main.command()
+@click.option("--db", default=DEFAULTS["db"])
+@click.option("--limit", default=20, help="How many unrecognised headings to list.")
+def diagnose(db, limit) -> None:
+    """Why adverts refuse, and what their headings actually say.
+
+    `classify_heading()` matches a fixed phrase list. Adverts whose headings
+    fall outside it produce no requirements and cannot be scored. This reports
+    those headings so the list can be widened from evidence rather than guesses.
+    """
+    store, _ = _ctx(db)
+    width = _terminal_width()
+
+    health = store.parse_health()
+    if not health["total"]:
+        click.echo("no diagnostics recorded — run `vanguard run` or `vanguard paste` first")
+        return
+
+    scored, total = health["scored"], health["total"]
+    pct = (scored / total * 100) if total else 0
+    click.echo(f"parsed {total} advert(s): {scored} yielded requirements ({pct:.0f}%), "
+               f"{total - scored} refused")
+    click.echo(f"{health['html']} were HTML")
+
+    refusals = store.refusal_counts()
+    if refusals:
+        click.echo("\nrefusal reasons:")
+        from vanguard.diagnostics import RefusalReason
+        for reason, count in sorted(refusals.items(), key=lambda kv: -kv[1]):
+            try:
+                explanation = RefusalReason(reason).explanation
+            except ValueError:
+                explanation = ""
+            click.echo(f"  {count:>3}x  {reason}")
+            for line in _wrap(explanation, width - 12):
+                click.echo(f"        {line}")
+
+    unrecognised = store.unrecognised_headings(limit)
+    if unrecognised:
+        click.echo(f"\nunrecognised headings — candidates for classify_heading():")
+        for row in unrecognised:
+            click.echo(f"  {row['n']:>3}x  {_clip(row['heading'], width - 10)}")
+        click.echo("\nAdd the requirement-bearing ones to _HEADING_RULES in structure.py.")
+    else:
+        click.echo("\nno unrecognised headings recorded")
 
 
 # ---------------------------------------------------------------------------

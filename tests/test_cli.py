@@ -445,3 +445,35 @@ def test_exported_variable_wins_over_env_file(tmp_path: Path, monkeypatch) -> No
 def test_missing_env_file_is_not_an_error(tmp_path: Path) -> None:
     from vanguard.cli import _load_env
     assert _load_env(tmp_path / "absent.env") == 0
+
+
+def test_diagnose_command_exists(runner: CliRunner) -> None:
+    assert runner.invoke(main, ["diagnose", "--help"]).exit_code == 0
+
+
+def test_diagnose_reports_nothing_when_empty(runner: CliRunner, tmp_path: Path) -> None:
+    out = runner.invoke(main, ["diagnose", "--db", str(tmp_path / "v.db")]).output
+    assert "no diagnostics recorded" in out
+
+
+def test_diagnose_lists_unrecognised_headings(runner: CliRunner, tmp_path: Path) -> None:
+    """The evidence for widening classify_heading()."""
+    from vanguard.diagnostics import diagnose_advert
+    from vanguard.store import Store
+
+    store = Store(tmp_path / "v.db")
+    store.initialise()
+    store.record_diagnostic(diagnose_advert(
+        "r:1", "<strong>Our Ideal Teammate Vibe</strong><ul><li>Perks</li></ul>",
+        terms_extracted=0))
+
+    out = runner.invoke(main, ["diagnose", "--db", str(tmp_path / "v.db")]).output
+    assert "Our Ideal Teammate Vibe" in out
+    assert "classify_heading" in out
+
+
+def test_run_records_diagnostics(runner: CliRunner, tmp_path: Path) -> None:
+    from vanguard.store import Store
+
+    _seed(runner, tmp_path)
+    assert Store(tmp_path / "v.db").parse_health()["total"] >= 1

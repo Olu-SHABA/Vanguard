@@ -36,6 +36,7 @@ __all__ = [
     "Block",
     "AdvertStructure",
     "parse_advert",
+    "is_probable_heading",
     "classify_heading",
 ]
 
@@ -184,13 +185,72 @@ _SKIP_CONTENT = {"script", "style"}
 
 # An inline <strong> only counts as a heading if it is short and stands alone.
 MAX_HEADING_CHARS = 90
+MIN_HEADING_CHARS = 4
+
+# Diagnostics from the first live run showed the detector firing on job
+# titles, field labels, recruiter names and bare punctuation — `,` appeared
+# three times. A false heading starts a new block and orphans the content
+# that belonged to the real one, which is how `empty_requirement_section`
+# arises. These reject the observed classes.
+
+# "Location:", "Daily Rate:", "Databases:" — a label introducing a value,
+# not a section. Two words or fewer ending in a colon.
+_FIELD_LABEL = re.compile(r"^\s*\w+(?:\s+\w+)?\s*:\s*$")
+
+# Bare punctuation or a single symbol.
+_PUNCT_ONLY = re.compile(r"^[\W_]+$")
+
+# "Alexander Booth - Talent Acquisition Specialist"
+_RECRUITER = re.compile(
+    r"\b(?:talent acquisition|recruitment consultant|recruiter|hiring manager|"
+    r"resourcing)\b", re.I)
+
+# "3-month initial contract", "6 month initial"
+_CONTRACT_TERM = re.compile(r"^\d+[\s-]*(?:month|week|year|day)s?\b", re.I)
+
+# Shouted boilerplate: mostly capitals, sentence length.
+_SHOUTED = re.compile(r"^[^a-z]{25,}$")
+
+
+def is_probable_heading(text: str, *, job_title: str = "") -> bool:
+    """Reject runs that look like emphasis, labels or boilerplate.
+
+    A false positive is not harmless: it opens a new block, so the bullets
+    that belonged to the previous heading are attributed to the wrong section
+    or lost entirely.
+    """
+    candidate = _norm(text)
+    if not candidate or len(candidate) < MIN_HEADING_CHARS:
+        return False
+    if len(candidate) > MAX_HEADING_CHARS:
+        return False
+    if _PUNCT_ONLY.match(candidate):
+        return False
+    if _FIELD_LABEL.match(candidate):
+        return False
+    if _CONTRACT_TERM.match(candidate):
+        return False
+    if _RECRUITER.search(candidate):
+        return False
+    if _SHOUTED.match(candidate):
+        return False
+    # A run matching the job title is the advert's own title, repeated.
+    if job_title and _norm(job_title).lower() == candidate.lower():
+        return False
+    # A single word is usually a label — but not when it is a known section
+    # name. "Essential", "Requirements", "Benefits" and "Responsibilities"
+    # are all single words and all legitimate headings.
+    if len(candidate.split()) < 2:
+        return classify_heading(candidate) is not SectionKind.UNKNOWN
+    return True
 
 
 class _AdvertParser(HTMLParser):
     """Walks the document, binding each list to the heading above it."""
 
-    def __init__(self) -> None:
+    def __init__(self, job_title: str = "") -> None:
         super().__init__(convert_charrefs=True)
+        self.job_title = job_title
         self.blocks: list[Block] = [Block()]
         self._buffer: list[str] = []
         self._emphasis_depth = 0
@@ -260,8 +320,8 @@ class _AdvertParser(HTMLParser):
             # Inline <strong> mid-sentence is not — it is emphasis.
             if (
                 tag in _HEADING_TAGS
-                or (len(candidate) <= MAX_HEADING_CHARS and not self._in_list_item
-                    and not self._buffer)
+                or (not self._in_list_item and not self._buffer
+                    and is_probable_heading(candidate, job_title=self.job_title))
             ):
                 self._start_block(candidate)
             else:
@@ -292,8 +352,11 @@ class _AdvertParser(HTMLParser):
         self._flush()
 
 
-def parse_advert(body: str) -> AdvertStructure:
+def parse_advert(body: str, *, job_title: str = "") -> AdvertStructure:
     """Parse advert HTML into classified blocks.
+
+    `job_title` lets the parser reject a repeated title as a heading — Reed
+    adverts commonly restate the role in bold before the body.
 
     Plain text input is returned as a single UNKNOWN block, so callers can
     treat structured and unstructured adverts uniformly.
@@ -301,7 +364,7 @@ def parse_advert(body: str) -> AdvertStructure:
     if not body or not body.strip():
         return AdvertStructure([], "")
 
-    parser = _AdvertParser()
+    parser = _AdvertParser(job_title=job_title)
     try:
         parser.feed(body)
         parser.close()
