@@ -26,6 +26,7 @@ Test counts above are recorded at each milestone, not maintained between them.
 Run `pytest` for the current figure.
 
 Open defects, deferrals and unverified assumptions: **`OUTSTANDING.md`**.
+Route to completion: **`ROADMAP.md`**.
 
 ## Install
 
