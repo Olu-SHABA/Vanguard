@@ -26,6 +26,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Callable, Iterable, Sequence
 
+from typing import Sequence
+
 from vanguard.adapters.base import (
     AdapterStatus,
     BoardAdapter,
@@ -40,7 +42,8 @@ from vanguard.adapters.base import (
     deduplicate,
 )
 
-__all__ = ["ADAPTERS", "IngestionRun", "BoardOutcome", "build_adapter", "ingest", "health_check_all"]
+__all__ = ["ADAPTERS", "IngestionRun", "BoardOutcome", "build_adapter", "ingest",
+           "hydrate_selected", "health_check_all"]
 
 
 def _adapter_registry() -> dict[str, type[BoardAdapter]]:
@@ -213,6 +216,34 @@ def ingest(
 
     result = deduplicate(harvested, registry.priority_map)
     return IngestionRun(tuple(result.kept), result, tuple(outcomes))
+
+
+def hydrate_selected(
+    registry: BoardRegistry,
+    vacancies: Sequence[Vacancy],
+    *,
+    adapter_factory: Callable[[RegistryEntry], BoardAdapter] = build_adapter,
+) -> tuple[list[Vacancy], list[Truncation]]:
+    """Fetch full advert text for a SELECTED subset, grouped by board.
+
+    Called after ranking, so the hydration budget is spent on vacancies that
+    plausibly fit rather than on whatever the search returned first.
+    """
+    by_board: dict[str, list[Vacancy]] = {}
+    for vacancy in vacancies:
+        by_board.setdefault(vacancy.board_id, []).append(vacancy)
+
+    out: list[Vacancy] = []
+    notes: list[Truncation] = []
+    for board_id, group in by_board.items():
+        try:
+            adapter = adapter_factory(registry.get(board_id))
+            hydrated, _ = adapter.hydrate_many(group)
+            out.extend(hydrated)
+            notes.extend(adapter.truncations)
+        except Exception:
+            out.extend(group)      # keep the vacancies; they stay partial
+    return out, notes
 
 
 def health_check_all(

@@ -394,6 +394,34 @@ class BoardAdapter(ABC):
     def health_check(self) -> AdapterStatus:
         """Is the source reachable and are its terms still as recorded?"""
 
+    def hydrate_many(self, vacancies: Sequence[Vacancy]) -> tuple[list[Vacancy], int]:
+        """Hydrate a selected subset. Returns (vacancies, unhydrated count).
+
+        Stops on rate limit rather than raising: the vacancies already
+        hydrated are still useful, and the caller is told how many were not.
+        """
+        out: list[Vacancy] = []
+        stopped = False
+        for vacancy in vacancies:
+            if stopped or not vacancy.description_is_partial:
+                out.append(vacancy)
+                continue
+            try:
+                out.append(self.hydrate(vacancy))
+            except RateLimitExceeded:
+                stopped = True
+                out.append(vacancy)
+            except Exception:
+                out.append(vacancy)
+        remaining = sum(1 for v in out if v.description_is_partial)
+        if remaining:
+            self._note_truncation(
+                "", len(out) - remaining,
+                f"{remaining} of {len(out)} selected vacancies could not be "
+                f"hydrated at {self.entry.calls_per_hour} calls/hour",
+            )
+        return out, remaining
+
     def hydrate(self, vacancy: Vacancy) -> Vacancy:
         """Replace a search snippet with the full advert text.
 
@@ -408,11 +436,15 @@ class BoardAdapter(ABC):
         """
         return vacancy
 
-    def collect(self, query: Query, *, hydrate: bool = True) -> list[Vacancy]:
-        """fetch + normalise + hydrate. Skips bad records, never aborts.
+    def collect(self, query: Query, *, hydrate: bool = False) -> list[Vacancy]:
+        """fetch + normalise, dropping expired vacancies.
 
-        Hydration failure is not fatal: a partial description still scores,
-        and `description_is_partial` records that the number is unreliable.
+        Hydration is OFF by default. It costs one API call per vacancy against
+        a small hourly budget, and spending it before knowing whether a
+        vacancy is remotely relevant wastes most of it — a Finance Business
+        Partner consumed the same call as a Machine Learning Engineer.
+
+        Callers rank first, then hydrate the survivors via `hydrate_many()`.
         """
         from vanguard.extract import closing_date, is_closed
 
@@ -602,6 +634,16 @@ class BoardRegistry:
     @property
     def priority_map(self) -> dict[str, int]:
         return {e.id: e.priority for e in self.entries}
+
+    @property
+    def coverage_gate(self) -> float:
+        """Coverage threshold. Config, so ratcheting needs no code change."""
+        return float(self.defaults.get("coverage_gate", 0.94))
+
+    @property
+    def rank_floor(self) -> float:
+        """Rank score below which a vacancy is not hydrated or scored."""
+        return float(self.defaults.get("rank_floor", 0.0))
 
     def silence_days_for(self, board_id: str) -> int:
         try:

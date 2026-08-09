@@ -231,3 +231,85 @@ def test_truncation_names_the_board_and_keyword(registry) -> None:
     run = ingest(registry, Query(), adapter_factory=Truncating)
     text = " ".join(str(t) for t in run.truncations)
     assert "network analytics" in text and "reed" in text
+
+
+# ---------------------------------------------------------------------------
+# Rank pre-filter — spend the hydration budget on plausible vacancies
+# ---------------------------------------------------------------------------
+
+def test_hydration_is_off_by_default(registry) -> None:
+    """One API call per vacancy against a small hourly budget. Spending it
+    before knowing whether a vacancy is relevant wastes most of it."""
+    from vanguard.adapters.base import RawVacancy
+    from vanguard.adapters.reed import ReedAPIAdapter
+
+    entry = registry.get("reed")
+    entry.auth.update(api_key="k")
+    adapter = ReedAPIAdapter(entry)
+    adapter.fetch = lambda q: [RawVacancy("reed", {
+        "jobId": 1, "jobTitle": "T", "employerName": "E", "locationName": "L",
+        "jobDescription": "snippet..."})]
+
+    called: list[str] = []
+    adapter.hydrate = lambda v: called.append(v.id) or v
+
+    collected = adapter.collect(Query())
+    assert collected and not called, "collect() must not hydrate"
+    assert collected[0].description_is_partial
+
+
+def test_hydrate_many_processes_a_selection(registry) -> None:
+    from vanguard.adapters.reed import ReedAPIAdapter
+
+    entry = registry.get("reed")
+    entry.auth.update(api_key="k")
+    adapter = ReedAPIAdapter(entry)
+
+    def fill(vacancy):
+        vacancy.description = "Person Specification\n- Python\n- SQL\n" * 5
+        vacancy.description_is_partial = False
+        return vacancy
+
+    adapter.hydrate = fill
+    chosen = [vac("reed", i, "E", f"T{i}") for i in range(3)]
+    for v in chosen:
+        v.description_is_partial = True
+
+    hydrated, remaining = adapter.hydrate_many(chosen)
+    assert remaining == 0
+    assert all(not v.description_is_partial for v in hydrated)
+
+
+def test_hydrate_many_stops_on_rate_limit(registry) -> None:
+    """Vacancies already hydrated stay useful; the caller is told the count."""
+    from vanguard.adapters.base import RateLimitExceeded
+    from vanguard.adapters.reed import ReedAPIAdapter
+
+    entry = registry.get("reed")
+    entry.auth.update(api_key="k")
+    adapter = ReedAPIAdapter(entry)
+
+    calls = {"n": 0}
+
+    def limited(vacancy):
+        calls["n"] += 1
+        if calls["n"] > 1:
+            raise RateLimitExceeded("would block for 3600s")
+        vacancy.description_is_partial = False
+        return vacancy
+
+    adapter.hydrate = limited
+    chosen = [vac("reed", i, "E", f"T{i}") for i in range(4)]
+    for v in chosen:
+        v.description_is_partial = True
+
+    hydrated, remaining = adapter.hydrate_many(chosen)
+    assert calls["n"] == 2, "must stop after the first refusal"
+    assert remaining == 3
+    assert adapter.truncations
+
+
+def test_thresholds_come_from_config(registry) -> None:
+    """Ratcheting the gate must be a config edit, not a code change."""
+    assert 0.0 < registry.coverage_gate <= 1.0
+    assert 0.0 <= registry.rank_floor < 1.0

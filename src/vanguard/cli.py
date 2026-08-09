@@ -150,7 +150,8 @@ def _embedder(prefer_model: bool):
 
 
 
-def _score_and_queue(vacancy, store, queue, canonical, alias_table, embedder, name) -> str:
+def _score_and_queue(vacancy, store, queue, canonical, alias_table, embedder, name,
+                     *, gate: float = 0.94, rank: float | None = None) -> str:
     """Score one vacancy, classify, and write the queue record. Returns status."""
     spec_early = detect(vacancy.description)
     if spec_early.vacancy_reference and not vacancy.reference:
@@ -158,13 +159,15 @@ def _score_and_queue(vacancy, store, queue, canonical, alias_table, embedder, na
     store.upsert_vacancy(vacancy)
     requirements = extract(vacancy.description)
     outcome = refactor(requirements, canonical, alias_table, embedder,
+                       threshold=gate,
                        source_is_partial=vacancy.description_is_partial)
     gaps = classify_all(outcome.final, canonical)
     spec = detect(vacancy.description)
 
     store.record_score(
         vacancy.id, outcome.final,
-        rank_score(canonical.full_text(), vacancy.description, embedder),
+        rank if rank is not None else rank_score(
+            canonical.full_text(), vacancy.description, embedder),
         embedder=name, gaps=gaps,
     )
 
@@ -261,14 +264,51 @@ def run(boards, cv, aliases, db, title, location, no_model) -> None:
         click.echo("no vacancies. exiting.")
         return
 
-    click.echo(f"\nscoring {len(result.vacancies)} vacanc(ies) [{embedder_name}]")
+    # --- rank pre-filter --------------------------------------------------
+    # One embedding per vacancy, no API call. Hydration and per-term scoring
+    # are far more expensive, and spending them on a Finance Business Partner
+    # wastes a slot a Machine Learning Engineer could have used.
+    from vanguard.ingest import hydrate_selected
+
+    floor = registry.rank_floor
+    cv_text = canonical.full_text()
+
+    ranked = []
     for vacancy in result.vacancies:
         try:
+            ranked.append((rank_score(cv_text, vacancy.description, embedder), vacancy))
+        except Exception:
+            ranked.append((0.0, vacancy))
+    ranked.sort(key=lambda pair: pair[0], reverse=True)
+
+    selected = [(s, v) for s, v in ranked if s >= floor]
+    dropped = len(ranked) - len(selected)
+    if dropped:
+        click.echo(
+            f"\nrank filter: {len(selected)} of {len(ranked)} above {floor:.2f} "
+            f"({dropped} not hydrated or scored)"
+        )
+
+    if not selected:
+        click.echo("nothing above the rank floor. exiting.")
+        return
+
+    hydrated, notes = hydrate_selected(registry, [v for _, v in selected])
+    for note in notes:
+        click.echo(f"  {_clip(str(note), _terminal_width() - 4)}")
+    by_id = {v.id: v for v in hydrated}
+
+    click.echo(f"\nscoring {len(selected)} vacanc(ies) [{embedder_name}] "
+               f"gate {registry.coverage_gate:.2f}")
+    for score, vacancy in selected:
+        vacancy = by_id.get(vacancy.id, vacancy)
+        try:
             _score_and_queue(vacancy, store, queue, canonical, alias_table,
-                             embedder, embedder_name)
+                             embedder, embedder_name,
+                             gate=registry.coverage_gate, rank=score)
         except Exception as exc:
             # One vacancy failing must not abort the run.
-            click.echo(f"  ERROR        {vacancy.title[:44]}: {exc}", err=True)
+            click.echo(f"  ERROR        {_clip(vacancy.title, 40)}: {exc}", err=True)
 
     click.echo(f"\n{queue.summary()}")
     click.echo("run complete — no transmission occurred")
@@ -319,7 +359,8 @@ def paste(path, url, board, employer, title, boards, cv, aliases, db, no_model) 
     embedder, name = _embedder(not no_model)
 
     click.echo(f"ingested {vacancy.title!r} from {vacancy.employer} [{name}]")
-    _score_and_queue(vacancy, store, queue, canonical, alias_table, embedder, name)
+    _score_and_queue(vacancy, store, queue, canonical, alias_table, embedder, name,
+                     gate=registry.coverage_gate)
     click.echo(f"\n{vacancy.id}\nvanguard review {vacancy.id}")
 
 
@@ -470,14 +511,20 @@ def _apply(fn, vacancy_id: str, arg: str) -> None:
 @click.option("--advert", required=True, type=click.Path(exists=True))
 @click.option("--cv", default=DEFAULTS["cv"])
 @click.option("--aliases", default=DEFAULTS["aliases"])
+@click.option("--boards", default=DEFAULTS["boards"])
 @click.option("--no-model", is_flag=True)
-def score(advert, cv, aliases, no_model) -> None:
+def score(advert, cv, aliases, boards, no_model) -> None:
     """Score one advert. No database, no queue — an honest gap report."""
     text = Path(advert).read_text(encoding="utf-8")
     canonical = load_cv(cv)
     embedder, name = _embedder(not no_model)
 
-    report = compute_coverage(extract(text), canonical, load_aliases(aliases), embedder)
+    try:
+        gate = load_registry(boards).coverage_gate
+    except Exception:
+        gate = 0.94
+    report = compute_coverage(extract(text), canonical, load_aliases(aliases), embedder,
+                              threshold=gate)
     gaps = classify_all(report, canonical)
     spec = detect(text)
 
