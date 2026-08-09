@@ -477,3 +477,45 @@ def test_run_records_diagnostics(runner: CliRunner, tmp_path: Path) -> None:
 
     _seed(runner, tmp_path)
     assert Store(tmp_path / "v.db").parse_health()["total"] >= 1
+
+
+# ---------------------------------------------------------------------------
+# Documentation coverage — the reference must not drift from the CLI
+# ---------------------------------------------------------------------------
+
+COMMANDS_DOC = ROOT / "COMMANDS.md"
+
+
+def test_command_reference_exists() -> None:
+    assert COMMANDS_DOC.is_file()
+
+
+def test_every_command_is_documented() -> None:
+    """A command added without a reference entry is undiscoverable."""
+    doc = COMMANDS_DOC.read_text(encoding="utf-8")
+    undocumented = [n for n in main.commands if f"vanguard {n}" not in doc]
+    assert not undocumented, f"undocumented commands: {undocumented}"
+
+
+def test_every_option_is_documented() -> None:
+    doc = COMMANDS_DOC.read_text(encoding="utf-8")
+    gaps = [
+        f"{name} {param.opts[0]}"
+        for name, command in main.commands.items()
+        for param in command.params
+        if isinstance(param, click.Option)
+        and param.opts[0] != "--help"
+        and param.opts[0] not in doc
+    ]
+    assert not gaps, f"undocumented options: {gaps}"
+
+
+def test_documented_commands_all_exist() -> None:
+    """The reverse: the reference must not describe commands that were removed."""
+    import re
+
+    doc = COMMANDS_DOC.read_text(encoding="utf-8")
+    referenced = set(re.findall(r"^## `vanguard (\w+)", doc, re.M))
+    assert referenced <= set(main.commands), (
+        f"documented but absent: {referenced - set(main.commands)}"
+    )

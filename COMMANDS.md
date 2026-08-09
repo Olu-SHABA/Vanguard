@@ -1,0 +1,498 @@
+# PROJECT VANGUARD — Command Reference
+
+Sixteen commands. Every option, what each output field means, and when to use
+what.
+
+**Authority:** descriptive. `PROJECT_VANGUARD_DIRECTIVE.md` governs behaviour.
+
+---
+
+## Contents
+
+| Group | Commands |
+|---|---|
+| [Setup and health](#setup-and-health) | `boards` |
+| [Getting vacancies in](#getting-vacancies-in) | `run` · `paste` |
+| [Looking at results](#looking-at-results) | `review` · `score` · `stats` · `diagnose` |
+| [Deciding](#deciding) | `approve` · `reject` · `resolve` · `override` · `dispatch` |
+| [Responses](#responses) | `mail` · `dormant` · `feedback` · `interview` |
+
+---
+
+## Conventions
+
+**Two execution contexts.** `run` is autonomous — it never blocks, never
+prompts, and exits when done. Everything else is interactive, where waiting
+for you is correct.
+
+**Vanguard never transmits.** No command sends an email or submits an
+application. `dispatch` records that *you* did; `feedback` drafts text for you
+to send yourself.
+
+**Shared options.** `--db` (default `data/vanguard.db`), `--cv`
+(`data/canonical_cv.md`), `--aliases` (`config/alias_table.yaml`), `--boards`
+(`config/boards.yaml`). Change these only to work against alternate files.
+
+**`--no-model`** forces the lexical fallback instead of MiniLM. Faster, and
+markedly worse — it cannot see synonyms. Useful for a quick structural check,
+not for real scoring. Runs record which was used.
+
+---
+
+# Setup and health
+
+## `vanguard boards`
+
+Registry status and credential check. Run this first, and whenever a run
+returns less than expected.
+
+```bash
+vanguard boards
+```
+
+```
+10 registered   4 enabled   1 automatable   3 manual
+
+ok  reed                 api_official  api key present, tier 1 api_official
+--  adzuna               manual        manual adapter — no endpoint...
+```
+
+**Reading it:**
+
+| Field | Meaning |
+|---|---|
+| `ok` / `--` | Reachable, or not — the detail says why |
+| `registered` | Boards in `boards.yaml`, enabled or not |
+| `enabled` | Boards the pipeline will consider |
+| `automatable` | Boards `run` will actually poll |
+| `manual` | Boards requiring `vanguard paste` |
+
+**Why a board may be manual.** Two different reasons. *Terms* — LinkedIn
+prohibits automated collection. *Capability* — Adzuna caps descriptions at 500
+characters, too little to extract requirements from. Both end in paste; the
+`supplies_full_text` flag distinguishes them.
+
+---
+
+# Getting vacancies in
+
+## `vanguard run`
+
+Fetch, rank, hydrate, score, queue, exit. The autonomous command.
+
+```bash
+vanguard run
+vanguard run --title "data scientist" --location "Manchester"
+```
+
+| Option | Effect |
+|---|---|
+| `--title` | Query keywords. **Currently overridden by `boards.yaml`** — see B-01 |
+| `--location` | Query location. Same caveat |
+| `--no-model` | Lexical fallback |
+
+**What happens, in order:**
+
+1. **Ingest** — polls automatable boards, deduplicates across sources
+2. **Rank** — one embedding per vacancy, no API call
+3. **Filter** — drops anything below `rank_floor`
+4. **Hydrate** — fetches full advert text for survivors only
+5. **Score** — extract requirements, compute coverage, classify gaps
+6. **Queue** — writes a record, exits
+
+**Reading the output:**
+
+```
+collected 45 -> kept 42 (3 duplicate(s) logged)
+  INCOMPLETE — 3 truncation(s):
+    reed for 'data scientist': stopped at 15 — board reported 3925 total
+rank filter: 31 of 42 above 0.25 (11 not hydrated or scored)
+scoring 31 vacanc(ies) [minilm] gate 0.60
+  PENDING      C=0.700 ceiling=0.800  Machine Learning Engineer
+  FLAGGED      C=0.000 UNRELIABLE   Finance Business Partner
+```
+
+| Line | Meaning |
+|---|---|
+| `collected -> kept` | Fetched, then after deduplication |
+| `INCOMPLETE` | More vacancies existed than were taken. Not an error — the cap doing its job |
+| `rank filter` | How many survived the cheap pre-filter |
+| `[minilm]` | Which embedder produced these numbers |
+| `gate 0.60` | The coverage threshold in force |
+| `C=` | Coverage — matched requirements ÷ total requirements |
+| `ceiling=` | Best coverage achievable if every Type 3 gap stays unmet |
+| `UNRELIABLE` | Not measured. Too few requirements, or partial advert text |
+
+**Why hydration is deferred.** Each full advert costs one API call against 60
+per hour. Ranking first means the budget goes to plausible vacancies rather
+than whatever the search returned first.
+
+---
+
+## `vanguard paste`
+
+Ingest a vacancy by hand, then score it identically.
+
+```bash
+vanguard paste --file advert.txt --employer "Acme" --url "https://..."
+vanguard paste --board adzuna --file advert.txt
+cat advert.txt | vanguard paste
+```
+
+| Option | Effect |
+|---|---|
+| `--file` | Advert text. Reads stdin if omitted |
+| `--url` | Vacancy URL, stored for the archive |
+| `--board` | Registry id to attribute it to. Default `linkedin` |
+| `--employer`, `--title` | Override anything parsed from the text |
+
+**This is not a fallback.** Tier 3 boards are permanent architecture. LinkedIn
+is likely the densest source of relevant senior roles and can never be
+automated. Everything downstream — scoring, gap classification, drafting,
+queueing — runs identically on a pasted advert.
+
+Paste the **whole** advert including the requirements section. A truncated
+paste produces the same problem as an unhydrated fetch.
+
+---
+
+# Looking at results
+
+## `vanguard review`
+
+The queue, or one record in full.
+
+```bash
+vanguard review                          # PENDING, strongest first
+vanguard review --status FLAGGED
+vanguard review reed:57092035            # one record
+```
+
+**List view** shows coverage, rank score, employer, title and id, ordered by
+rank score.
+
+**Detail view** shows everything known about one vacancy:
+
+```
+Machine Learning Engineer — Sanderson
+London  60,000 - 75,000
+status PENDING   type STANDARD_CV
+closes 2026-09-30
+
+C=0.700  ceiling=0.800  S=0.392  14/20 terms  [minilm]
+
+unmet (6):
+  Type 3  pytest
+            No test suite exists in the operator's employment history...
+  Type 1  orchestration
+
+history:
+  2026-08-09T18:19:07+00:00  - -> PENDING
+```
+
+| Field | Meaning |
+|---|---|
+| `C` | Coverage |
+| `ceiling` | Attainable coverage with Type 3 gaps excluded |
+| `S` | Rank score. Orders the queue; **never gates** |
+| `14/20 terms` | Matched requirements out of total |
+| `Type 1` | Evidenced but unstated — you may confirm and add it |
+| `Type 2` | Evidenced under different wording |
+| `Type 3` | **Not evidenced. No CV edit permitted** |
+| `not scored:` | Extraction refused. The reason and headings found are shown |
+
+---
+
+## `vanguard score`
+
+Score one advert without touching the database.
+
+```bash
+vanguard score --advert advert.txt
+```
+
+No queue record, no persistence. For checking a vacancy before deciding
+whether to ingest it, or for testing changes to the CV or alias table.
+
+Reports coverage, submission type, gap counts, and lists Tier C exclusions
+with their reasons.
+
+---
+
+## `vanguard stats`
+
+Distribution across everything scored — the recalibration input.
+
+```bash
+vanguard stats
+```
+
+```
+queue: FLAGGED 524  PENDING 1  UNREACHABLE 18
+vacancies: 543   scored: 543
+
+coverage  min 0.000  median 0.143  max 0.700
+at or above 0.94: 0/543
+(29 more logged applications before the 0.94 threshold can be revisited)
+
+most frequently unmet:
+   31x  pytest
+   28x  AWS
+```
+
+**The unmet list is the useful part.** A requirement appearing 31 times is a
+standing skills gap, not a scoring artefact. That is career information, not
+software output.
+
+---
+
+## `vanguard diagnose`
+
+Why adverts refuse, and what their headings say.
+
+```bash
+vanguard diagnose
+vanguard diagnose --limit 40
+```
+
+```
+parsed 31 advert(s): 20 yielded requirements (65%), 11 refused
+
+refusal reasons:
+    8x  no_requirement_heading
+        advert has headings, but none matched the requirement phrase list
+
+unrecognised headings — candidates for classify_heading():
+    4x  Machine Learning Engineer
+    3x  Location:
+```
+
+| Refusal | Meaning |
+|---|---|
+| `no_requirement_heading` | Headings found, none recognised as requirements |
+| `no_headings_at_all` | Continuous prose, no structure |
+| `empty_requirement_section` | Heading recognised but carried no content |
+| `not_html_no_sections` | Plain text with no section headings |
+
+**This is evidence, not decoration.** The first run of this command inverted
+an assumption — the unrecognised headings turned out to be noise rather than
+missing requirement headings, which meant the fix was to tighten detection
+rather than widen classification.
+
+---
+
+# Deciding
+
+All five change queue state. Illegal transitions raise rather than log.
+
+```
+PENDING     -> APPROVED | REJECTED | FLAGGED | UNREACHABLE
+FLAGGED     -> PENDING | REJECTED
+UNREACHABLE -> PENDING (override) | REJECTED
+APPROVED    -> DISPATCHED | REJECTED
+REJECTED, DISPATCHED are terminal
+```
+
+## `vanguard approve <id>`
+
+Mark ready to submit. **Only APPROVED is dispatch-eligible.**
+
+```bash
+vanguard approve reed:57092035 --note "strong on 4 of 5 criteria"
+```
+
+## `vanguard reject <id>`
+
+Archive. Terminal.
+
+```bash
+vanguard reject reed:57204511 --reason "salary below range"
+```
+
+## `vanguard resolve <id>`
+
+Mark a FLAGGED ambiguity resolved. Returns to PENDING for review — not
+straight to approval.
+
+## `vanguard override <id> --why "..."`
+
+Apply despite an unreachable ceiling. **Justification mandatory.**
+
+```bash
+vanguard override reed:57204511 --why "3 of 4 sift criteria strong; SDLC gap accepted"
+```
+
+UNREACHABLE is a true finding about the gap between your CV and the role.
+Overriding it is a deliberate, recorded act rather than a click.
+
+## `vanguard dispatch <id>`
+
+Record that **you** submitted the application. Vanguard sends nothing.
+
+---
+
+# Responses
+
+## `vanguard mail`
+
+Correlate and classify one inbound message.
+
+```bash
+vanguard mail --file reply.txt --sender "recruit@company.com" --subject "Your application"
+```
+
+**Correlation runs first**, matching by application reference, then sender
+domain, then employer plus title in the subject. An uncorrelated message is
+queued for review and **never classified** — guessing which application it
+belongs to would attach a decline to the wrong vacancy.
+
+| State | Meaning |
+|---|---|
+| `DECLINE` | Application closed unsuccessfully |
+| `PROGRESS` | Interview, call, assessment or further information requested |
+| `ACK` | Receipt only, no decision |
+| `QUERY` | A question needing a human answer |
+| `ADMIN` | Logistics, no decision |
+| `AMBIGUOUS` | Nothing fired. Review manually |
+
+**DECLINE is checked before PROGRESS, deliberately.** Rejection emails open
+warmly — *"we were very impressed"*, *"we'd like to keep your details"*.
+Checking progress first would read a large share of rejections as invitations.
+
+No classification triggers an outbound action. The output suggests a template;
+invoking it is your choice.
+
+## `vanguard dormant`
+
+Applications silent past `silence_days` — 21 by default, 30 for public sector.
+
+```bash
+vanguard dormant
+```
+
+DORMANT is **derived state, not a classification**. Silence is an absence of
+information, not a rejection. It never triggers a feedback request, because
+employers do go quiet and return.
+
+## `vanguard feedback <id>`
+
+Draft a feedback request after a decline.
+
+```bash
+vanguard feedback reed:57092035 --name "Your Name" --contact "you@example.com"
+vanguard feedback reed:57092035 --name "..." --contact "..." --recipient "Sarah Chen"
+```
+
+| Option | Effect |
+|---|---|
+| `--name` | Your name, for the signature. Required |
+| `--contact` | Email or link, for the signature. Required |
+| `--recipient` | Addressee. Defaults to "Recruitment Team" |
+
+Prints a draft. **You review and send it.** Refuses on any state other than
+DECLINE — asking for feedback on a decision nobody made is worse than silence.
+
+## `vanguard interview <id>`
+
+Three-phase mock interview, generated from the CV you actually submitted.
+
+```bash
+vanguard interview reed:57092035 --phase 1
+vanguard interview reed:57092035 --phase 3
+```
+
+| Phase | Focus | Graded on |
+|---|---|---|
+| 1 | CV claims verification | D1–D4 (max 12) |
+| 2 | Runtime case study | D1–D4 (max 12) |
+| 3 | Executive behavioural | D1–D5 (max 15) |
+
+**Dimensions**, scored 0–3 with behavioural anchors:
+
+| | | Pass line |
+|---|---|---|
+| D1 | CV grounding — traceable to the submitted CV | 2 |
+| D2 | Quantification — figure, baseline, method | 2 |
+| D3 | Constraint awareness — limits and their effect | 2 |
+| D4 | Decision justification — alternatives rejected on stated grounds | 2 |
+| D5 | Narrative structure — Phase 3 only | 2 |
+
+**D1 = 0 is terminal.** An unsupported claim cannot be rescued by good
+reasoning, and catching it here is cheaper than a panel catching it.
+
+Never compare a Phase 3 total against a Phase 1–2 total — different ranges.
+
+---
+
+# Typical sessions
+
+**Daily**
+
+```bash
+vanguard run
+vanguard review
+vanguard review <id>
+vanguard approve <id>
+```
+
+**A vacancy found by hand**
+
+```bash
+vanguard paste --file advert.txt --employer "Acme" --url "https://..."
+vanguard review --status PENDING
+```
+
+**A reply arrives**
+
+```bash
+vanguard mail --file reply.txt --sender "..." --subject "..."
+vanguard interview <id> --phase 1     # if PROGRESS
+vanguard feedback <id> --name "..." --contact "..."   # if DECLINE
+```
+
+**Weekly**
+
+```bash
+vanguard stats
+vanguard diagnose
+vanguard dormant
+```
+
+---
+
+# Tuning
+
+Both thresholds live in `config/boards.yaml` under `defaults`. Changing them
+needs no code change.
+
+```yaml
+defaults:
+  coverage_gate: 0.60    # ratchet upward as the CV strengthens
+  rank_floor: 0.25       # below this, not hydrated or scored
+```
+
+**Record the reason beside the number when you move it.** A gate raised
+because the queue felt crowded is not filtering — it is narrowing the field to
+match what you already believed.
+
+```yaml
+# 0.60 -> 0.65, 15 Sep 2026: added test-suite evidence to the CV;
+# three vacancies that previously blocked on testing now resolve.
+coverage_gate: 0.65
+```
+
+---
+
+# Troubleshooting
+
+| Symptom | Cause |
+|---|---|
+| `vanguard` not recognised | Re-run `pip install -e ".[dev]"` |
+| Board shows `--` with a credentials message | Missing from `.env` |
+| `no vacancies` | No automatable board configured, or all filtered out |
+| Many `UNRELIABLE` | Advert structure unrecognised. Run `vanguard diagnose` |
+| `RateLimitExceeded` | Reduce `max_results` in `boards.yaml` |
+| `illegal transition` | The state machine refused. The message names what is permitted |
+| `AnonymisationError` | Identifying content survived into a document that must not carry it. The message names what leaked |
+| `permission denied` writing a PDF | The file is open in a viewer |
+| `cannot load library 'libgobject-2.0-0'` | GTK3 runtime missing — see README |
