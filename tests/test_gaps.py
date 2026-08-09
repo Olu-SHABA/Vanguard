@@ -129,4 +129,7 @@ def test_moj_sdlc_criterion_is_type_3(cv, aliases) -> None:
     reqs = extract(ADVERT.read_text(encoding="utf-8"))
     gaps = classify_all(compute_coverage(reqs, cv, aliases), cv)
     unmet = {g.term for g in gaps.type_3}
-    assert {"pytest", "git", "CI/CD", "GitHub Actions"} <= unmet
+    # `git` reclassified Tier B — see alias_table v0.5. Testing and CI remain
+    # unevidenced, so the SDLC criterion as a whole is still not met.
+    assert {"pytest", "CI/CD", "GitHub Actions"} <= unmet
+    assert "git" not in unmet

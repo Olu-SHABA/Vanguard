@@ -42,7 +42,7 @@ def req(text: str, canonical: str | None = None) -> Requirement:
         ("pytest", "EXCLUDED_unit_testing"),
         ("AWS", "EXCLUDED_cloud_platforms"),
         ("Spark", "EXCLUDED_distributed_compute"),
-        ("git", "EXCLUDED_version_control"),
+        ("pull requests", "EXCLUDED_collaborative_git"),
         ("CI/CD", "EXCLUDED_cicd"),
         ("line management", "EXCLUDED_line_management"),
     ],
@@ -81,7 +81,10 @@ def test_moj_advert_reproduces_manual_assessment(cv, aliases) -> None:
     blocked = {r.requirement.canonical for r in report.excluded_gaps}
 
     assert {"Python", "SQL", "data wrangling"} <= hit
-    assert {"pytest", "git", "CI/CD", "GitHub Actions"} <= blocked
+    # `git` moved to Tier B on 9 Aug 2026 — individual version control is now
+    # evidenced. The rest of the SDLC criterion is still unmet.
+    assert {"pytest", "CI/CD", "GitHub Actions"} <= blocked
+    assert "git" not in blocked
 
 
 # --- stage ordering -------------------------------------------------------
@@ -254,3 +257,30 @@ def test_reliable_summary_is_unchanged(cv, aliases) -> None:
     reqs = extract(ADVERT.read_text(encoding="utf-8"))
     summary = compute_coverage(reqs, cv, aliases).summary()
     assert "ceiling" in summary and "UNRELIABLE" not in summary
+
+
+# ---------------------------------------------------------------------------
+# Git reclassified C -> B, 9 Aug 2026. Individual use only.
+# ---------------------------------------------------------------------------
+
+def test_git_resolves(cv, aliases) -> None:
+    resolution = resolve_term(req("git", "git"), cv, aliases)
+    assert resolution.outcome is Outcome.HIT
+    assert resolution.alias_canonical == "version control"
+
+
+@pytest.mark.parametrize(
+    "term", ["pull requests", "code review", "branching strategy", "gitflow"]
+)
+def test_team_git_workflow_stays_excluded(cv, aliases, term: str) -> None:
+    """Individual version control is evidenced; TEAM workflow is not. The
+    `git` alias must not be allowed to satisfy 'version control in a
+    technical team'."""
+    resolution = resolve_term(req(term, term), cv, aliases)
+    assert resolution.outcome is Outcome.GAP
+    assert resolution.alias_canonical == "EXCLUDED_collaborative_git"
+
+
+def test_pytest_remains_excluded(cv, aliases) -> None:
+    """No CV line evidences writing tests. Reclassify only when one exists."""
+    assert resolve_term(req("pytest", "pytest"), cv, aliases).outcome is Outcome.GAP

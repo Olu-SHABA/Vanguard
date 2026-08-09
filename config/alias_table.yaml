@@ -12,7 +12,7 @@
 # Adding an alias without CV evidence converts a Type 3 gap into a false HIT,
 # which defeats the truthfulness constraint the gate exists to enforce.
 
-version: 0.4
+version: 0.5
 canonical_cv: canonical_cv.md
 
 aliases:
@@ -254,13 +254,24 @@ aliases:
     reason: "Scheduled execution at 06:00 is orchestration, not CI/CD. No
              build-on-commit pipeline exists."
 
-  - canonical: EXCLUDED_version_control
+  - canonical: version control
+    tier: B
+    aliases: ["git", "version control", "source control", "commit history"]
+    cv_evidence: "Source published to a public GitHub repository"
+    source_role: "Generalized Reporting Engine, 2024 – Present"
+    note: "Reclassified C -> B, 9 Aug 2026. Sustained day-to-day Git use with an
+           auditable commit history, evidenced by the Project Vanguard
+           repository. Covers individual version control only — see
+           EXCLUDED_collaborative_git for team workflow."
+
+  - canonical: EXCLUDED_collaborative_git
     tier: C
-    aliases: ["git", "version control", "branching strategy", "pull requests",
-              "code review"]
-    reason: "Git used to publish stable code to GitHub only. No branching,
-             no collaborative workflow, no review process. A requirement for
-             'version control in a technical team' is NOT met."
+    aliases: ["branching strategy", "pull requests", "code review",
+              "trunk based development", "gitflow", "merge conflicts"]
+    reason: "Individual version control is evidenced; TEAM workflow is not.
+             No branching strategy, no pull requests, no review process. A
+             requirement for 'version control in a technical team' is still
+             NOT met — do not let the `git` alias satisfy it."
 
   - canonical: EXCLUDED_cloud_platforms
     tier: C
