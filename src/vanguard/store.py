@@ -55,7 +55,8 @@ CREATE TABLE IF NOT EXISTS vacancies (
   fetched_at   TIMESTAMP NOT NULL,
   dedup_key    TEXT NOT NULL,
   reference    TEXT NOT NULL DEFAULT '',
-  partial      INTEGER NOT NULL DEFAULT 0
+  partial      INTEGER NOT NULL DEFAULT 0,
+  closes       TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_vacancies_dedup ON vacancies(dedup_key);
 CREATE INDEX IF NOT EXISTS ix_vacancies_board ON vacancies(board_id);
@@ -151,6 +152,7 @@ class Store:
     MIGRATIONS: tuple[tuple[str, str, str], ...] = (
         ("vacancies", "reference", "TEXT NOT NULL DEFAULT ''"),
         ("vacancies", "partial", "INTEGER NOT NULL DEFAULT 0"),
+        ("vacancies", "closes", "TEXT"),
     )
 
     def initialise(self) -> None:
@@ -176,8 +178,8 @@ class Store:
             conn.execute(
                 """INSERT INTO vacancies
                    (id, board_id, employer, title, location, salary_band, url,
-                    description, posted, fetched_at, dedup_key, reference, partial)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    description, posted, fetched_at, dedup_key, reference, partial, closes)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                    ON CONFLICT(id) DO UPDATE SET
                      description = excluded.description,
                      fetched_at  = excluded.fetched_at""",
@@ -189,6 +191,7 @@ class Store:
                     vacancy.fetched_at.isoformat(), vacancy.dedup_key,
                     vacancy.reference,
                     1 if vacancy.description_is_partial else 0,
+                    str(vacancy.closes) if vacancy.closes else None,
                 ),
             )
 

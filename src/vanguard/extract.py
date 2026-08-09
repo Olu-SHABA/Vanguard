@@ -23,10 +23,15 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Literal
 
 __all__ = [
     "Requirement",
+    "html_to_text",
+    "closing_date",
+    "is_closed",
+    "looks_like_html",
     "TECHNOLOGY_VOCABULARY",
     "extract",
     "extract_sections",
@@ -193,6 +198,127 @@ class Requirement:
         return f"[{tag}] {self.canonical or self.text}{star}"
 
 
+
+# ---------------------------------------------------------------------------
+# HTML normalisation
+#
+# Reed returns advert bodies as raw HTML. Requirement extraction reads plain
+# text and matches bullets at line start, so a `<ul><li>` requirements list is
+# invisible to it — there are no line starts in a single string of markup.
+#
+# A share of the adverts diagnosed as "prose" were structured all along; the
+# structure was in tags the parser never stripped.
+# ---------------------------------------------------------------------------
+
+_LIST_ITEM = re.compile(r"<li[^>]*>", re.I)
+_BREAKS = re.compile(r"</li>|<br\s*/?>|</p>|</div>|</tr>|</h[1-6]>|<hr\s*/?>", re.I)
+_BLOCK_START = re.compile(r"<(?:p|div|ul|ol|table|h[1-6])[^>]*>", re.I)
+_TAG = re.compile(r"<[^>]+>")
+_ENTITIES = {
+    "&nbsp;": " ", "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"',
+    "&#39;": "'", "&apos;": "'", "&rsquo;": "'", "&lsquo;": "'",
+    "&ldquo;": '"', "&rdquo;": '"', "&ndash;": "-", "&mdash;": "-",
+    "&bull;": "-", "&pound;": "£", "&hellip;": "...",
+}
+
+
+def looks_like_html(text: str) -> bool:
+    return bool(re.search(r"<(?:p|br|li|ul|div|b|strong)\b", text or "", re.I))
+
+
+def html_to_text(body: str) -> str:
+    """Flatten advert HTML to line-structured plain text.
+
+    List items become `- ` bullets so the existing bullet pattern matches;
+    block-level closers become newlines so headings sit on their own line.
+    """
+    if not body:
+        return ""
+    text = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", body, flags=re.I | re.S)
+    text = _LIST_ITEM.sub("\n- ", text)
+    text = _BREAKS.sub("\n", text)
+    text = _BLOCK_START.sub("\n", text)
+    text = _TAG.sub(" ", text)
+    for entity, char in _ENTITIES.items():
+        text = text.replace(entity, char)
+    text = re.sub(r"&#(\d+);", lambda m: chr(int(m.group(1))), text)
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r" ?\n ?", "\n", text)
+    return re.sub(r"\n{3,}", "\n\n", text).strip()
+
+
+
+# ---------------------------------------------------------------------------
+# Closing date
+#
+# A closed vacancy costs a hydration call against a 60/hour budget and one of
+# the 15 result slots per keyword. Filtering BEFORE hydration buys working
+# slots, not merely queue hygiene.
+# ---------------------------------------------------------------------------
+
+_MONTHS = ("january february march april may june july august september "
+           "october november december").split()
+_MONTH_INDEX = {m[:3]: i + 1 for i, m in enumerate(_MONTHS)}
+
+_CLOSING_LABEL = re.compile(
+    r"(?:closing|close[sd]?|deadline|apply\s+by|applications?\s+close)"
+    r"(?:\s+date)?\s*[:\-]?\s*", re.I)
+
+_DATE_PATTERNS = (
+    re.compile(r"(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})"),        # 9 July 2026
+    re.compile(r"([A-Za-z]{3,9})\s+(\d{1,2}),?\s+(\d{4})"),       # July 9, 2026
+    re.compile(r"(\d{1,2})[/-](\d{1,2})[/-](\d{4})"),             # 09/07/2026 (UK)
+    re.compile(r"(\d{4})-(\d{2})-(\d{2})"),                       # 2026-07-09
+)
+
+
+def closing_date(advert_text: str) -> date | None:
+    """Employer's stated closing date, or None. Never guessed.
+
+    An unparseable or absent date returns None, and the caller treats the
+    vacancy as open — refusing to process a vacancy on a date we invented
+    would be worse than processing a closed one.
+    """
+    if not advert_text:
+        return None
+    text = html_to_text(advert_text) if looks_like_html(advert_text) else advert_text
+
+    for label in _CLOSING_LABEL.finditer(text):
+        window = text[label.end(): label.end() + 60]
+        parsed = _parse_date(window)
+        if parsed:
+            return parsed
+    return None
+
+
+def _parse_date(fragment: str) -> date | None:
+    for i, pattern in enumerate(_DATE_PATTERNS):
+        m = pattern.search(fragment)
+        if not m:
+            continue
+        try:
+            if i == 0:
+                day, month, year = int(m.group(1)), m.group(2)[:3].lower(), int(m.group(3))
+                return date(year, _MONTH_INDEX[month], day)
+            if i == 1:
+                month, day, year = m.group(1)[:3].lower(), int(m.group(2)), int(m.group(3))
+                return date(year, _MONTH_INDEX[month], day)
+            if i == 2:
+                return date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+            return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        except (KeyError, ValueError):
+            continue
+    return None
+
+
+def is_closed(advert_text: str, *, today: date | None = None) -> bool:
+    """True only when a closing date is stated AND has passed."""
+    closes = closing_date(advert_text)
+    if closes is None:
+        return False
+    return closes < (today or date.today())
+
+
 # ---------------------------------------------------------------------------
 # Section detection
 # ---------------------------------------------------------------------------
@@ -203,6 +329,8 @@ def extract_sections(text: str) -> dict[str, list[str]]:
     Lines before any recognised heading go under 'preamble'. Terms found there
     are weaker evidence than terms under 'Essential'.
     """
+    if looks_like_html(text):
+        text = html_to_text(text)
     sections: dict[str, list[str]] = {"preamble": []}
     current = "preamble"
 
@@ -258,6 +386,8 @@ def extract(advert_text: str, *, include_desirable: bool = True) -> list[Require
     A bullet with no recognised tool becomes a single competency requirement,
     resolved semantically downstream.
     """
+    if looks_like_html(advert_text):
+        advert_text = html_to_text(advert_text)
     sections = extract_sections(advert_text)
     seen: set[str] = set()
     out: list[Requirement] = []

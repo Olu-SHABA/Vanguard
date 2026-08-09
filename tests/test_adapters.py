@@ -813,3 +813,44 @@ def test_reed_cap_fits_inside_the_rate_limit(registry) -> None:
         f"{cap} x {keywords} keywords exceeds {entry.calls_per_hour} calls/hour — "
         "most vacancies would go unhydrated"
     )
+
+
+def test_expired_vacancies_dropped_before_hydration(registry) -> None:
+    """A closed vacancy costs one of a small hourly hydration budget."""
+    from vanguard.adapters.reed import ReedAPIAdapter
+
+    adapter = ReedAPIAdapter(_with_creds(registry.get("reed"), api_key="k"))
+    adapter.fetch = lambda q: [
+        RawVacancy("reed", {"jobId": 1, "jobTitle": "Open", "employerName": "E",
+                            "locationName": "L",
+                            "jobDescription": "<p>Closing Date</p><p>30 September 2026</p>"
+                                              "<ul><li>Python and SQL</li></ul>"}),
+        RawVacancy("reed", {"jobId": 2, "jobTitle": "Expired", "employerName": "E",
+                            "locationName": "L",
+                            "jobDescription": "<p>Closing Date</p><p>9 July 2026</p>"
+                                              "<ul><li>Python</li></ul>"}),
+    ]
+    hydrated: list[str] = []
+
+    def track(vacancy):
+        hydrated.append(vacancy.title)
+        return vacancy
+
+    adapter.hydrate = track
+    kept = adapter.collect(Query())
+
+    assert [v.title for v in kept] == ["Open"]
+    assert "Expired" not in hydrated, "an expired vacancy must not consume a call"
+    assert any("closing date already passed" in t.reason for t in adapter.truncations)
+
+
+def test_undated_vacancy_is_kept(registry) -> None:
+    """Absent date means unknown, not closed."""
+    from vanguard.adapters.reed import ReedAPIAdapter
+
+    adapter = ReedAPIAdapter(_with_creds(registry.get("reed"), api_key="k"))
+    adapter.fetch = lambda q: [RawVacancy("reed", {
+        "jobId": 1, "jobTitle": "No date", "employerName": "E", "locationName": "L",
+        "jobDescription": "<ul><li>Python and SQL</li></ul>"})]
+    adapter.hydrate = lambda v: v
+    assert len(adapter.collect(Query())) == 1

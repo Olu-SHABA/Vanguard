@@ -147,3 +147,99 @@ def test_behaviour_exclusion_does_not_remove_real_requirements(reqs: list[Requir
     """'Leadership' is a behaviour name, but real requirements survive."""
     assert any(r.canonical == "Python" for r in reqs)
     assert any(r.canonical == "SQL" for r in reqs)
+
+
+# ---------------------------------------------------------------------------
+# HTML normalisation — a <li> list is a requirements list
+# ---------------------------------------------------------------------------
+
+def test_html_list_becomes_bullets() -> None:
+    """Reed returns raw HTML. The bullet pattern matches line starts, and a
+    single string of markup has none — so `<ul><li>` lists were invisible."""
+    from vanguard.extract import html_to_text
+
+    out = html_to_text("<ul><li>Python and SQL</li><li>AWS and Docker</li></ul>")
+    assert out.count("\n- ") >= 2 or out.startswith("- ")
+
+
+def test_requirements_extracted_from_html() -> None:
+    html = ("<p><b>What you will need</b></p><ul>"
+            "<li>Strong Python programming skills</li>"
+            "<li>Experience with PyTorch or TensorFlow</li>"
+            "<li>Familiarity with SQL and data pipelines</li>"
+            "<li>Understanding of MLOps and model deployment</li>"
+            "<li>Experience with AWS or Azure</li></ul>")
+    found = {r.canonical for r in extract(html)}
+    assert {"Python", "SQL", "PyTorch", "TensorFlow", "AWS", "Azure"} <= found
+
+
+def test_entities_are_decoded() -> None:
+    from vanguard.extract import html_to_text
+
+    out = html_to_text("<p>R&amp;D team &ndash; &pound;50,000</p>")
+    assert "&amp;" not in out and "R&D" in out and "£" in out
+
+
+def test_script_and_style_removed() -> None:
+    from vanguard.extract import html_to_text
+
+    out = html_to_text("<p>Real text</p><script>var x = 'Python';</script>")
+    assert "Real text" in out and "var x" not in out
+
+
+def test_plain_text_is_untouched() -> None:
+    from vanguard.extract import html_to_text, looks_like_html
+
+    plain = "Essential\n- strong Python and SQL skills"
+    assert not looks_like_html(plain)
+    assert extract(plain)
+
+
+# ---------------------------------------------------------------------------
+# Closing date — a closed vacancy costs a hydration slot
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        ("<p><b>Closing Date</b></p> 9 July 2026", (2026, 7, 9)),
+        ("Closing date: 30 September 2026", (2026, 9, 30)),
+        ("Applications close 01/09/2026", (2026, 9, 1)),
+        ("Apply by July 9, 2026", (2026, 7, 9)),
+        ("Deadline: 2026-12-01", (2026, 12, 1)),
+    ],
+)
+def test_closing_date_formats(text: str, expected: tuple) -> None:
+    from datetime import date
+
+    from vanguard.extract import closing_date
+
+    assert closing_date(text) == date(*expected)
+
+
+@pytest.mark.parametrize(
+    "text", ["No date stated anywhere", "Closing date: sometime soon", ""]
+)
+def test_absent_or_unparseable_date_is_none(text: str) -> None:
+    """Never guessed. An invented date could discard an open vacancy."""
+    from vanguard.extract import closing_date, is_closed
+
+    assert closing_date(text) is None
+    assert not is_closed(text)
+
+
+def test_expired_vacancy_detected() -> None:
+    from datetime import date
+
+    from vanguard.extract import is_closed
+
+    assert is_closed("Closing Date 9 July 2026", today=date(2026, 8, 9))
+    assert not is_closed("Closing Date 9 July 2026", today=date(2026, 6, 1))
+
+
+def test_closing_today_is_still_open() -> None:
+    from datetime import date
+
+    from vanguard.extract import is_closed
+
+    assert not is_closed("Closing date: 9 August 2026", today=date(2026, 8, 9))

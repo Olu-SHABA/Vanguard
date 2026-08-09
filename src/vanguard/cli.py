@@ -345,6 +345,8 @@ def review(vacancy_id, status, db) -> None:
         click.echo(f"\n{vacancy['title']} — {vacancy['employer']}")
         click.echo(f"{vacancy['location']}  {vacancy['salary_band']}")
         click.echo(f"status {record['status']}   type {record['submission_type']}")
+        if vacancy["closes"]:
+            click.echo(f"closes {vacancy['closes']}")
         if record["note"]:
             click.echo(f"note: {record['note']}")
         if score:

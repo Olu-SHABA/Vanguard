@@ -145,6 +145,7 @@ class Vacancy:
     fetched_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     reference: str = ""   # employer vacancy reference — correlation stage 1
     description_is_partial: bool = False   # search snippet, not the full advert
+    closes: object | None = None           # datetime.date, when the advert states one
 
     def __post_init__(self) -> None:
         if not self.id:
@@ -413,13 +414,24 @@ class BoardAdapter(ABC):
         Hydration failure is not fatal: a partial description still scores,
         and `description_is_partial` records that the number is unreliable.
         """
+        from vanguard.extract import closing_date, is_closed
+
         out: list[Vacancy] = []
         unhydrated = 0
+        expired = 0
 
         for raw in self.fetch(query):
             try:
                 vacancy = self.normalise(raw)
             except IngestionError:
+                continue
+
+            # Drop expired vacancies BEFORE hydrating. Each hydration call
+            # costs one of a small hourly budget; spending it on a vacancy
+            # that closed last month wastes a working slot.
+            vacancy.closes = closing_date(vacancy.description)
+            if vacancy.closes is not None and is_closed(vacancy.description):
+                expired += 1
                 continue
 
             if hydrate and vacancy.description_is_partial:
@@ -438,6 +450,12 @@ class BoardAdapter(ABC):
                     unhydrated += 1
 
             out.append(vacancy)
+
+        if expired:
+            self._note_truncation(
+                "", len(out),
+                f"{expired} vacanc(ies) skipped — closing date already passed",
+            )
 
         remaining = sum(1 for v in out if v.description_is_partial)
         if remaining:
