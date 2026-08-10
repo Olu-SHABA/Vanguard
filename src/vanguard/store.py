@@ -306,8 +306,11 @@ class Store:
 
         with self.connect() as conn:
             rows = conn.execute(
-                "SELECT headings, heading_kinds FROM diagnostics "
-                "WHERE heading_kinds IS NOT NULL"
+                """SELECT headings, heading_kinds FROM diagnostics d
+                    WHERE heading_kinds IS NOT NULL
+                      AND d.recorded_at = (
+                          SELECT MAX(recorded_at) FROM diagnostics d2
+                           WHERE d2.vacancy_id = d.vacancy_id)"""
             ).fetchall()
 
         counts: dict[str, int] = {}
@@ -326,8 +329,12 @@ class Store:
     def refusal_counts(self) -> dict[str, int]:
         with self.connect() as conn:
             rows = conn.execute(
-                "SELECT refusal, COUNT(DISTINCT vacancy_id) AS n FROM diagnostics "
-                "WHERE refusal IS NOT NULL AND refusal != '' GROUP BY refusal"
+                """SELECT refusal, COUNT(*) AS n FROM diagnostics d
+                    WHERE refusal IS NOT NULL AND refusal != ''
+                      AND d.recorded_at = (
+                          SELECT MAX(recorded_at) FROM diagnostics d2
+                           WHERE d2.vacancy_id = d.vacancy_id)
+                    GROUP BY refusal"""
             ).fetchall()
         return {r["refusal"]: r["n"] for r in rows}
 
@@ -340,13 +347,24 @@ class Store:
             ).fetchone()
 
     def parse_health(self) -> dict[str, int]:
-        """How many adverts parse, refuse, or were never HTML."""
+        """How many adverts parse, refuse, or were never HTML.
+
+        Counted over the LATEST diagnostic per vacancy. `diagnostics` holds one
+        row per advert per run, so mixing `COUNT(DISTINCT vacancy_id)` for the
+        denominator with a plain `SUM` for the numerator produced 176 scored
+        out of 33 parsed — 533%, and a negative refusal count.
+
+        The same defect as B-21 in `list_queue()`, repeated here.
+        """
         with self.connect() as conn:
             row = conn.execute(
-                """SELECT COUNT(DISTINCT vacancy_id) AS total,
+                """SELECT COUNT(*) AS total,
                           SUM(CASE WHEN terms_extracted > 0 THEN 1 ELSE 0 END) AS scored,
                           SUM(CASE WHEN is_html = 1 THEN 1 ELSE 0 END) AS html
-                     FROM diagnostics"""
+                     FROM diagnostics d
+                    WHERE d.recorded_at = (
+                          SELECT MAX(recorded_at) FROM diagnostics d2
+                           WHERE d2.vacancy_id = d.vacancy_id)"""
             ).fetchone()
         return {
             "total": row["total"] or 0,
