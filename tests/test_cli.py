@@ -318,14 +318,25 @@ def test_dormant_reports_none_when_recent(runner: CliRunner, tmp_path: Path) -> 
 # Output discipline — width awareness and word-boundary truncation
 # ---------------------------------------------------------------------------
 
-def test_clip_never_cuts_mid_word() -> None:
-    """A half-word reads as data rather than as omission."""
+@pytest.mark.parametrize("unicode_mode, ellipsis", [(True, "\u2026"), (False, "...")])
+def test_clip_never_cuts_mid_word(unicode_mode: bool, ellipsis: str) -> None:
+    """A half-word reads as data rather than as omission.
+
+    The theme is set explicitly rather than detected: under pytest the output
+    is not a terminal, so detection yields ASCII and a hardcoded `…` fails.
+    A test must control its inputs, not observe the ambient environment.
+    """
+    from vanguard import ui
     from vanguard.cli import _clip
 
-    out = _clip("adapter NHSJobsAPIAdapter is declared but not yet implemented", 40)
-    assert out.endswith("…")
-    assert not out[:-1].endswith(("implemen", "declare", "y"))
-    assert " " not in out[-2:-1] or out[-2] != " "
+    ui.set_theme(ui.Theme(colour=False, unicode=unicode_mode,
+                          decorated=False, width=80))
+    try:
+        out = _clip("adapter NHSJobsAPIAdapter is declared but not yet implemented", 40)
+        assert out.endswith(ellipsis)
+        assert not out[: -len(ellipsis)].endswith(("implemen", "declare"))
+    finally:
+        ui.set_theme(None)
 
 
 def test_clip_leaves_short_text_alone() -> None:
@@ -340,12 +351,20 @@ def test_clip_normalises_whitespace() -> None:
     assert _clip("a   b\n c", 40) == "a b c"
 
 
-def test_clip_handles_a_single_long_token() -> None:
+@pytest.mark.parametrize("unicode_mode, ellipsis", [(True, "\u2026"), (False, "...")])
+def test_clip_handles_a_single_long_token(unicode_mode: bool, ellipsis: str) -> None:
     """No space to break on — must still terminate, not loop or raise."""
+    from vanguard import ui
     from vanguard.cli import _clip
 
-    out = _clip("x" * 200, 20)
-    assert len(out) <= 20 and out.endswith("…")
+    ui.set_theme(ui.Theme(colour=False, unicode=unicode_mode,
+                          decorated=False, width=80))
+    try:
+        out = _clip("x" * 200, 20)
+        assert len(out) <= 20
+        assert out.endswith(ellipsis)
+    finally:
+        ui.set_theme(None)
 
 
 def test_wrap_preserves_every_word() -> None:
@@ -519,3 +538,63 @@ def test_documented_commands_all_exist() -> None:
     assert referenced <= set(main.commands), (
         f"documented but absent: {referenced - set(main.commands)}"
     )
+
+
+# ---------------------------------------------------------------------------
+# A coverage figure that was never measured must not be printed
+# ---------------------------------------------------------------------------
+
+def _seed_unmeasured(tmp_path: Path) -> None:
+    """A vacancy scored on one requirement — the case that displayed 1.000."""
+    from vanguard.adapters.base import Vacancy
+    from vanguard.store import Store
+
+    store = Store(tmp_path / "v.db")
+    store.initialise()
+    store.upsert_vacancy(Vacancy(
+        id="adzuna:999", board_id="adzuna", employer="Barclays",
+        title="AI Engineer", description="Short summary mentioning data.",
+        description_is_partial=True,
+    ))
+    store.create_queue_record("adzuna:999", "FLAGGED")
+    with store.connect() as conn:
+        conn.execute(
+            "INSERT INTO scores (vacancy_id, coverage, rank_score, ceiling,"
+            " terms_total, terms_matched, soft_hits, embedder, computed_at)"
+            " VALUES (?,?,?,?,?,?,?,?,?)",
+            ("adzuna:999", 1.0, 0.549, 1.0, 1, 1, 0, "minilm",
+             "2026-08-09T21:00:00+00:00"),
+        )
+
+
+def test_unmeasured_coverage_is_not_shown_as_a_figure(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    """A bare 1.000 at the top of the queue reads as the best match. It meant
+    the opposite: one requirement extracted, nothing measured."""
+    _seed_unmeasured(tmp_path)
+    out = runner.invoke(main, ["review", "--status", "FLAGGED",
+                               "--db", str(tmp_path / "v.db")]).output
+    assert "1.000" not in out
+    assert "not measured" in out
+
+
+def test_unmeasured_records_are_counted(runner: CliRunner, tmp_path: Path) -> None:
+    _seed_unmeasured(tmp_path)
+    out = runner.invoke(main, ["review", "--status", "FLAGGED",
+                               "--db", str(tmp_path / "v.db")]).output
+    assert "1 not measured" in out
+    assert "diagnose" in out
+
+
+def test_measured_coverage_shows_its_denominator(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    """0.429 alone is not interpretable; 9/21 is."""
+    vid = _seed(runner, tmp_path)
+    from vanguard.store import Store
+
+    status = Store(tmp_path / "v.db").list_queue()[0]["status"]
+    out = runner.invoke(main, ["review", "--status", status,
+                               "--db", str(tmp_path / "v.db")]).output
+    assert "/" in out and "TERMS" in out

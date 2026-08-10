@@ -29,6 +29,31 @@ for you is correct.
 application. `dispatch` records that *you* did; `feedback` drafts text for you
 to send yourself.
 
+**Accessibility.** Presentation adapts to the terminal, and status is always
+shown as a **symbol and a word** — never colour alone. Nothing in the output
+depends on distinguishing red from green.
+
+| Flag | Environment | Effect |
+|---|---|---|
+| `--plain` | `VANGUARD_PLAIN=1` | No colour, boxes or symbols. Emits **zero** escape sequences — for screen readers, logs and pipes |
+| `--no-color` | `NO_COLOR=1` | Colour off; symbols and words remain |
+| `--ascii` | `VANGUARD_ASCII=1` | ASCII instead of Unicode box drawing |
+| `--high-contrast` | `VANGUARD_CONTRAST=high` | Drops dim styling, which is unreadable on many themes |
+| `--width N` | — | Override detected terminal width |
+
+Plain mode is applied automatically when output is not a terminal, and
+`TERM=dumb` degrades to monochrome ASCII.
+
+**Status symbols**
+
+| Symbol | ASCII | Meaning |
+|---|---|---|
+| `●` | `*` | Good — ready, passed |
+| `◐` | `!` | Needs attention |
+| `○` | `x` | Blocked or terminal |
+| `▸` | `>` | Informational |
+| `·` | `.` | Secondary detail |
+
 **Shared options.** `--db` (default `data/vanguard.db`), `--cv`
 (`data/canonical_cv.md`), `--aliases` (`config/alias_table.yaml`), `--boards`
 (`config/boards.yaml`). Change these only to work against alternate files.

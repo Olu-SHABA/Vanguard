@@ -490,7 +490,8 @@ class Store:
         # twenty rows after ten runs.
         sql = """SELECT q.*, v.employer, v.title, v.url, v.board_id,
                         s.coverage, s.rank_score, s.ceiling, s.embedder,
-                        s.computed_at
+                        s.computed_at, s.terms_total, s.terms_matched,
+                        v.partial
                  FROM queue q
                  JOIN vacancies v ON v.id = q.vacancy_id
                  LEFT JOIN scores s

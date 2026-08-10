@@ -33,6 +33,7 @@ try:
 except ImportError:  # pragma: no cover
     sys.exit("click required: pip install -e '.[dev]'")
 
+from vanguard import ui
 from vanguard.adapters.base import Query, load_registry
 from vanguard.coverage import compute_coverage, load_aliases
 from vanguard.cv import load as load_cv
@@ -84,42 +85,36 @@ def _load_env(path: Path = Path(".env")) -> int:
 
 
 def _terminal_width() -> int:
-    """Usable width. Falls back sanely when not attached to a terminal."""
-    try:
-        width = shutil.get_terminal_size(fallback=(100, 24)).columns
-    except Exception:
-        width = 100
-    return max(MIN_WIDTH, width - 1)
+    """Usable width, from the active theme."""
+    return ui.current_theme().width
 
 
 def _clip(text: str, width: int) -> str:
-    """Truncate at a word boundary, marked with an ellipsis.
-
-    Never cuts mid-word: a half-word reads as data rather than as omission.
-    """
-    text = " ".join(str(text or "").split())
-    if len(text) <= width:
-        return text
-    if width <= 1:
-        return "…"
-    cut = text[: width - 1]
-    space = cut.rfind(" ")
-    if space > width * 0.6:      # only honour the boundary if it is near the end
-        cut = cut[:space]
-    return cut.rstrip(" ,.;:") + "…"
+    return ui.clip(text, width)
 
 
 def _wrap(text: str, width: int, indent: str = "") -> list[str]:
-    """Wrap rather than discard. For content the operator needs in full."""
-    body = " ".join(str(text or "").split())
-    if not body:
-        return []
-    return textwrap.wrap(body, width=max(20, width - len(indent))) or [""]
+    return ui.wrap(text, width - len(indent))
 
 
 def _row(*cells: tuple[str, int]) -> str:
     """Left-aligned columns, each clipped to its own budget."""
     return "  ".join(_clip(value, budget).ljust(budget) for value, budget in cells).rstrip()
+
+
+STATUS_TONE = {
+    "PENDING": ui.Tone.GOOD,
+    "APPROVED": ui.Tone.GOOD,
+    "DISPATCHED": ui.Tone.INFO,
+    "FLAGGED": ui.Tone.WARN,
+    "UNREACHABLE": ui.Tone.BAD,
+    "REJECTED": ui.Tone.MUTED,
+}
+
+
+def _status(label: str, width: int = 12) -> str:
+    """Status as symbol plus word. Never colour alone."""
+    return ui.badge(label, STATUS_TONE.get(label, ui.Tone.PLAIN), width=width)
 
 
 DEFAULTS = {
@@ -206,17 +201,22 @@ def _score_and_queue(vacancy, store, queue, canonical, alias_table, embedder, na
                "CRITERIA": len(spec.assessed_criteria)},
         note=note,
     )
-    if outcome.final.unreliable:
-        click.echo(
-            f"  {status.value:<12} C={outcome.final.coverage:.3f} "
-            f"UNRELIABLE   {_clip(vacancy.title, 40)}"
-        )
-    else:
-        click.echo(
-            f"  {status.value:<12} C={outcome.final.coverage:.3f} "
-            f"ceiling={outcome.final.ceiling:.3f}  {_clip(vacancy.title, 40)}"
-        )
+    width = ui.current_theme().width
+    detail = ("not measured".ljust(15) if outcome.final.unreliable
+              else f"ceiling {outcome.final.ceiling:.2f}".ljust(15))
+    click.echo(
+        f"  {_status(status.value)}  {outcome.final.coverage:.3f}  {detail} "
+        f"{_clip(vacancy.title, max(16, width - 48))}"
+    )
     return status.value
+
+
+def registry_gate(boards_path: str = "") -> str:
+    """The gate in force, for display. Never fails a render."""
+    try:
+        return f"{load_registry(boards_path or DEFAULTS['boards']).coverage_gate:.2f}"
+    except Exception:
+        return "?"
 
 
 def _ctx(db: str):
@@ -227,9 +227,27 @@ def _ctx(db: str):
 
 @click.group()
 @click.version_option("0.1.0", prog_name="vanguard")
-def main() -> None:
-    """Project Vanguard — semi-autonomous job application pipeline."""
+@click.option("--plain", is_flag=True, help="No colour, boxes or symbols. For screen readers and logs.")
+@click.option("--no-color", "no_colour", is_flag=True, help="Disable colour. Symbols and words remain.")
+@click.option("--ascii", "ascii_only", is_flag=True, help="ASCII instead of Unicode box drawing.")
+@click.option("--high-contrast", is_flag=True, help="Drop dim and italic styling.")
+@click.option("--width", type=int, default=0, help="Override detected terminal width.")
+def main(plain, no_colour, ascii_only, high_contrast, width) -> None:
+    """Project Vanguard — semi-autonomous job application pipeline.
+
+    Presentation adapts to the terminal and honours NO_COLOR. Status is always
+    shown as a symbol AND a word, so nothing depends on colour alone.
+    """
     _load_env()
+
+    detected = ui.Theme.detect()
+    ui.set_theme(ui.Theme(
+        colour=detected.colour and not (plain or no_colour),
+        unicode=detected.unicode and not ascii_only,
+        decorated=detected.decorated and not plain,
+        high_contrast=high_contrast or detected.high_contrast,
+        width=width or detected.width,
+    ))
 
 
 # ---------------------------------------------------------------------------
@@ -318,8 +336,10 @@ def run(boards, cv, aliases, db, title, location, no_model) -> None:
         click.echo(f"  {_clip(str(note), _terminal_width() - 4)}")
     by_id = {v.id: v for v in hydrated}
 
-    click.echo(f"\nscoring {len(selected)} vacanc(ies) [{embedder_name}] "
-               f"gate {registry.coverage_gate:.2f}")
+    click.echo()
+    click.echo(ui.rule(f"SCORING  {len(selected)} vacancies  ·  "
+                       f"{embedder_name}  ·  gate {registry.coverage_gate:.2f}"))
+    click.echo(f"  {'STATUS':<14} {'C':>5}  {'':<15} TITLE")
     for score, vacancy in selected:
         vacancy = by_id.get(vacancy.id, vacancy)
         try:
@@ -330,8 +350,17 @@ def run(boards, cv, aliases, db, title, location, no_model) -> None:
             # One vacancy failing must not abort the run.
             click.echo(f"  ERROR        {_clip(vacancy.title, 40)}: {exc}", err=True)
 
-    click.echo(f"\n{queue.summary()}")
-    click.echo("run complete — no transmission occurred")
+    click.echo()
+    click.echo(ui.rule("RESULT"))
+    counts = store.counts_by_status()
+    ordered = ["PENDING", "FLAGGED", "UNREACHABLE", "APPROVED", "DISPATCHED", "REJECTED"]
+    lines = [(label, counts[label]) for label in ordered if counts.get(label)]
+    for label, count in lines:
+        click.echo(f"  {_status(label)}  {count}")
+
+    if counts.get("PENDING"):
+        click.echo(f"\n  {counts['PENDING']} ready to review:  vanguard review")
+    click.echo("\n  no transmission occurred — Vanguard never submits")
 
 
 @main.command()
@@ -392,7 +421,8 @@ def paste(path, url, board, employer, title, boards, cv, aliases, db, no_model) 
 @click.argument("vacancy_id", required=False)
 @click.option("--status", default="PENDING", help="Filter: PENDING, FLAGGED, ...")
 @click.option("--db", default=DEFAULTS["db"])
-def review(vacancy_id, status, db) -> None:
+@click.option("--boards", "boards_path", default=DEFAULTS["boards"])
+def review(vacancy_id, status, db, boards_path) -> None:
     """List queued records, or show one in full."""
     store, queue = _ctx(db)
 
@@ -402,44 +432,77 @@ def review(vacancy_id, status, db) -> None:
             raise click.ClickException(f"no queue record for {vacancy_id!r}")
         vacancy = store.vacancy(vacancy_id)
         score = store.latest_score(vacancy_id)
-
-        click.echo(f"\n{vacancy['title']} — {vacancy['employer']}")
-        click.echo(f"{vacancy['location']}  {vacancy['salary_band']}")
-        click.echo(f"status {record['status']}   type {record['submission_type']}")
-        if vacancy["closes"]:
-            click.echo(f"closes {vacancy['closes']}")
-        if record["note"]:
-            click.echo(f"note: {record['note']}")
-        if score:
-            click.echo(
-                f"\nC={score['coverage']:.3f}  ceiling={score['ceiling']:.3f}  "
-                f"S={score['rank_score'] or 0:.3f}  "
-                f"{score['terms_matched']}/{score['terms_total']} terms  "
-                f"[{score['embedder']}]"
-            )
-
         width = _terminal_width()
-        rows = store.gaps_for(vacancy_id)
-        unmet = [r for r in rows if r["outcome"] == "GAP"]
-        if unmet:
-            click.echo(f"\nunmet ({len(unmet)}):")
-            for r in unmet:
-                tag = f"Type {r['gap_type']}" if r["gap_type"] else "—"
-                click.echo(f"  {tag:<7} {_clip(r['term'], width - 10)}")
-                # The exclusion reason is WHY no edit is permitted. Wrapping it
-                # keeps that reviewable; clipping it did not.
-                for line in _wrap(r["exclusion"], width - 12, "            "):
-                    click.echo(f"            {line}")
 
+        # --- heading ------------------------------------------------------
+        click.echo()
+        click.echo(ui.rule(_clip(vacancy["title"], width - 8)))
+        click.echo(ui.field_list([
+            ("employer", vacancy["employer"]),
+            ("location", vacancy["location"] or ""),
+            ("salary", vacancy["salary_band"] or ""),
+            ("closes", vacancy["closes"] or ""),
+            ("reference", vacancy["reference"] or ""),
+        ], indent="  "))
+
+        click.echo()
+        click.echo(f"  {_status(record['status'])}   "
+                   f"{record['submission_type'] or 'STANDARD_CV'}")
+        if record["note"]:
+            for line in _wrap(record["note"], width - 6):
+                click.echo(f"      {line}")
+
+        # --- score --------------------------------------------------------
+        if score:
+            click.echo()
+            click.echo(ui.rule("SCORE"))
+            matched, total = score["terms_matched"], score["terms_total"]
+            click.echo("  " + ui.bar(matched, total, width=18))
+            click.echo(ui.field_list([
+                ("coverage", f"{score['coverage']:.3f}   (gate {registry_gate(boards_path)})"),
+                ("ceiling", f"{score['ceiling']:.3f}   best attainable with Type 3 gaps unmet"),
+                ("rank", f"{score['rank_score'] or 0:.3f}   orders the queue; never gates"),
+                ("embedder", score["embedder"]),
+            ], indent="  "))
+
+        # --- gaps ---------------------------------------------------------
+        rows_gaps = store.gaps_for(vacancy_id)
+        unmet = [r for r in rows_gaps if r["outcome"] == "GAP"]
+        if unmet:
+            by_type: dict[int | None, list] = {}
+            for r in unmet:
+                by_type.setdefault(r["gap_type"], []).append(r)
+
+            click.echo()
+            click.echo(ui.rule(f"UNMET  ·  {len(unmet)}"))
+            labels = {
+                1: ("Type 1  evidenced, unstated — may be added", ui.Tone.WARN),
+                2: ("Type 2  evidenced, differently named", ui.Tone.WARN),
+                3: ("Type 3  not evidenced — NO CV EDIT PERMITTED", ui.Tone.BAD),
+                None: ("unclassified", ui.Tone.MUTED),
+            }
+            for gap_type in (1, 2, 3, None):
+                group = by_type.get(gap_type)
+                if not group:
+                    continue
+                heading, tone = labels[gap_type]
+                click.echo(f"\n  {ui.badge(heading, tone)}")
+                for r in group:
+                    click.echo(f"      {_clip(r['term'], width - 10)}")
+                    for line in _wrap(r["exclusion"], width - 14):
+                        click.echo(f"          {line}")
+
+        # --- why not scored -----------------------------------------------
         diagnostic = store.diagnostic_for(vacancy_id)
         if diagnostic and diagnostic["refusal"]:
             from vanguard.diagnostics import RefusalReason
-            click.echo(f"\nnot scored: {diagnostic['refusal']}")
             try:
-                for line in _wrap(RefusalReason(diagnostic["refusal"]).explanation, width - 4):
-                    click.echo(f"  {line}")
+                explanation = RefusalReason(diagnostic["refusal"]).explanation
             except ValueError:
-                pass
+                explanation = ""
+            click.echo()
+            click.echo(ui.panel(f"NOT SCORED — {diagnostic['refusal']}",
+                                explanation, tone=ui.Tone.WARN))
             import json as _json
             try:
                 found = _json.loads(diagnostic["headings"] or "[]")
@@ -448,39 +511,81 @@ def review(vacancy_id, status, db) -> None:
             if found:
                 click.echo("  headings found:")
                 for heading in found[:8]:
-                    click.echo(f"    {_clip(heading, width - 6)}")
+                    click.echo(f"      {_clip(heading, width - 10)}")
 
-        click.echo("\nhistory:")
+        # --- history ------------------------------------------------------
+        click.echo()
+        click.echo(ui.rule("HISTORY"))
         for frm, to, at in queue.history(vacancy_id):
-            click.echo(f"  {at}  {frm} -> {to}")
+            click.echo(f"  {at[:16].replace('T', ' ')}   "
+                       f"{frm:>12} -> {_status(to, 0)}")
+
         if vacancy["url"]:
-            click.echo(f"\n{vacancy['url']}")
+            click.echo(f"\n  {vacancy['url']}")
+
+        # --- what you can do ----------------------------------------------
+        click.echo()
+        nxt = {
+            "PENDING": ["approve", "reject"],
+            "FLAGGED": ["resolve", "reject"],
+            "UNREACHABLE": ["override --why \"...\"", "reject"],
+            "APPROVED": ["dispatch", "reject"],
+        }.get(record["status"], [])
+        if nxt:
+            options = "   ".join(f"vanguard {verb} {vacancy_id}" for verb in nxt)
+            click.echo(f"  next:  {options}")
         return
 
     rows = store.list_queue(status.upper())
     if not rows:
         click.echo(f"no records with status {status.upper()}")
         return
-    click.echo(f"{status.upper()} — {len(rows)} record(s), strongest first\n")
+    from vanguard.coverage import MIN_TERMS_FOR_CONFIDENCE
 
-    width = _terminal_width()
-    id_w = min(28, max(len(r["vacancy_id"]) for r in rows))
-    spare = width - 2 - 15 - id_w - 8          # indent, scores, id, gutters
-    employer_w = max(14, int(spare * 0.42))
-    title_w = max(18, spare - employer_w)
+    def _coverage_cell(row) -> tuple[str, str]:
+        """Coverage and its denominator — or a marker when it was not measured.
 
-    # Header built without _clip: it normalises whitespace, which collapses
-    # the deliberate spacing between the two score columns.
-    click.echo("  " + _row(("C", 5), ("S", 6), ("EMPLOYER", employer_w),
-                           ("TITLE", title_w), ("ID", id_w)))
+        A bare `1.000` for a vacancy scored on one requirement reads as the
+        best match in the queue. It means the opposite: nothing was measured.
+        Printing the figure at all was the defect.
+        """
+        total = row["terms_total"] or 0
+        unreliable = total < MIN_TERMS_FOR_CONFIDENCE or bool(row["partial"])
+        if unreliable:
+            return "not measured", f"{total} terms" if total else "no terms"
+        return f"{row['coverage'] or 0:.3f}", f"{row['terms_matched']}/{total}"
+
+    click.echo(ui.rule(f"{status.upper()}  ·  {len(rows)} record(s), strongest first"))
+
+    body = []
+    unmeasured = 0
     for r in rows:
-        click.echo("  " + _row(
-            (f"{r['coverage'] or 0:.3f}", 5),
-            (f"{r['rank_score'] or 0:.3f}", 6),
-            (r["employer"], employer_w),
-            (r["title"], title_w),
-            (r["vacancy_id"], id_w),
-        ))
+        coverage, terms = _coverage_cell(r)
+        if coverage == "not measured":
+            unmeasured += 1
+        body.append([coverage, terms, f"{r['rank_score'] or 0:.3f}",
+                     r["employer"], r["title"], r["vacancy_id"]])
+
+    click.echo(ui.table(
+        [
+            ui.Column("COVERAGE", 0.5, 12, "right"),
+            ui.Column("TERMS", 0.3, 6, "right", tone=ui.Tone.MUTED),
+            ui.Column("RANK", 0.3, 5, "right"),
+            ui.Column("EMPLOYER", 1.1, 12),
+            ui.Column("TITLE", 2.0, 16),
+            ui.Column("ID", 0.9, 12, tone=ui.Tone.MUTED),
+        ],
+        body,
+    ))
+
+    click.echo()
+    if unmeasured:
+        click.echo(
+            f"  {ui.badge(f'{unmeasured} not measured', ui.Tone.WARN)} — advert had "
+            f"fewer than {MIN_TERMS_FOR_CONFIDENCE} requirements, or partial text. "
+            "Run `vanguard diagnose`."
+        )
+    click.echo("  vanguard review <ID>   for the full record")
 
 
 @main.command()
