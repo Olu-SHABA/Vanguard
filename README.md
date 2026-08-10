@@ -25,6 +25,7 @@ Governing documents: `PROJECT_VANGUARD_DIRECTIVE.md` (behaviour),
 Test counts above are recorded at each milestone, not maintained between them.
 Run `pytest` for the current figure.
 
+Day-to-day operation and troubleshooting: **`SOP.md`**.
 Full command reference: **`COMMANDS.md`**.
 Open defects, deferrals and unverified assumptions: **`OUTSTANDING.md`**.
 Route to completion: **`ROADMAP.md`**.

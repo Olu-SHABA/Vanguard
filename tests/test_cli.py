@@ -598,3 +598,17 @@ def test_measured_coverage_shows_its_denominator(
     out = runner.invoke(main, ["review", "--status", status,
                                "--db", str(tmp_path / "v.db")]).output
     assert "/" in out and "TERMS" in out
+
+
+def test_sop_exists() -> None:
+    assert (ROOT / "SOP.md").is_file()
+
+
+def test_sop_references_only_real_commands() -> None:
+    """An SOP naming a command that does not exist sends the reader nowhere."""
+    import re
+
+    sop = (ROOT / "SOP.md").read_text(encoding="utf-8")
+    referenced = set(re.findall(r"vanguard (\w+)", sop))
+    # `run` and `logs` also appear as ordinary words; both are real commands.
+    assert referenced <= set(main.commands) | {"run", "logs"}
