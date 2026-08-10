@@ -1,173 +1,221 @@
-# PROJECT VANGUARD — Roadmap to Completion
+# PROJECT VANGUARD — Progress Report and Roadmap
 
-| Field | Value |
+**9 August 2026** · version 2, supersedes version 1 of the same date
+
+| | |
 |---|---|
-| **Date** | 9 August 2026 |
-| **Status** | All six build milestones complete. 543 tests passing. Running against live boards |
-| **Authority** | Descriptive. `PROJECT_VANGUARD_DIRECTIVE.md` governs behaviour |
+| Modules | 8,111 lines, 25 files |
+| Tests | 4,893 lines, 19 files — **631 passing, 0 failed** |
+| Documentation | 1,255 lines, 4 files |
+| Register | 54 items, 5 open |
+| Verified | With and without credentials configured |
 
 ---
 
-## The definition problem
+# PART 1 — Where the project stands
 
-`BUILD_PLAN.md` is finished. Every milestone delivered, verified on real
-infrastructure. So "completion" now means something the project has not yet
-defined, and three answers are defensible:
+## Complete and verified
 
-| Definition | Completion is... | Remaining work |
+**Design.** 21 defects from the specification audit, all closed. Four blocking.
+
+**Build.** All six milestones. Render chain producing a two-page PDF with a
+passing anonymisation scan. Coverage engine, alias resolution, rank scoring.
+Gap taxonomy, bounded refactor, six templates. Five board adapters with
+registry-driven ingestion. SQLite store, queue state machine, 16-command CLI.
+Correlation, six-state classifier, dormancy.
+
+**Live operation.** Running against Reed and Adzuna. One PENDING record — a
+Machine Learning Engineer at C=0.700, ceiling 0.800.
+
+**Diagnostics.** Every advert's parse observed: headings found, how each
+classified, refusal reason, pipeline decisions. `vanguard diagnose` ranks
+unrecognised headings by frequency.
+
+**Documentation.** `COMMANDS.md` covers all 16 commands and every option, with
+three tests asserting it cannot drift from the CLI.
+
+**Presentation.** `ui.py`, stdlib only. Colour is never the only signal;
+`NO_COLOR` honoured; plain mode emits zero escape sequences; Unicode capability
+detected from the stream encoding rather than guessed.
+
+## Defects found by running it — 26
+
+Most were invisible to inspection and appeared only against real data:
+
+| | |
+|---|---|
+| B-04, B-13 | Snippets scored as though they were full adverts |
+| B-10 | Vacancy reference never extracted — correlation dead on arrival |
+| B-11, B-12 | Pagination silently capped at one page |
+| B-14 | Adzuna cannot supply enough text to assess |
+| B-15 | Hydration failure swallowed; 240 of 300 scored on snippets |
+| B-17, B-20 | HTML unread; duties and benefits counted as requirements |
+| B-18 | Per-board result cap inert |
+| B-21 | Score history multiplied queue rows twentyfold |
+| B-23 | Flat fallback produced confident wrong numbers |
+| B-25 | Heading detector tightened, then **reverted** — it rejected real headings |
+| B-26 | Queue printed coverage figures that were never measured |
+
+## Calibration — measured, not authored
+
+**P-01 was 0.94.** Of 43 vacancies, zero reached it, and the best genuine fit
+had a ceiling of 0.800 — structurally incapable of passing. Now **0.60**, on
+the operator's ratchet ruling. Both thresholds live in config.
+
+---
+
+# PART 2 — What remains
+
+## Open in the register — 5
+
+| ID | Item | Blocked on |
 |---|---|---|
-| **A — Operational** | The tool reliably supports the operator's job search | Weeks. Mostly use, not code |
-| **B — Feature-complete** | Every item in `OUTSTANDING.md` is closed or explicitly declined | Months |
-| **C — Service** | Multi-user, per the operator's stated longer-term intent | A different project |
+| **B-17 / D-03** | ~35% of adverts have no recognised requirement heading | More adverts |
+| **B-09** | Near-duplicate requirements survive dedup | Low value |
+| **C-01** | Keyword list unresolved | Operator ruling |
+| **C-02** | `data engineer` excluded from search | Operator ruling |
+| **S-05** | Redacted CV needed before any public release | Only if publishing |
 
-**This roadmap assumes A, with B as an optional extension.** C is out of scope
-and depends on A being reached first — the operator's own condition was that
-the single-user build be "implemented, vigorously tested and highly stable"
-before anything further.
+## Deferred by ruling
+
+**D-01** adaptive query configuration · **B-01/B-02** folded into it
+
+## Awaiting evidence
+
+| Parameter | Current | Trigger |
+|---|---|---|
+| P-01 coverage gate | 0.60 | 30–40 logged applications |
+| P-02 MiniLM threshold | 0.75 | Soft-hit review history |
+| P-03 Type 1 floor | 0.45 | Gap-classification history |
+| P-04 `silence_days` | 21 / 30 | Real response times |
+| P-06 Template F | — | A second Success Profile advert |
+
+## Not built
+
+**N-06** mailbox polling · **N-01** NHS Jobs · **N-02** Find a Job
+
+## Cosmetic
+
+Two column-alignment issues in the queue list and result summary. Ten lines.
+Seen and left by operator ruling.
 
 ---
 
-# PHASE 1 — Operational use
+# PART 3 — Dependencies: the standing position
 
-**Goal:** the tool earns its keep. **Effort:** none. **Duration:** 2–4 weeks.
+Every third-party library considered so far has been **declined in favour of
+the standard library**, and each decision has a trigger that would reverse it.
 
-No code. The system works; what it lacks is usage.
+| Library | Considered for | Decision | Would be justified by |
+|---|---|---|---|
+| `beautifulsoup4` | DOM parsing | Declined — `html.parser` sufficed | A run of `no_headings_at_all` refusals on adverts that visibly have structure |
+| `lxml` | Faster, stricter parsing | Declined | Only alongside BeautifulSoup |
+| `html5lib` | Browser-spec recovery | Declined | Systematically malformed markup from a new board |
+| `rich` | Terminal UI | Declined — `ui.py` works | Nothing foreseen |
 
-| Task | Why |
+**Why the bar is high.** Each dependency is installation risk on the
+operator's machine, and none can be tested in the environment where the code
+is written — which is how the render CSS needed three correction rounds.
+
+**On BeautifulSoup specifically.** It would bring CSS selectors (some boards
+mark requirement blocks with a class), table handling, and better malformed-
+markup recovery. None of those addresses the current failure: the refusals are
+`no_requirement_heading`, which is *classification*, not parsing. A better
+parser fixes none of them. `vanguard diagnose` is the instrument that would
+show the picture changing.
+
+---
+
+# PART 4 — Roadmap
+
+Definition **A — operational**: the tool reliably supports the job search.
+
+## PHASE 1 — Use it
+
+**Effort: none. Duration: 2–4 weeks.**
+
+Everything in Phase 2 is blocked on evidence this phase produces. Building
+before it exists is what put a 0.94 gate on an unreachable metric, designed
+extraction against a single advert, and produced a heading fix reverted within
+the hour.
+
+- [ ] Review the PENDING record; apply if it fits
+- [ ] Paste LinkedIn and Adzuna roles worth assessing
+- [ ] Run `vanguard mail` on recruiter replies
+- [ ] `vanguard diagnose` weekly — the parse rate is the D-03 signal
+
+**Exit:** 30+ vacancies scored · 10+ applications submitted · first responses
+classified.
+
+## PHASE 2 — Evidence-driven correction
+
+**Effort: 3–5 days. Trigger: Phase 1 exit criteria met.**
+
+| Item | What the evidence decides |
 |---|---|
-| Review the PENDING queue after each run | The only way to learn whether coverage matches your judgement |
-| Apply to what looks right | The point of the exercise |
-| Paste LinkedIn and Adzuna roles worth assessing | Tier 3 boards are permanent design, not a gap |
-| Run `vanguard mail` on recruiter replies | Exercises correlation and classification on real messages |
+| P-01 to P-04 | Whether each authored parameter survives contact with data |
+| **D-03** | Whether prose extraction is tractable, or should be declined |
+| C-01, C-02 | Keyword list, once yield per keyword is visible |
+| BeautifulSoup | Only if the refusal profile shifts to parser failures |
 
-### Exit criteria
+**Exit:** every authored parameter measured or explicitly retained with a
+recorded reason. Reliable-score rate above 75%.
 
-- [ ] 30+ vacancies scored and reviewed
-- [ ] 10+ applications submitted
-- [ ] Coverage scores compared against your own judgement of fit
-- [ ] First recruiter responses correlated and classified
-
-### What this unlocks
-
-Everything in Phase 2 is currently blocked on evidence this phase produces.
-Building further before it exists repeats the error that put a 0.94 gate on
-an unreachable metric.
-
----
-
-# PHASE 2 — Evidence-driven correction
-
-**Goal:** close the items that need real data. **Trigger:** Phase 1 exit
-criteria met. **Effort:** 3–5 days.
-
-| Item | Decision it enables |
-|---|---|
-| **P-01** coverage gate | Ratchet 0.60 upward. Record the reason beside the number |
-| **P-02** MiniLM 0.75 | Tune against accumulated soft-hit review history |
-| **P-03** Type 1 floor 0.45 | Tune against gap-classification review history |
-| **P-04** `silence_days` | Replace 21/30 with observed response times |
-| **D-03 / B-17** prose extraction | ~100 real adverts is a corpus. 29 was not |
-
-### D-03 in particular
-
-The largest open question. Extraction falls back to flat mode on roughly a
-third of adverts. Four sub-questions are recorded and deliberately unanswered:
-whether coverage should gate at all when |R| is small, whether prose extraction
-is tractable, what ranks the remainder, and whether the Type 1/2/3 taxonomy
-survives non-discrete requirements.
-
-### Exit criteria
-
-- [ ] Every authored parameter either measured or explicitly retained with a reason
-- [ ] D-03 scoped, or declined on evidence
-- [ ] Reliable-score rate above 75% (currently ~70%)
-
----
-
-# PHASE 3 — Optional capability
-
-**Goal:** convenience. **Trigger:** operator wants it. **Effort:** 1–2 weeks.
-
-None of this is required for A. Each item is independently declinable.
+## PHASE 3 — Optional
 
 | Item | Value | Cost |
 |---|---|---|
-| **N-06** mailbox polling | Response loop becomes autonomous | 2 days + credential decision |
-| **N-01** NHS Jobs adapter | A whole sector, well matched to the CV | Blocked on NHSBSA access |
-| **N-02** Find a Job adapter | Overlaps Adzuna heavily — verify value first | Blocked on platform migration status |
-| **D-02** CLI tables, `--json` | Readability | 1 day |
-| **D-01** adaptive query config | Self-tuning search terms | Unscoped |
+| N-06 mailbox polling | Closes the last manual step in the response loop | 2 days |
+| Alignment fixes | Readability | 10 minutes |
+| N-01 NHS Jobs | A well-matched sector | Blocked on NHSBSA |
+| D-01 adaptive config | Self-tuning search | Unscoped |
+| `--json` output | Feeds any future interface | 1 day |
 
-### Sequencing note
+## PHASE 4 — Multi-user service
 
-N-06 is the highest value: it closes the last manual step in the response
-loop. D-01 is the largest and should follow Phase 2, since its most useful
-signal is response outcomes.
+Out of scope. Prerequisite, per the operator: the single-user build stable and
+vigorously tested first — which it now is.
 
----
+Carries over: coverage-gates-cosine-ranks, the truthfulness controls, the
+board registry, Success Profile handling.
 
-# PHASE 4 — Multi-user service
-
-**Out of scope. Listed for completeness.**
-
-Operator's stated intent. Prerequisite, in their own words: the single-user
-build must be stable and vigorously tested first.
-
-What carries over: coverage-gates-cosine-ranks, the truthfulness controls,
-Success Profile handling, the board registry.
-
-What does not: the alias table — 33 entries encoding one person's domain
-knowledge — and the Type 1/2/3 distinction, which requires knowing what an
-applicant actually did. Both are open problems, not implementation work.
-
-Also changes character entirely: local embeddings (privacy rationale inverts),
-"never transmits" (users will expect submission), and board terms (individual
-use differs from commercial redistribution).
+Does not: the alias table encodes one person's domain knowledge, and the
+Type 1/2/3 distinction requires knowing what an applicant actually did. Both
+are open problems, not implementation work.
 
 ---
 
-# Housekeeping — anytime
-
-Small, independent, no dependencies.
-
-- [ ] Confirm or overrule the two inferred rulings (`/Pipeline_Archive/`, §5 → ROUTE 4)
-- [ ] Align the git commit identity with the `Olu-SHABA` account
-- [ ] Amdari CV section: nine bullets with two near-duplicate pairs
-- [ ] Condensed reporting-engine bullet (drafted, never ruled on)
-- [ ] Write a pytest suite for the reporting engine — would move `pytest` out of Tier C
-- [ ] `README.md` badge or note if the repo is ever made public (see S-05)
-
----
-
-# Critical path to A
+# Critical path
 
 ```
-  Phase 1 (use it, 2-4 weeks)
-        │
-        ▼
-  Phase 2 (evidence-driven, 3-5 days)
-        │
-        ▼
-  ═══ COMPLETE under definition A ═══
-        │
-        ├──► Phase 3 items, individually, if wanted
-        └──► Phase 4, a separate project
+  Phase 1  use it                    2-4 weeks elapsed, no development
+     |
+     v
+  Phase 2  evidence-driven           3-5 days
+     |
+     v
+  === COMPLETE under definition A ===
+     |
+     +--> Phase 3 items individually, if wanted
+     +--> Phase 4, a separate project
 ```
 
-**Estimated: 4–6 weeks to A, of which ~1 week is development.**
+**4–6 weeks, of which roughly one week is development.**
 
-The dominant cost is elapsed time waiting for applications and responses, not
-engineering. That is the correct shape: every remaining parameter is an
-empirical question, and answering it faster is not possible.
+The dominant cost is waiting for applications and responses. That is the
+correct shape: every remaining parameter is an empirical question and cannot
+be answered faster.
 
 ---
 
-# Principle
+# The principle this build established
 
-Nothing in Phase 2 or 3 should be built before the evidence that justifies it
-exists. The original 0.94 gate, the 29-advert D-03 diagnosis, and the
-extraction assumption validated against a single MoJ advert were all the same
-error — designing against a sample too small to be representative.
+Four times a change was made against a sample too small to be representative —
+the 0.94 gate, extraction designed against one advert, the D-03 diagnosis from
+29 examples, and the heading detector tightened without re-measuring. Each cost
+a rebuild or a revert.
 
-Phase 1 is not a pause before the real work. It is how the real work becomes
-possible.
+The diagnostics now make measurement cheap.
+
+**A change justified by evidence must be verified by evidence before it is
+kept.**
