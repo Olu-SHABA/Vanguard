@@ -243,3 +243,18 @@ def test_closing_today_is_still_open() -> None:
     from vanguard.extract import is_closed
 
     assert not is_closed("Closing date: 9 August 2026", today=date(2026, 8, 9))
+
+
+def test_single_tool_bullet_is_not_dropped() -> None:
+    """The length floor exists to skip fragments. A bullet reading just "AWS"
+    is a legitimate requirement — three characters and unambiguous."""
+    advert = ("<strong>What you will have</strong>"
+              "<ul><li>AWS</li><li>SQL</li><li>ETL</li></ul>")
+    assert {r.canonical for r in extract(advert)} == {"AWS", "SQL", "ETL"}
+
+
+def test_short_fragment_without_a_tool_is_still_skipped() -> None:
+    advert = ("<strong>What you will have</strong>"
+              "<ul><li>Python and SQL</li><li>x</li><li>-</li></ul>")
+    terms = {(r.canonical or r.text) for r in extract(advert)}
+    assert "x" not in terms and "-" not in terms

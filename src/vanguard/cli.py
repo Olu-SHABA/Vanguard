@@ -391,10 +391,19 @@ def run(boards, cv, aliases, db, title, location, no_model) -> None:
     click.echo()
     click.echo(ui.rule("RESULT"))
     counts = store.counts_by_status()
-    ordered = ["PENDING", "FLAGGED", "UNREACHABLE", "APPROVED", "DISPATCHED", "REJECTED"]
-    lines = [(label, counts[label]) for label in ordered if counts.get(label)]
-    for label, count in lines:
-        click.echo(f"  {_status(label)}  {count}")
+    needs_you = ["PENDING", "FLAGGED", "UNREACHABLE"]
+    settled = ["APPROVED", "DISPATCHED", "REJECTED"]
+
+    for label in needs_you:
+        if counts.get(label):
+            click.echo(f"  {_status(label)}  {counts[label]}")
+
+    decided = [(label, counts[label]) for label in settled if counts.get(label)]
+    if decided:
+        click.echo()
+        click.echo("  already decided — not re-queued:")
+        for label, count in decided:
+            click.echo(f"  {_status(label)}  {count}")
 
     if counts.get("PENDING"):
         click.echo(f"\n  {counts['PENDING']} ready to review:  vanguard review")
@@ -534,6 +543,26 @@ def review(vacancy_id, status, db, boards_path) -> None:
                     click.echo(f"      {_clip(r['term'], width - 10)}")
                     for line in _wrap(r["exclusion"], width - 14):
                         click.echo(f"          {line}")
+
+        # --- eligibility ---------------------------------------------------
+        # A gate on whether you may apply at all, distinct from fit. Shown
+        # before the gaps: a perfect coverage score is irrelevant if the role
+        # requires clearance you do not hold.
+        diag_row = store.diagnostic_for(vacancy_id)
+        if diag_row:
+            import json as _json
+            try:
+                notes = (_json.loads(diag_row["heading_kinds"] or "{}")
+                         ).get("__eligibility__") or []
+            except ValueError:
+                notes = []
+            if notes:
+                click.echo()
+                click.echo(ui.rule("ELIGIBILITY  ·  check before applying"))
+                for note in notes:
+                    click.echo(f"  {ui.badge('GATE', ui.Tone.BAD)}")
+                    for line in _wrap(note, width - 6):
+                        click.echo(f"      {line}")
 
         # --- why not scored -----------------------------------------------
         diagnostic = store.diagnostic_for(vacancy_id)
@@ -820,6 +849,17 @@ def diagnose(db, limit) -> None:
                 explanation = ""
             click.echo(f"  {count:>3}x  {reason}")
             for line in _wrap(explanation, width - 12):
+                click.echo(f"        {line}")
+
+    gates = store.eligibility_gates()
+    if gates:
+        click.echo()
+        click.echo(ui.rule(f"ELIGIBILITY GATES  ·  {len(gates)} vacanc(ies)"))
+        click.echo("  conditions on whether you may apply, not on fit\n")
+        for gate in gates[:10]:
+            click.echo(f"  {ui.badge('GATE', ui.Tone.BAD)} "
+                       f"{_clip(gate['title'], width - 20)}")
+            for line in _wrap(gate["notes"][0], width - 10):
                 click.echo(f"        {line}")
 
     unrecognised = store.unrecognised_headings(limit)

@@ -99,12 +99,18 @@ class AdvertDiagnostic:
 
     # why it produced what it did
     terms_extracted: int = 0
+    eligibility: list[str] = field(default_factory=list)
     refusal: RefusalReason = RefusalReason.NONE
     decisions: list[str] = field(default_factory=list)
 
     recorded_at: str = field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat(timespec="seconds")
     )
+
+    @property
+    def has_eligibility_gate(self) -> bool:
+        """The advert states a condition on whether the operator may apply."""
+        return bool(self.eligibility)
 
     @property
     def unrecognised_headings(self) -> list[str]:
@@ -126,7 +132,8 @@ class AdvertDiagnostic:
         return (
             self.vacancy_id, self.board_id, int(self.is_html),
             self.description_chars, int(self.partial),
-            json.dumps(self.headings), json.dumps(self.heading_kinds),
+            json.dumps(self.headings),
+            json.dumps({**self.heading_kinds, "__eligibility__": self.eligibility}),
             self.block_count, self.bullet_count, self.requirement_bullets,
             self.terms_extracted, self.refusal.value,
             json.dumps(self.decisions), self.recorded_at,
@@ -179,6 +186,7 @@ def diagnose_advert(
     diagnostic.heading_kinds = {b.heading: b.kind.value for b in named}
     diagnostic.bullet_count = sum(len(b.bullets) for b in structure.blocks)
     diagnostic.requirement_bullets = len(structure.requirement_bullets)
+    diagnostic.eligibility = structure.eligibility_notes[:5]
 
     if terms_extracted:
         return diagnostic

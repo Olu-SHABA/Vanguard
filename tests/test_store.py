@@ -361,3 +361,61 @@ def test_coverage_distribution_counts_each_vacancy_once(store: Store) -> None:
             )
     assert len(store.coverage_distribution()) == 1
     assert len(store.coverage_distribution(latest_only=False)) == 3
+
+
+# ---------------------------------------------------------------------------
+# A decision is not something a scheduled run gets to undo
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("decided", ["APPROVED", "REJECTED", "DISPATCHED"])
+def test_operator_decisions_survive_re_enqueue(store: Store, decided: str) -> None:
+    """An application dispatched at 22:15 came back as PENDING after the next
+    run at 22:22, and the record then offered `approve` on something already
+    submitted."""
+    store.upsert_vacancy(vac())
+    store.create_queue_record("b:1", "PENDING")
+    store.set_status("b:1", decided)
+
+    for _ in range(3):
+        store.create_queue_record("b:1", "PENDING")
+
+    assert store.queue_record("b:1")["status"] == decided
+
+
+def test_machine_states_are_still_recomputed(store: Store) -> None:
+    """PENDING, FLAGGED and UNREACHABLE are the run's own conclusions and may
+    change as scoring improves."""
+    store.upsert_vacancy(vac())
+    store.create_queue_record("b:1", "UNREACHABLE")
+    store.create_queue_record("b:1", "PENDING")
+    assert store.queue_record("b:1")["status"] == "PENDING"
+
+
+def test_unchanged_status_writes_no_transition(store: Store) -> None:
+    """Twenty-four identical `- -> PENDING` lines make the trail unreadable."""
+    store.upsert_vacancy(vac())
+    for _ in range(5):
+        store.create_queue_record("b:1", "PENDING")
+    assert len(store.transitions_for("b:1")) == 1
+
+
+def test_real_changes_record_the_previous_state(store: Store) -> None:
+    store.upsert_vacancy(vac())
+    store.create_queue_record("b:1", "UNREACHABLE")
+    store.create_queue_record("b:1", "PENDING")
+    rows = store.transitions_for("b:1")
+    assert [(r["from_state"], r["to_state"]) for r in rows] == [
+        (None, "UNREACHABLE"), ("UNREACHABLE", "PENDING")
+    ]
+
+
+def test_re_scoring_still_refreshes_metadata(store: Store) -> None:
+    """The decision is preserved; the numbers and flags are not frozen."""
+    store.upsert_vacancy(vac())
+    store.create_queue_record("b:1", "PENDING")
+    store.set_status("b:1", "DISPATCHED")
+    store.create_queue_record("b:1", "PENDING", submission_type="SUCCESS_PROFILE")
+
+    row = store.queue_record("b:1")
+    assert row["status"] == "DISPATCHED"
+    assert row["submission_type"] == "SUCCESS_PROFILE"

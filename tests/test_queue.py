@@ -136,3 +136,28 @@ def test_status_properties() -> None:
     assert Status.REJECTED.terminal and Status.DISPATCHED.terminal
     assert Status.PENDING.needs_operator and Status.FLAGGED.needs_operator
     assert not Status.APPROVED.set_autonomously
+
+
+def test_dispatched_survives_subsequent_runs(queue: QueueManager) -> None:
+    """The defect that prompted this: dispatch at 22:15, run at 22:22, and the
+    application was back in the queue awaiting approval."""
+    queue.enqueue("b:1", Status.PENDING)
+    queue.approve("b:1")
+    queue.dispatch("b:1")
+
+    for _ in range(3):
+        queue.enqueue("b:1", Status.PENDING)
+
+    assert queue.status_of("b:1") is Status.DISPATCHED
+
+
+def test_history_stays_readable_across_many_runs(queue: QueueManager) -> None:
+    queue.enqueue("b:1", Status.PENDING)
+    for _ in range(20):
+        queue.enqueue("b:1", Status.PENDING)
+    queue.approve("b:1")
+    queue.dispatch("b:1")
+
+    assert [t for _, t, _ in queue.history("b:1")] == [
+        "PENDING", "APPROVED", "DISPATCHED"
+    ]

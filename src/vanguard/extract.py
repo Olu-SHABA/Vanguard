@@ -486,12 +486,19 @@ def _extract_structured(body: str, include_desirable: bool,
 
         for body_text in [*block.bullets, *block.paragraphs]:
             body_text = body_text.strip()
-            if len(body_text) < 8:
+            if not body_text:
                 continue
             if body_text.lower().rstrip(".") in _BEHAVIOURS:
                 continue
 
             tools = _find_tools(body_text)
+
+            # The length floor exists to skip fragments, and it applies only
+            # where no tool was recognised. A bullet reading just "AWS" or
+            # "SQL" is a legitimate requirement — three characters and
+            # unambiguous.
+            if not tools and len(body_text) < 8:
+                continue
             for tool in tools:
                 req = Requirement(body_text, "tool", section, essential,
                                   canonical=tool, source_bullet=body_text)

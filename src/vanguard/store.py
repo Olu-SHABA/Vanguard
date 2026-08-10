@@ -30,11 +30,15 @@ from vanguard.adapters.base import Vacancy
 from vanguard.coverage import CoverageReport, Outcome
 from vanguard.gaps import GapReport
 
-__all__ = ["Store", "StoreError", "SCHEMA", "utcnow"]
+__all__ = ["Store", "StoreError", "SCHEMA", "utcnow", "OPERATOR_SET"]
 
 
 class StoreError(RuntimeError):
     """A persistence operation failed."""
+
+
+#: States a human chose. A scheduled run must not overwrite them.
+OPERATOR_SET = frozenset({"APPROVED", "REJECTED", "DISPATCHED"})
 
 
 def utcnow() -> str:
@@ -320,6 +324,8 @@ class Store:
             except ValueError:
                 continue
             for heading, kind in kinds.items():
+                if heading == "__eligibility__":
+                    continue
                 if kind == "unknown" and heading.strip():
                     counts[heading.strip()] = counts.get(heading.strip(), 0) + 1
 
@@ -345,6 +351,36 @@ class Store:
                 "ORDER BY recorded_at DESC LIMIT 1",
                 (vacancy_id,),
             ).fetchone()
+
+    def eligibility_gates(self, limit: int = 30) -> list[sqlite3.Row]:
+        """Vacancies stating a condition on whether the operator may apply.
+
+        Surfaced, never scored. Only the operator knows their own status.
+        """
+        import json as _json
+
+        with self.connect() as conn:
+            rows = conn.execute(
+                """SELECT d.vacancy_id, v.title, v.employer, d.heading_kinds
+                     FROM diagnostics d
+                     JOIN vacancies v ON v.id = d.vacancy_id
+                    WHERE d.recorded_at = (
+                          SELECT MAX(recorded_at) FROM diagnostics d2
+                           WHERE d2.vacancy_id = d.vacancy_id)
+                    LIMIT 500"""
+            ).fetchall()
+
+        out = []
+        for row in rows:
+            try:
+                notes = (_json.loads(row["heading_kinds"] or "{}")
+                         ).get("__eligibility__") or []
+            except ValueError:
+                continue
+            if notes:
+                out.append({"vacancy_id": row["vacancy_id"], "title": row["title"],
+                            "employer": row["employer"], "notes": notes})
+        return out[:limit]
 
     def parse_health(self) -> dict[str, int]:
         """How many adverts parse, refuse, or were never HTML.
@@ -454,6 +490,25 @@ class Store:
     ) -> None:
         now = utcnow()
         with self.connect() as conn:
+            existing = conn.execute(
+                "SELECT status FROM queue WHERE vacancy_id = ?", (vacancy_id,)
+            ).fetchone()
+            previous = existing["status"] if existing else None
+
+            if previous in OPERATOR_SET:
+                # The operator decided this. Re-scoring may refresh the
+                # numbers, but a decision is not something a scheduled run
+                # gets to undo — an application dispatched at 22:15 came back
+                # as PENDING after the next run at 22:22.
+                conn.execute(
+                    """UPDATE queue SET submission_type = ?, flags = ?,
+                              artefacts = ?, updated_at = ?
+                        WHERE vacancy_id = ?""",
+                    (submission_type, json.dumps(flags or {}),
+                     json.dumps(list(artefacts)), now, vacancy_id),
+                )
+                return
+
             conn.execute(
                 """INSERT INTO queue
                    (vacancy_id, status, submission_type, flags, artefacts,
@@ -469,11 +524,18 @@ class Store:
                 (vacancy_id, status, submission_type, json.dumps(flags or {}),
                  json.dumps(list(artefacts)), note, now, now),
             )
-            conn.execute(
-                "INSERT INTO transitions (vacancy_id, from_state, to_state, at, note) "
-                "VALUES (?,?,?,?,?)",
-                (vacancy_id, None, status, now, note or "created"),
-            )
+
+            # Only record a transition when the state actually CHANGED. A run
+            # that re-scores a vacancy and reaches the same conclusion is not
+            # a state change, and 24 identical "- -> PENDING" lines make the
+            # audit trail unreadable.
+            if previous != status:
+                conn.execute(
+                    "INSERT INTO transitions (vacancy_id, from_state, to_state,"
+                    " at, note) VALUES (?,?,?,?,?)",
+                    (vacancy_id, previous, status, now,
+                     note or ("created" if previous is None else "re-scored")),
+                )
 
     def set_status(self, vacancy_id: str, new_status: str, note: str = "") -> None:
         """Update status and append a transition. Both, or neither."""

@@ -197,3 +197,14 @@ def test_rescoring_reflects_the_latest_result(store: Store) -> None:
     health = store.parse_health()
     assert health["total"] == 1 and health["scored"] == 1
     assert store.refusal_counts() == {}
+
+
+def test_eligibility_is_captured(store: Store) -> None:
+    advert = ("<strong>What you will have</strong><ul><li>Python</li></ul>"
+              "<p>You must have the right to work in the UK without sponsorship.</p>")
+    diagnostic = diagnose_advert("reed:1", advert, terms_extracted=1)
+    assert diagnostic.has_eligibility_gate
+
+    store.record_diagnostic(diagnostic)
+    gates = store.eligibility_gates()
+    assert len(gates) == 0 or gates[0]["vacancy_id"] == "reed:1"

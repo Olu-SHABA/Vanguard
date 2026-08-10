@@ -38,16 +38,29 @@ __all__ = [
     "parse_advert",
     "is_probable_heading",
     "classify_heading",
+    "_ELIGIBILITY_MARKERS",
 ]
 
 
 class SectionKind(str, Enum):
     REQUIREMENT = "requirement"      # what the applicant must have
+    ELIGIBILITY = "eligibility"      # whether the applicant may apply at all
     RESPONSIBILITY = "responsibility"  # what the job involves
     BENEFIT = "benefit"              # what the employer offers
     PROCESS = "process"              # how to apply, closing dates
     COMPANY = "company"              # about us, culture
     UNKNOWN = "unknown"
+
+    @property
+    def is_gate(self) -> bool:
+        """A condition on whether the applicant may apply AT ALL.
+
+        Distinct from a requirement. Coverage measures fit; this measures
+        permission. A role demanding security clearance or right to work
+        without sponsorship is unavailable to someone who lacks it, whatever
+        the coverage score says — so it is surfaced rather than scored.
+        """
+        return self is SectionKind.ELIGIBILITY
 
     @property
     def carries_requirements(self) -> bool:
@@ -63,11 +76,35 @@ class SectionKind(str, Enum):
 
 # Ordered by specificity — the first match wins, so narrow phrases precede
 # broad ones. "what you will do" must be tested before a bare "you will".
+# Phrases that make a section an eligibility GATE rather than a requirement.
+# Matched against heading AND body, because these are as often stated in a
+# shouted paragraph as under a heading:
+#   "PLEASE NOTE YOU MUST BE BASED IN THE UK AND HAVE FULL RIGHT TO WORK
+#    WITHOUT SPONSORSHIP"
+_ELIGIBILITY_MARKERS: tuple[str, ...] = (
+    "right to work", "without sponsorship", "unable to offer sponsorship",
+    "cannot offer sponsorship", "no sponsorship", "sponsorship is not",
+    "must be based in", "must be eligible to work", "visa", "work permit",
+    "settled status", "indefinite leave",
+    "security clearance", "sc cleared", "dv cleared", "developed vetting",
+    "security check", "bpss", "nppv", "enhanced dbs", "dbs check",
+    "must hold", "must possess a valid", "driving licence", "drivers license",
+    "eligible for clearance", "willing to undergo",
+)
+
 _HEADING_RULES: tuple[tuple[SectionKind, tuple[str, ...]], ...] = (
+    (SectionKind.ELIGIBILITY, (
+        "eligibility", "right to work", "sponsorship", "visa",
+        "security clearance", "clearance requirement", "vetting",
+        "important information", "please note", "essential criteria to apply",
+    )),
     (SectionKind.BENEFIT, (
         "what we offer", "what you will get", "what's in it for you",
         "whats in it for you", "benefits", "package", "reward", "perks",
         "salary and benefits", "why join", "what we give you",
+        # Added 10 Aug 2026 from `vanguard diagnose`.
+        "why consider it", "why consider this", "what's on offer",
+        "whats on offer", "future prospects",
     )),
     (SectionKind.PROCESS, (
         "how to apply", "application process", "next steps", "closing date",
@@ -81,6 +118,10 @@ _HEADING_RULES: tuple[tuple[SectionKind, tuple[str, ...]], ...] = (
         "duties", "day to day", "day-to-day", "your role", "the opportunity",
         "job description", "main tasks", "accountabilities", "what the role",
         "purpose of the role", "role purpose",
+        # Added 10 Aug 2026 from `vanguard diagnose`.
+        "key activities and contributions", "key activities",
+        "what you'll work on", "what you will work on", "what youll work on",
+        "activities and contributions",
     )),
     (SectionKind.REQUIREMENT, (
         "what you will need", "what you'll need", "what youll need",
@@ -94,6 +135,11 @@ _HEADING_RULES: tuple[tuple[SectionKind, tuple[str, ...]], ...] = (
         "candidate profile", "the ideal candidate", "ideal candidate",
         "who you are", "we are looking for", "you should have",
         "knowledge and experience", "capabilities",
+        # Added 10 Aug 2026 from `vanguard diagnose` — each appeared on two
+        # adverts that refused for want of a recognised requirement heading.
+        "technical and professional expertise", "systems, tools and technology",
+        "systems tools and technology", "technical expertise",
+        "tools and technology", "professional expertise",
     )),
     (SectionKind.COMPANY, (
         "about us", "about the company", "who we are", "our culture",
@@ -152,6 +198,27 @@ class AdvertStructure:
 
     def of_kind(self, *kinds: SectionKind) -> list[Block]:
         return [b for b in self.blocks if b.kind in kinds]
+
+    @property
+    def eligibility_notes(self) -> list[str]:
+        """Conditions on whether the applicant may apply at all.
+
+        Surfaced, never scored. Only the operator knows their own status —
+        the system reports what the advert demands and stops there.
+        """
+        found: list[str] = []
+        for block in self.blocks:
+            texts = [*block.bullets, *block.paragraphs]
+            if block.kind is SectionKind.ELIGIBILITY:
+                found.extend(t for t in texts if len(t) > 12)
+                continue
+            for text in texts:
+                low = text.lower()
+                if any(marker in low for marker in _ELIGIBILITY_MARKERS):
+                    found.append(text)
+        # Deduplicate, keep order.
+        seen: set[str] = set()
+        return [t for t in found if not (t.lower() in seen or seen.add(t.lower()))]
 
     @property
     def requirement_bullets(self) -> list[str]:
@@ -261,6 +328,27 @@ class AdvertStructure:
 
     def of_kind(self, *kinds: SectionKind) -> list[Block]:
         return [b for b in self.blocks if b.kind in kinds]
+
+    @property
+    def eligibility_notes(self) -> list[str]:
+        """Conditions on whether the applicant may apply at all.
+
+        Surfaced, never scored. Only the operator knows their own status —
+        the system reports what the advert demands and stops there.
+        """
+        found: list[str] = []
+        for block in self.blocks:
+            texts = [*block.bullets, *block.paragraphs]
+            if block.kind is SectionKind.ELIGIBILITY:
+                found.extend(t for t in texts if len(t) > 12)
+                continue
+            for text in texts:
+                low = text.lower()
+                if any(marker in low for marker in _ELIGIBILITY_MARKERS):
+                    found.append(text)
+        # Deduplicate, keep order.
+        seen: set[str] = set()
+        return [t for t in found if not (t.lower() in seen or seen.add(t.lower()))]
 
     @property
     def requirement_bullets(self) -> list[str]:

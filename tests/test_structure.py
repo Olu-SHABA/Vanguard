@@ -260,3 +260,96 @@ def test_overlong_run_is_emphasis_not_a_heading() -> None:
     from vanguard.structure import is_probable_heading
 
     assert not is_probable_heading("a very long emphasised sentence " * 5)
+
+
+# ---------------------------------------------------------------------------
+# Eligibility — a gate on whether you may apply, not on fit
+#
+# Operator observation, 10 Aug 2026: the sponsorship notice appearing in the
+# unrecognised-heading list was dismissed as noise. It is not. A role
+# demanding right to work without sponsorship, or security clearance, is
+# unavailable to someone who lacks it — whatever the coverage score says.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "heading",
+    ["Right to Work", "Security Clearance", "Eligibility", "Sponsorship",
+     "Visa requirements", "Please note", "Vetting"],
+)
+def test_eligibility_headings_are_classified(heading: str) -> None:
+    assert classify_heading(heading) is SectionKind.ELIGIBILITY
+
+
+def test_eligibility_is_a_gate_not_a_requirement() -> None:
+    """Coverage measures fit. This measures permission."""
+    assert SectionKind.ELIGIBILITY.is_gate
+    assert not SectionKind.ELIGIBILITY.carries_requirements
+    assert not SectionKind.REQUIREMENT.is_gate
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "PLEASE NOTE YOU MUST BE BASED IN THE UK AND HAVE FULL RIGHT TO WORK "
+        "WITHOUT SPONSORSHIP",
+        "Candidates must hold active SC clearance.",
+        "This role requires DV cleared status before starting.",
+        "We are unable to offer sponsorship for this position.",
+        "You must possess a valid UK driving licence.",
+        "Applicants will need to undergo an enhanced DBS check.",
+    ],
+)
+def test_eligibility_detected_in_body_prose(text: str) -> None:
+    """These are as often stated in a shouted paragraph as under a heading."""
+    advert = ("<strong>What you will have</strong><ul><li>Python</li></ul>"
+              f"<p>{text}</p>")
+    assert parse_advert(advert).eligibility_notes
+
+
+def test_ordinary_requirements_are_not_flagged_as_gates() -> None:
+    advert = ("<strong>What you will have</strong>"
+              "<ul><li>Strong Python and SQL skills</li>"
+              "<li>Experience with data pipelines</li></ul>")
+    assert parse_advert(advert).eligibility_notes == []
+
+
+def test_eligibility_does_not_suppress_requirements() -> None:
+    """A gate is surfaced alongside the score, not instead of it."""
+    advert = ("<strong>What you will have</strong>"
+              "<ul><li>Python and SQL</li><li>AWS</li></ul>"
+              "<p>You must have the right to work in the UK.</p>")
+    assert {r.canonical for r in extract(advert)} >= {"Python", "SQL", "AWS"}
+    assert parse_advert(advert).eligibility_notes
+
+
+def test_duplicate_notes_are_collapsed() -> None:
+    advert = ("<strong>What you will have</strong><ul><li>Python</li></ul>"
+              "<p>Right to work in the UK required.</p>"
+              "<p>Right to work in the UK required.</p>")
+    assert len(parse_advert(advert).eligibility_notes) == 1
+
+
+# --- headings added from live diagnostics, 10 Aug 2026 --------------------
+
+@pytest.mark.parametrize(
+    "heading, kind",
+    [
+        ("Technical and Professional Expertise", SectionKind.REQUIREMENT),
+        ("Systems, Tools and Technology", SectionKind.REQUIREMENT),
+        ("Key Activities and Contributions", SectionKind.RESPONSIBILITY),
+        ("What you'll work on", SectionKind.RESPONSIBILITY),
+        ("Why consider it?", SectionKind.BENEFIT),
+        ("Future prospects:", SectionKind.BENEFIT),
+    ],
+)
+def test_headings_added_from_diagnostics(heading: str, kind: SectionKind) -> None:
+    """Each appeared on two adverts that refused for want of a recognised
+    requirement heading. Added on that evidence, not on invention."""
+    assert classify_heading(heading) is kind
+
+
+def test_new_requirement_heading_yields_terms() -> None:
+    advert = ("<strong>Technical and Professional Expertise</strong>"
+              "<ul><li>Python and SQL</li><li>AWS and Docker</li>"
+              "<li>ETL pipelines</li></ul>")
+    assert {r.canonical for r in extract(advert)} >= {"Python", "SQL", "AWS"}
