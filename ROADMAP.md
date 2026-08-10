@@ -7,7 +7,7 @@
 | Modules | 8,111 lines, 25 files |
 | Tests | 4,893 lines, 19 files — **631 passing, 0 failed** |
 | Documentation | 1,255 lines, 4 files |
-| Register | 54 items, 5 open |
+| Register | 54 items, 8 open |
 | Verified | With and without credentials configured |
 
 ---
@@ -66,14 +66,16 @@ the operator's ratchet ruling. Both thresholds live in config.
 
 # PART 2 — What remains
 
-## Open in the register — 5
+## Open in the register — 8
 
 | ID | Item | Blocked on |
 |---|---|---|
 | **B-17 / D-03** | ~35% of adverts have no recognised requirement heading | More adverts |
+| **B-25** | Heading detector reverted; noise headings tolerated | Cosmetic; reopened after the revert |
+| **B-03** | `ingest()` has no board filter | Low value |
 | **B-09** | Near-duplicate requirements survive dedup | Low value |
-| **C-01** | Keyword list unresolved | Operator ruling |
-| **C-02** | `data engineer` excluded from search | Operator ruling |
+| **C-02** | `data engineer` excluded from search keywords | Operator ruling |
+| **O-01** `/Pipeline_Archive/` path · **O-02** §5 bound to ROUTE 4 · **O-03** repo vs project authority | Applied by inference, never confirmed | Operator ruling |
 | **S-05** | Redacted CV needed before any public release | Only if publishing |
 
 ## Deferred by ruling

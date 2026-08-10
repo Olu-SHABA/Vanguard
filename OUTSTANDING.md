@@ -8,6 +8,10 @@ repositories.
 
 Status: `OPEN` · `BLOCKED` · `DEFERRED` · `CLOSED`
 
+**Last full audit: 9 August 2026.** 26 defects closed by running the system
+against real data. 5 items open. Every claim below was checked against the
+code and the live runs on that date — not carried forward on assumption.
+
 ---
 
 ## 1. Defects
@@ -145,18 +149,18 @@ Open questions:
 
 | ID | Item | Status |
 |---|---|---|
-| C-01 | `where: "{{ TARGET_LOCATION }}"` unresolved | **PARTIALLY CLOSED** — placeholders are now detected and treated as unset rather than sent literally. The operator must still decide the target location |
+| C-01 | `where: "{{ TARGET_LOCATION }}"` unresolved | **CLOSED** 9 Aug 2026 — operator ruling: `where: "UK"` for Adzuna, empty for Reed (its `locationName` carries a 10-mile default radius). Unresolved placeholders are also detected and treated as unset rather than sent literally |
 | C-02 | Target keywords are `data scientist`, `machine learning engineer`, `network analytics`. Data engineering is excluded by the directive's target domains, but the operator's CV fits it well and the one real test advert is a data engineering role | OPEN — operator ruling |
 | C-03 | Model names hardcoded in `rank.py`. Should be config if a fully airgapped setup is wanted (local filesystem paths instead of Hub repo IDs) | DEFERRED |
 
-## 3. Unverified — no network in the build environment
+## 3. Verification — cleared on the operator's machine, 8-9 Aug 2026
 
 | ID | Item | Consequence | Status |
 |---|---|---|---|
-| V-01 | First PDF rendered 8 Aug 2026 after GTK3 install. Three defects found and fixed: compound hyphens lost from the text layer, 3-page overrun, role split across a page break | CSS revised but **the revision is itself unverified** — re-render required | OPEN — re-render pending |
-| V-02 | pypdf never installed. PDF text-layer anonymisation scan untested against a real PDF | The pure `verify_text()` path is tested; the PDF path is not | BLOCKED |
-| V-03 | sentence-transformers never installed. Stage 3 has never scored with a real model | Competency phrases resolve poorly under `LexicalEmbedder`; real coverage is likely higher | BLOCKED |
-| V-04 | httpx never installed. No live API call to Adzuna or Reed | Adapters tested against injected fakes only | BLOCKED |
+| V-01 | WeasyPrint / CSS | **CLOSED** 8 Aug 2026 — GTK3 installed, two-page PDF rendered and inspected. Three defects found and fixed in the process: compound hyphens lost from the text layer, 3-page overrun, role split across a page break |
+| V-02 | pypdf / anonymisation scan | **CLOSED** 8 Aug 2026 — `render_anonymised()` produced a clean PDF and the text-layer scan passed against it |
+| V-03 | sentence-transformers / stage 3 | **CLOSED** 9 Aug 2026 — MiniLM scoring live. Runs record which embedder produced them. The first real run surfaced B-06/B-07/B-08 |
+| V-04 | httpx / live API calls | **CLOSED** 9 Aug 2026 — Adzuna and Reed both credentialed and returning real vacancies |
 | V-05 | Tests run under an offline shim, not pytest | **CLOSED** — 254 passed under real pytest on the operator's machine, 8 Aug 2026 |
 
 All five clear on first `pip install -e ".[dev]"` and `pytest` on the operator's machine.
