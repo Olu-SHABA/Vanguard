@@ -16,6 +16,7 @@ what.
 | [Looking at results](#looking-at-results) | `review` · `score` · `stats` · `diagnose` |
 | [Deciding](#deciding) | `approve` · `reject` · `resolve` · `override` · `dispatch` |
 | [Responses](#responses) | `mail` · `dormant` · `feedback` · `interview` |
+| [Operations](#operations) | `logs` |
 
 ---
 
@@ -40,6 +41,7 @@ depends on distinguishing red from green.
 | `--ascii` | `VANGUARD_ASCII=1` | ASCII instead of Unicode box drawing |
 | `--high-contrast` | `VANGUARD_CONTRAST=high` | Drops dim styling, which is unreadable on many themes |
 | `--width N` | — | Override detected terminal width |
+| `--log` / `--no-log` | — | Override the logging setting in `boards.yaml` for one invocation |
 
 Plain mode is applied automatically when output is not a terminal, and
 `TERM=dumb` degrades to monochrome ASCII.
@@ -521,3 +523,69 @@ coverage_gate: 0.65
 | `AnonymisationError` | Identifying content survived into a document that must not carry it. The message names what leaked |
 | `permission denied` writing a PDF | The file is open in a viewer |
 | `cannot load library 'libgobject-2.0-0'` | GTK3 runtime missing — see README |
+
+---
+
+# Operations
+
+## `vanguard logs`
+
+Run history and recorded errors.
+
+```bash
+vanguard logs                  # last 10 runs plus recent errors
+vanguard logs --limit 30
+vanguard logs --errors         # only runs that failed
+vanguard logs --archive        # move old records aside
+```
+
+| Option | Effect |
+|---|---|
+| `--limit` | How many runs to show. Default 10 |
+| `--errors` | Only runs with failures |
+| `--archive` | Move records past the retention window to `archive.db`, gzip old log files. **Nothing is deleted** |
+
+**Two stores, holding different things.**
+
+| | Contents | Bounded by |
+|---|---|---|
+| **Database** | One row per run, one per error. Started, duration, counts, what failed | What is worth querying — a year of daily runs is a few thousand rows |
+| **File** | Every API call, swallowed exception, rate-limit wait | Rotation |
+
+`vanguard logs` reads the database. The file holds the API-level detail and
+lives in the configured directory.
+
+**Rotation is hybrid, time-led.** A new file at each midnight, because runs are
+daily and *"yesterday's run is in yesterday's file"* is how it will actually be
+read. `max_bytes` is a backstop so a runaway loop cannot fill the disk between
+midnights.
+
+**Nothing is ever deleted.** Database rows past `archive_after_days` move to
+`archive.db`; files past `retain_days` are gzipped in place and remain readable
+with `zgrep`. Deleting the record of how the system behaved destroys the
+evidence for the next question, which is usually one nobody anticipated.
+
+**Why this matters.** `collect()` and `hydrate_many()` catch exceptions so one
+bad vacancy cannot abort a run. Without logging, the reason is lost with the
+terminal — the Adzuna 401 and the 503 encountered on 9 August left no record at
+all.
+
+### Configuration
+
+In `config/boards.yaml` under `defaults`. **Recommended on.**
+
+```yaml
+defaults:
+  logging:
+    enabled: true
+    level: INFO              # DEBUG for API-level detail
+    directory: logs
+    rotate_hours: 24
+    max_bytes: 10485760      # 10 MB backstop
+    retain_days: 30          # then gzipped, not removed
+    archive_after_days: 180  # then moved to archive.db, not removed
+    to_database: true
+    to_file: true
+```
+
+Override for a single invocation with the global `--log` / `--no-log` flags.

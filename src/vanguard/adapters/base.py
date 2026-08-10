@@ -655,6 +655,13 @@ class BoardRegistry:
         """Rank score below which a vacancy is not hydrated or scored."""
         return float(self.defaults.get("rank_floor", 0.0))
 
+    @property
+    def logging_config(self):
+        """Logging settings from `defaults`. Enabled unless told otherwise."""
+        from vanguard.logs import LogConfig
+
+        return LogConfig.from_registry(self.defaults)
+
     def silence_days_for(self, board_id: str) -> int:
         try:
             return self.get(board_id).silence_days

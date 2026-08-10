@@ -40,6 +40,7 @@ from vanguard.cv import load as load_cv
 from vanguard.extract import extract
 from vanguard.gaps import classify_all
 from vanguard.ingest import health_check_all, ingest
+from vanguard.logs import LogConfig, RunLog, configure
 from vanguard.mail import Message
 from vanguard.queue import IllegalTransition, QueueManager, Status
 from vanguard.rank import LexicalEmbedder, rank_score
@@ -100,6 +101,23 @@ def _wrap(text: str, width: int, indent: str = "") -> list[str]:
 def _row(*cells: tuple[str, int]) -> str:
     """Left-aligned columns, each clipped to its own budget."""
     return "  ".join(_clip(value, budget).ljust(budget) for value, budget in cells).rstrip()
+
+
+# Set by --log/--no-log. None means "use boards.yaml".
+_LOG_OVERRIDE: dict[str, bool | None] = {"enabled": None}
+
+
+def _logging(boards_path: str) -> LogConfig:
+    """Resolve logging config, honouring the command-line override."""
+    try:
+        config = load_registry(boards_path).logging_config
+    except Exception:
+        config = LogConfig()
+    override = _LOG_OVERRIDE.get("enabled")
+    if override is not None:
+        config = LogConfig(**{**config.__dict__, "enabled": override})
+    configure(config)
+    return config
 
 
 STATUS_TONE = {
@@ -232,13 +250,16 @@ def _ctx(db: str):
 @click.option("--ascii", "ascii_only", is_flag=True, help="ASCII instead of Unicode box drawing.")
 @click.option("--high-contrast", is_flag=True, help="Drop dim and italic styling.")
 @click.option("--width", type=int, default=0, help="Override detected terminal width.")
-def main(plain, no_colour, ascii_only, high_contrast, width) -> None:
+@click.option("--log/--no-log", "logging_on", default=None,
+              help="Override the logging setting in boards.yaml for this run.")
+def main(plain, no_colour, ascii_only, high_contrast, width, logging_on) -> None:
     """Project Vanguard — semi-autonomous job application pipeline.
 
     Presentation adapts to the terminal and honours NO_COLOR. Status is always
     shown as a symbol AND a word, so nothing depends on colour alone.
     """
     _load_env()
+    _LOG_OVERRIDE["enabled"] = logging_on
 
     detected = ui.Theme.detect()
     ui.set_theme(ui.Theme(
@@ -267,6 +288,10 @@ def run(boards, cv, aliases, db, title, location, no_model) -> None:
     store, queue = _ctx(db)
 
     registry = load_registry(boards)
+    log_config = _logging(boards)
+    run_log = RunLog("run", db_path=Path(db), config=log_config)
+    run_log.__enter__()
+
     canonical = load_cv(cv)
     alias_table = load_aliases(aliases)
     embedder, embedder_name = _embedder(not no_model)
@@ -298,8 +323,16 @@ def run(boards, cv, aliases, db, title, location, no_model) -> None:
         for truncation in result.truncations:
             click.echo(f"    {_clip(str(truncation), width - 4)}")
 
+    run_log.count(collected=result.collected, kept=result.kept,
+                  duplicates=result.duplicates)
+    for outcome in result.failures:
+        run_log.error(outcome.error, source="ingest", board_id=outcome.board_id)
+    for truncation in result.truncations:
+        run_log.warn(str(truncation), source="ingest", board_id=truncation.board_id)
+
     if not result.vacancies:
         click.echo("no vacancies. exiting.")
+        run_log.__exit__(None, None, None)
         return
 
     # --- rank pre-filter --------------------------------------------------
@@ -327,8 +360,10 @@ def run(boards, cv, aliases, db, title, location, no_model) -> None:
             f"({dropped} not hydrated or scored)"
         )
 
+    run_log.count(above_rank_floor=len(selected), below_rank_floor=dropped)
     if not selected:
         click.echo("nothing above the rank floor. exiting.")
+        run_log.__exit__(None, None, None)
         return
 
     hydrated, notes = hydrate_selected(registry, [v for _, v in selected])
@@ -347,7 +382,10 @@ def run(boards, cv, aliases, db, title, location, no_model) -> None:
                              embedder, embedder_name,
                              gate=registry.coverage_gate, rank=score)
         except Exception as exc:
-            # One vacancy failing must not abort the run.
+            # One vacancy failing must not abort the run — but the reason is
+            # recorded rather than lost with the terminal.
+            run_log.error(str(exc), source="scoring", vacancy_id=vacancy.id,
+                          detail=vacancy.title)
             click.echo(f"  ERROR        {_clip(vacancy.title, 40)}: {exc}", err=True)
 
     click.echo()
@@ -360,7 +398,12 @@ def run(boards, cv, aliases, db, title, location, no_model) -> None:
 
     if counts.get("PENDING"):
         click.echo(f"\n  {counts['PENDING']} ready to review:  vanguard review")
+    run_log.count(scored=len(selected))
+    run_log.__exit__(None, None, None)
+
     click.echo("\n  no transmission occurred — Vanguard never submits")
+    if log_config.enabled:
+        click.echo(f"  logged to {log_config.directory}/vanguard.log and the run table")
 
 
 @main.command()
@@ -787,6 +830,90 @@ def diagnose(db, limit) -> None:
         click.echo("\nAdd the requirement-bearing ones to _HEADING_RULES in structure.py.")
     else:
         click.echo("\nno unrecognised headings recorded")
+
+
+@main.command("logs")
+@click.option("--db", default=DEFAULTS["db"])
+@click.option("--boards", "boards_path", default=DEFAULTS["boards"])
+@click.option("--limit", default=10, help="How many runs to show.")
+@click.option("--errors", "errors_only", is_flag=True, help="Only failures.")
+@click.option("--archive", "do_archive", is_flag=True,
+              help="Move old records to archive.db and gzip old log files.")
+def logs_cmd(db, boards_path, limit, errors_only, do_archive) -> None:
+    """Run history and recorded errors.
+
+    Two stores: this reads the structured one. The verbose file sits in the
+    configured log directory and holds the API-level detail.
+    """
+    import sqlite3
+
+    from vanguard.logs import LOG_SCHEMA, archive_old_records, compress_old_files
+
+    config = _logging(boards_path)
+    if not config.enabled:
+        click.echo("logging is disabled — set logging.enabled in boards.yaml")
+        return
+
+    if do_archive:
+        moved = archive_old_records(Path(db), older_than_days=config.archive_after_days)
+        gzipped = compress_old_files(config.directory, older_than_days=config.retain_days)
+        click.echo(f"archived {moved['runs']} run(s), {moved['events']} event(s) "
+                   f"to archive.db; gzipped {gzipped} log file(s)")
+        click.echo("nothing was deleted")
+        return
+
+    conn = sqlite3.connect(str(Path(db)))
+    conn.row_factory = sqlite3.Row
+    try:
+        conn.executescript(LOG_SCHEMA)
+        runs = conn.execute(
+            "SELECT * FROM runs ORDER BY started_at DESC LIMIT ?", (limit,)
+        ).fetchall()
+        if errors_only:
+            runs = [r for r in runs if (r["errors"] or 0) or r["outcome"] == "ERROR"]
+
+        if not runs:
+            click.echo("no runs recorded yet")
+            return
+
+        click.echo(ui.rule(f"RUNS  ·  most recent {len(runs)}"))
+        click.echo(ui.table(
+            [
+                ui.Column("WHEN", 0.8, 16),
+                ui.Column("COMMAND", 0.5, 7),
+                ui.Column("OUTCOME", 0.5, 9),
+                ui.Column("SECS", 0.3, 5, "right"),
+                ui.Column("KEPT", 0.3, 4, "right"),
+                ui.Column("SCORED", 0.3, 6, "right"),
+                ui.Column("ERRORS", 0.3, 6, "right"),
+            ],
+            [[r["started_at"][:16].replace("T", " "), r["command"],
+              r["outcome"] or "running", f"{r['duration_s'] or 0:.1f}",
+              str(r["kept"] or 0), str(r["scored"] or 0), str(r["errors"] or 0)]
+             for r in runs],
+        ))
+
+        recent = conn.execute(
+            "SELECT * FROM events WHERE level IN ('ERROR','WARNING') "
+            "ORDER BY at DESC LIMIT ?", (limit,)
+        ).fetchall()
+        if recent:
+            width = _terminal_width()
+            click.echo()
+            click.echo(ui.rule("RECENT ERRORS AND WARNINGS"))
+            for event in recent:
+                tone = ui.Tone.BAD if event["level"] == "ERROR" else ui.Tone.WARN
+                where = event["board_id"] or event["vacancy_id"] or event["source"] or ""
+                click.echo(f"  {ui.badge(event['level'], tone, width=9)} "
+                           f"{event['at'][:16].replace('T', ' ')}  {where}")
+                for line in _wrap(event["message"], width - 6):
+                    click.echo(f"      {line}")
+    finally:
+        conn.close()
+
+    click.echo()
+    click.echo(f"  verbose detail: {config.directory}/vanguard.log")
+    click.echo("  vanguard logs --archive   move old records aside (nothing deleted)")
 
 
 # ---------------------------------------------------------------------------
