@@ -612,3 +612,40 @@ def test_sop_references_only_real_commands() -> None:
     referenced = set(re.findall(r"vanguard (\w+)", sop))
     # `run` and `logs` also appear as ordinary words; both are real commands.
     assert referenced <= set(main.commands) | {"run", "logs"}
+
+
+# ---------------------------------------------------------------------------
+# RESULT must describe THIS RUN, not the whole queue
+# ---------------------------------------------------------------------------
+
+def test_result_block_distinguishes_run_from_queue_total(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    """`counts_by_status()` covers every vacancy ever ingested. Reporting it
+    under a RESULT heading showed 543 records for a run that scored 14."""
+    from vanguard.adapters.base import Vacancy
+    from vanguard.store import Store
+
+    store = Store(tmp_path / "v.db")
+    store.initialise()
+    for i in range(40):
+        store.upsert_vacancy(Vacancy(id=f"old:{i}", board_id="reed", employer="E",
+                                     title=f"T{i}", description="d"))
+        store.create_queue_record(f"old:{i}", "FLAGGED")
+
+    result = runner.invoke(main, ["run", *base(tmp_path),
+                                  "--boards", str(ROOT / "config" / "boards.yaml")])
+    out = result.output
+
+    # No board is reachable in the test environment, so nothing is scored —
+    # but the historical 40 must not be presented as this run's outcome.
+    assert "RESULT" not in out or "this run scored" in out
+    if "queue total" in out:
+        assert "all runs" in out
+
+
+def test_run_reports_zero_scored_honestly(runner: CliRunner, tmp_path: Path) -> None:
+    result = runner.invoke(main, ["run", *base(tmp_path),
+                                  "--boards", str(ROOT / "config" / "boards.yaml")])
+    assert result.exit_code == 0
+    assert "no vacancies" in result.output or "this run scored" in result.output

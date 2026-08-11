@@ -375,12 +375,15 @@ def run(boards, cv, aliases, db, title, location, no_model) -> None:
     click.echo(ui.rule(f"SCORING  {len(selected)} vacancies  ·  "
                        f"{embedder_name}  ·  gate {registry.coverage_gate:.2f}"))
     click.echo(f"  {'STATUS':<14} {'C':>5}  {'':<15} TITLE")
+    this_run: dict[str, int] = {}
     for score, vacancy in selected:
         vacancy = by_id.get(vacancy.id, vacancy)
         try:
-            _score_and_queue(vacancy, store, queue, canonical, alias_table,
-                             embedder, embedder_name,
-                             gate=registry.coverage_gate, rank=score)
+            outcome_status = _score_and_queue(
+                vacancy, store, queue, canonical, alias_table,
+                embedder, embedder_name,
+                gate=registry.coverage_gate, rank=score)
+            this_run[outcome_status] = this_run.get(outcome_status, 0) + 1
         except Exception as exc:
             # One vacancy failing must not abort the run — but the reason is
             # recorded rather than lost with the terminal.
@@ -390,20 +393,24 @@ def run(boards, cv, aliases, db, title, location, no_model) -> None:
 
     click.echo()
     click.echo(ui.rule("RESULT"))
+    # THIS RUN's outcomes. `counts_by_status()` covers the whole queue table,
+    # every vacancy ever ingested — reporting that under a RESULT heading
+    # showed 543 records for a run that scored 14.
+    ordered = ["PENDING", "FLAGGED", "UNREACHABLE"]
+    scored_now = sum(this_run.values())
+    click.echo(f"  this run scored {scored_now}:")
+    for label in ordered:
+        if this_run.get(label):
+            click.echo(f"    {_status(label)}  {this_run[label]}")
+
     counts = store.counts_by_status()
-    needs_you = ["PENDING", "FLAGGED", "UNREACHABLE"]
-    settled = ["APPROVED", "DISPATCHED", "REJECTED"]
-
-    for label in needs_you:
-        if counts.get(label):
-            click.echo(f"  {_status(label)}  {counts[label]}")
-
-    decided = [(label, counts[label]) for label in settled if counts.get(label)]
-    if decided:
-        click.echo()
-        click.echo("  already decided — not re-queued:")
-        for label, count in decided:
-            click.echo(f"  {_status(label)}  {count}")
+    total = sum(counts.values())
+    if total:
+        click.echo(f"\n  queue total, all runs — {total} record(s):")
+        for label in ["PENDING", "FLAGGED", "UNREACHABLE",
+                      "APPROVED", "DISPATCHED", "REJECTED"]:
+            if counts.get(label):
+                click.echo(f"    {_status(label)}  {counts[label]}")
 
     if counts.get("PENDING"):
         click.echo(f"\n  {counts['PENDING']} ready to review:  vanguard review")
