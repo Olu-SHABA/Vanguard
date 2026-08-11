@@ -96,6 +96,16 @@ boards:
       # not a place; leaving it unset searches nationwide, which is what is
       # wanted here.
       where: ""
+      # Reed has no server-side date filter, so this is applied client-side —
+      # before hydration, so a stale advert does not spend an API call.
+      #
+      # 14 days is a judgement, not a measurement. A vacancy posted three
+      # weeks ago has usually been filled or has hundreds of applicants
+      # ahead. Raise it if the yield is too thin; lower it if too many
+      # results are already gone. A board that omits the date is treated as
+      # current — unknown is not stale.
+      max_days_old: 14
+
       # Every vacancy costs a SECOND api call to fetch its full text, against
       # a 60 calls/hour limit. 3 keywords x 15 = 45 hydration calls plus a
       # handful of search calls fits inside one hour. Raising this does not

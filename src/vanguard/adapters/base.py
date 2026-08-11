@@ -29,7 +29,7 @@ import time
 from abc import ABC, abstractmethod
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any, Iterable, Sequence
@@ -156,6 +156,20 @@ class Vacancy:
             raise IngestionError(
                 f"vacancy {self.id} has no description — nothing to extract requirements from"
             )
+
+    def age_days(self, *, now: datetime | None = None) -> int | None:
+        """Days since posting, or None when the board did not say.
+
+        Absent is not stale. A board that omits the date must not have its
+        vacancies silently discarded.
+        """
+        if self.posted is None:
+            return None
+        posted = self.posted
+        if posted.tzinfo is None:
+            posted = posted.replace(tzinfo=timezone.utc)
+        return (now or datetime.now(timezone.utc) - timedelta(0) if now
+                else datetime.now(timezone.utc)).__sub__(posted).days
 
     @property
     def dedup_key(self) -> str:
@@ -451,6 +465,7 @@ class BoardAdapter(ABC):
         out: list[Vacancy] = []
         unhydrated = 0
         expired = 0
+        stale = 0
         # Distinct from `hydrate`, which is flipped off when the rate limiter
         # refuses. Using `hydrate` to decide whether to report would suppress
         # exactly the failure that needs reporting.
@@ -469,6 +484,20 @@ class BoardAdapter(ABC):
             if vacancy.closes is not None and is_closed(vacancy.description):
                 expired += 1
                 continue
+
+            # And drop stale ones. Reed has no server-side date filter but
+            # returns the posted date on every result, so the filter runs
+            # here — before hydration, for the same reason.
+            #
+            # A vacancy posted eighteen days ago has usually been filled, or
+            # has hundreds of applicants ahead of you. An absent date is
+            # treated as current: unknown is not stale.
+            max_age = self.entry.max_days_old(query)
+            if max_age:
+                age = vacancy.age_days()
+                if age is not None and age > max_age:
+                    stale += 1
+                    continue
 
             if hydrate and vacancy.description_is_partial:
                 attempted_hydration = True
@@ -492,6 +521,12 @@ class BoardAdapter(ABC):
             self._note_truncation(
                 "", len(out),
                 f"{expired} vacanc(ies) skipped — closing date already passed",
+            )
+        if stale:
+            self._note_truncation(
+                "", len(out),
+                f"{stale} vacanc(ies) skipped — posted more than "
+                f"{self.entry.max_days_old(query)} days ago",
             )
 
         # Only report a hydration failure when hydration was ATTEMPTED. With
@@ -582,6 +617,17 @@ class RegistryEntry:
                 "fetched from it can be scored. Register it as tier: manual and "
                 "paste vacancies with `vanguard paste`."
             )
+
+    def max_days_old(self, query: Query) -> int:
+        """Age ceiling in days. 0 disables the filter.
+
+        Config first, since staleness varies by board — a slow public-sector
+        portal and a fast commercial one need different windows.
+        """
+        configured = self.query.get("max_days_old")
+        if isinstance(configured, int):
+            return max(0, configured)
+        return max(0, query.max_days_old)
 
     def effective_max_results(self, query: Query) -> int:
         """Smaller of the caller's ceiling and this board's configured cap.

@@ -143,6 +143,8 @@ scoring 31 vacanc(ies) [minilm] gate 0.60
 |---|---|
 | `collected -> kept` | Fetched, then after deduplication |
 | `INCOMPLETE` | More vacancies existed than were taken. Not an error — the cap doing its job |
+| `skipped — posted more than N days ago` | Stale vacancies dropped before hydration. Tune `max_days_old` in `boards.yaml` |
+| `skipped — closing date already passed` | Expired vacancies dropped before hydration |
 | `rank filter` | How many survived the cheap pre-filter |
 | `[minilm]` | Which embedder produced these numbers |
 | `gate 0.60` | The coverage threshold in force |

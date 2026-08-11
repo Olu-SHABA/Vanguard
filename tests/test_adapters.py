@@ -873,3 +873,89 @@ def test_undated_vacancy_is_kept(registry) -> None:
         "jobDescription": "<ul><li>Python and SQL</li></ul>"})]
     adapter.hydrate = lambda v: v
     assert len(adapter.collect(Query())) == 1
+
+
+# ---------------------------------------------------------------------------
+# Stale vacancies — operator observation, 10 Aug 2026
+#
+# A DV-cleared Data Scientist role surfaced by the pipeline was posted 23
+# July: eighteen days old. Reed returns the posted date on every result and
+# nothing filtered on it.
+# ---------------------------------------------------------------------------
+
+def test_age_is_computed_from_the_posted_date() -> None:
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    assert Vacancy(id="x:1", board_id="x", employer="E", title="T",
+                   description="d", posted=now - timedelta(days=18)).age_days() == 18
+
+
+def test_missing_posted_date_is_not_stale() -> None:
+    """A board that omits the date must not have its vacancies discarded."""
+    assert Vacancy(id="x:1", board_id="x", employer="E", title="T",
+                   description="d").age_days() is None
+
+
+def test_stale_vacancies_are_dropped_before_hydration(registry) -> None:
+    from datetime import datetime, timedelta, timezone
+
+    from vanguard.adapters.reed import ReedAPIAdapter
+
+    entry = _with_creds(registry.get("reed"), api_key="k")
+    entry.query["max_days_old"] = 14
+    adapter = ReedAPIAdapter(entry)
+
+    recent = (datetime.now(timezone.utc) - timedelta(days=3)).strftime("%d/%m/%Y")
+    old = (datetime.now(timezone.utc) - timedelta(days=18)).strftime("%d/%m/%Y")
+    adapter.fetch = lambda q: [
+        RawVacancy("reed", {"jobId": 1, "jobTitle": "Fresh", "employerName": "E",
+                            "jobDescription": "Python.", "locationName": "L",
+                            "date": recent}),
+        RawVacancy("reed", {"jobId": 2, "jobTitle": "Stale", "employerName": "E",
+                            "jobDescription": "Python.", "locationName": "L",
+                            "date": old}),
+    ]
+    hydrated: list[str] = []
+    adapter.hydrate = lambda v: hydrated.append(v.title) or v
+
+    kept = adapter.collect(Query(), hydrate=True)
+
+    assert [v.title for v in kept] == ["Fresh"]
+    assert "Stale" not in hydrated, "a stale advert must not consume a call"
+    assert any("posted more than" in t.reason for t in adapter.truncations)
+
+
+def test_undated_vacancy_survives_the_age_filter(registry) -> None:
+    from vanguard.adapters.reed import ReedAPIAdapter
+
+    entry = _with_creds(registry.get("reed"), api_key="k")
+    entry.query["max_days_old"] = 14
+    adapter = ReedAPIAdapter(entry)
+    adapter.fetch = lambda q: [RawVacancy("reed", {
+        "jobId": 1, "jobTitle": "No date", "employerName": "E",
+        "jobDescription": "Python.", "locationName": "L"})]
+    adapter.hydrate = lambda v: v
+    assert len(adapter.collect(Query())) == 1
+
+
+def test_zero_disables_the_age_filter(registry) -> None:
+    from datetime import datetime, timedelta, timezone
+
+    from vanguard.adapters.reed import ReedAPIAdapter
+
+    entry = _with_creds(registry.get("reed"), api_key="k")
+    entry.query["max_days_old"] = 0
+    adapter = ReedAPIAdapter(entry)
+    old = (datetime.now(timezone.utc) - timedelta(days=400)).strftime("%d/%m/%Y")
+    adapter.fetch = lambda q: [RawVacancy("reed", {
+        "jobId": 1, "jobTitle": "Ancient", "employerName": "E",
+        "jobDescription": "Python.", "locationName": "L", "date": old})]
+    adapter.hydrate = lambda v: v
+    assert len(adapter.collect(Query())) == 1
+
+
+def test_config_overrides_the_query_default(registry) -> None:
+    entry = registry.get("reed")
+    entry.query["max_days_old"] = 5
+    assert entry.max_days_old(Query(max_days_old=30)) == 5
