@@ -243,7 +243,8 @@ learned. That is a table entry, not a reason to ignore the score.
 
 ## When a vacancy arrives by hand
 
-LinkedIn, Adzuna, or anywhere you browse.
+LinkedIn, Adzuna, or anywhere you browse. Per-board detail in
+**`MANUAL_ENTRY.md`**.
 
 ```
 [ ] copy the WHOLE advert, including the requirements section

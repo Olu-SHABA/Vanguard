@@ -649,3 +649,31 @@ def test_run_reports_zero_scored_honestly(runner: CliRunner, tmp_path: Path) -> 
                                   "--boards", str(ROOT / "config" / "boards.yaml")])
     assert result.exit_code == 0
     assert "no vacancies" in result.output or "this run scored" in result.output
+
+
+def test_manual_entry_guide_exists() -> None:
+    assert (ROOT / "MANUAL_ENTRY.md").is_file()
+
+
+def test_manual_entry_guide_names_only_real_boards() -> None:
+    """A guide telling the operator to use `--board x` for a board that is not
+    in the registry sends them to an error."""
+    import re
+
+    from vanguard.adapters.base import load_registry
+
+    guide = (ROOT / "MANUAL_ENTRY.md").read_text(encoding="utf-8")
+    registry = load_registry(ROOT / "config" / "boards.yaml")
+    referenced = set(re.findall(r"--board (\w+)", guide))
+    known = {e.id for e in registry} | {"indeed"}   # indeed is an example to add
+    assert referenced <= known, f"unknown boards: {referenced - known}"
+
+
+def test_quick_guide_exists() -> None:
+    assert (ROOT / "HOW_TO_ADD_A_JOB.md").is_file()
+
+
+def test_quick_guide_is_actually_short() -> None:
+    """It exists because the reference was too long to follow while working."""
+    lines = (ROOT / "HOW_TO_ADD_A_JOB.md").read_text(encoding="utf-8").split("\n")
+    assert len(lines) < 130, "if this grows past a page it has stopped being quick"

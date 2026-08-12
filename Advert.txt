@@ -1,0 +1,103 @@
+Senior Data Scientist
+Data Science - Remote / UK, London, City of
+
+About Beatport
+
+For over 20 years, Beatport has been the global leader in DJ and club culture, pushing the boundaries of dance music to all corners of the world. Created by DJs for DJs, Beatport has always been dedicated to innovating new products and services to support evolving generations of music performers and producers.
+
+
+The Beatport Group includes some of the best-known brands in DJ culture, including Beatport, Beatport Open Format, Ampsuite, LabelRadar, Plugin Boutique, Beatport Live & The International Music Summit (IMS). We are consistently looking for bright, creative professionals with diverse perspectives and backgrounds.
+
+
+Where you come in:
+
+We are seeking an experienced and adaptable Senior Data Scientist, with strong ML Engineering skills, to join a nimble and best-in-class data team at The Beatport Group. The role will report to the Director of Intelligence Engineering, and will share in the ownership and delivery of cutting edge, scalable ML models.
+
+Initial workstreams will likely include:
+
+    Content Recommendation and Personalisation
+    Search Optimisation 
+    Audio Modelling
+
+You will play a crucial role in transforming our data into genuinely useful product features that empower artists and connect DJs with the music that they love.
+
+
+
+The ideal candidate will have 4-5 years of direct experience as a Data Scientist, with some experience in ML Engineering being advantageous. The candidate will demonstrate expert proficiency in Google Cloud Platform’s (GCP) latest ML/AI tooling, including, but not limited to:
+
+    Vertex AI
+    BigQuery
+    Gemini APIs
+
+The candidate will also work closely with our Lead Data Scientist in developing and maintaining the team’s API service which delivers real-time ML output to Platform Engineering. FastAPI experience would be advantageous in this regard.
+
+
+
+This role can be hybrid (London) or remote (but must have UK right to work and be based in the UK).
+The Technology Group is spread across Europe and North America. This is an exciting opportunity to shape the future of our ML/AI roadmap for a group at the forefront of electronic music and DJ culture.
+
+
+
+As a Senior Data Scientist, you will be responsible for:
+
+    Developing and implementing ML-based solutions to enhance and optimise the Beatport customer experience. This may include semantic search to improve crate digging, content recommendation/personalisation engines, or leveraging our catalog for the development of best-in-class audio models for music professionals.
+    Acting as a subject matter expert regarding GCP’s latest ML/AI tooling, and continuously prototyping and advocating for new tooling to ensure that our MLOps and AI infrastructure remains fit for purpose.
+    Collaborating with Platform Engineering and Product to prioritise relevant workstreams across the Beatport Group. 
+    Working in conjunction with the Group’s Data Engineers and Data Analysts to refine and develop scalable data architectures to deliver unified and actionable ML-based intelligence across the Beatport Group data stack.
+
+
+
+As a Senior Data Scientist, you will need:
+
+    4-5 years of direct experience as a Data Scientist, with 1+ year in a senior capacity preferred. 
+    Bachelor's degree in Computer Science, Statistics, Mathematics, or a related quantitative field.
+    Expert proficiency in GCP’s ML/AI tooling, and its data ecosystem in general.
+    Expert proficiency with Python and its core ML libraries e.g. PyTorch, TensorFlow.
+    Expert proficiency with SQL development, with Google dialects being advantageous.
+    Robust CI/CD discipline for ML, for example, GitHub Actions or GitLab CI, and infrastructure as code solutions for automating model rollout such as Terraform.
+
+
+It would be beneficial to have:
+
+    Proficiency with an API web framework e.g. FastAPI, Django, Flask.
+    Familiarity with experimentation and AB testing frameworks and packages.
+    Experience with vector databases or other methodologies that can support larger scale semantic search and retrieval pipelines. 
+    Domain knowledge in digital signal processing and/or audio fingerprinting in the context of the music industry. 
+    General music industry experience and/or an interest in DJ culture. 
+
+
+
+The Beatport Group Culture 
+
+At Beatport Group, creativity and community are at the forefront of everything we do. Our company is a hub of innovation, driven by a commitment to authenticity and a deep understanding of the music landscape. Our culture is built on the values of D.A.N.C.E (Demand Diversity, Accountability to our communities, Nurturing our ecosystem, Community first, always, and Evolution of our mission). We promote inclusiveness, innovative thinking, and thoughtful contributions, ensuring that we not only serve but also evolve with the diverse global DJ & music producer market. 
+
+
+How to apply 
+
+Please apply with your resume by clicking the "apply" link 
+
+
+Benefits 
+
+The position is within a highly motivated team with a positive working climate, allowing you to express your talent fully. In addition, we offer appropriate remuneration and very good development opportunities within a dynamically growing enterprise. Beyond this, the position provides an intensive integration into the international music scene. 
+
+
+    Participation in company's annual bonus pool program
+    A professional environment with room for creativity and fun 
+    VIP Access to local music events & Livestreams
+    Enhanced holiday allowance 
+    Focus Days 
+    BUPA Health Insurance 
+    Learning Days 
+    Employer matched pension 
+    + More
+
+
+Equal Employment Opportunity 
+
+The Beatport Group strongly supports equal employment opportunity for all applicants regardless of race, color, religion, sex, gender identity, pregnancy, national origin, ancestry, citizenship, age, marital status, physical disability, mental disability, medical condition, sexual orientation, genetic information, or any other characteristic protected by state or federal law. 
+
+
+Hiring Practices 
+
+This job description has been designed to indicate the general nature and level of work performed by employees within this classification. It is not intended to contain or be interpreted as a comprehensive inventory of all duties, responsibilities, and qualifications required of employees assigned to this job. The Beatport Group’s recruitment policies are designed to place the most highly qualified persons available in a timely and efficient manner. The Beatport Group may pursue all avenues available, including promotion from within, employee referrals, outside advertising, Internet recruiting, job fairs and college recruiting. The Beatport Group does not accept speculative CV's from employment agencies unless specifically requested by the Talent Team. Please can we politely request that you do not contact our hiring managers.

@@ -161,16 +161,18 @@ def test_health_check_covers_every_board(registry) -> None:
     assert len(health_check_all(registry)) == len(registry)
 
 
-def test_health_check_reports_missing_credentials(monkeypatch, tmp_path: Path) -> None:
-    """Must not depend on whether THIS machine has credentials configured.
+#: Every credential any board reads. Clearing a subset leaves the test
+#: depending on whatever the operator happens to have configured — which is
+#: how this test broke twice: once when ADZUNA_APP_ID was first set, and again
+#: when the assertion moved to `reed` and the clearing did not follow.
+BOARD_CREDENTIALS = ("ADZUNA_APP_ID", "ADZUNA_APP_KEY", "REED_API_KEY")
 
-    The original assumed an unconfigured environment. It passed everywhere
-    until someone actually set ADZUNA_APP_ID, at which point a working setup
-    looked like a test failure.
-    """
+
+def test_health_check_reports_missing_credentials(monkeypatch, tmp_path: Path) -> None:
+    """Must not depend on whether THIS machine has credentials configured."""
     import os
 
-    for var in ("ADZUNA_APP_ID", "ADZUNA_APP_KEY"):
+    for var in BOARD_CREDENTIALS:
         monkeypatch.delitem(os.environ, var, raising=False)
 
     bare = load_registry(ROOT / "config" / "boards.yaml")
@@ -183,6 +185,8 @@ def test_health_check_reports_present_credentials(monkeypatch) -> None:
     """The other half: a configured board must report reachable."""
     import os
 
+    for var in BOARD_CREDENTIALS:
+        monkeypatch.delitem(os.environ, var, raising=False)
     monkeypatch.setitem(os.environ, "REED_API_KEY", "test-key")
 
     configured = load_registry(ROOT / "config" / "boards.yaml")
@@ -313,3 +317,22 @@ def test_thresholds_come_from_config(registry) -> None:
     """Ratcheting the gate must be a config edit, not a code change."""
     assert 0.0 < registry.coverage_gate <= 1.0
     assert 0.0 <= registry.rank_floor < 1.0
+
+
+def test_credential_list_covers_every_board(monkeypatch) -> None:
+    """`BOARD_CREDENTIALS` must list every environment variable any board
+    reads. A test clearing a subset depends on whatever the operator happens
+    to have configured — which broke `test_health_check_reports_missing_
+    credentials` twice: once when ADZUNA_APP_ID was first set, and again when
+    the assertion moved to `reed` and the clearing did not follow.
+    """
+    import os
+    import re
+
+    raw = (ROOT / "config" / "boards.yaml").read_text(encoding="utf-8")
+    referenced = set(re.findall(r"\$\{(\w+)\}", raw))
+    missing = referenced - set(BOARD_CREDENTIALS)
+    assert not missing, (
+        f"boards.yaml reads {sorted(missing)}, absent from BOARD_CREDENTIALS — "
+        "tests clearing credentials would leave these set"
+    )
