@@ -54,105 +54,19 @@ code and the live runs on that date — not carried forward on assumption.
 | B-09 | Near-duplicate requirements survive dedup when the same bullet appears in two advert sections with different trimming | `extract.py` | LOW | OPEN |
 | B-05 | Runs do not record which embedder produced them | `rank.py`, `coverage.py` | MEDIUM | **CLOSED** — `scores.embedder` column added in M5; `run`/`paste`/`score` all report it |
 
-## 1a. Future separate projects
+## 1a. Design proposals — index
 
-### D-01 — Adaptive query configuration
+Recorded, not scheduled. Full treatment in section 8.
 
-**Status:** NOTED. Not scheduled, not designed. Supersedes B-01 and B-02.
+| ID | Proposal | Raised | Supersedes |
+|---|---|---|---|
+| **D-01** | Adaptive query configuration | operator, 8 Aug | B-01, B-02 |
+| **D-02** | CLI presentation layer | 9 Aug | — |
+| **D-03** | Coverage assumes structured adverts | 9 Aug | B-17 (partly) |
+| **D-04** | Repository history as CV evidence | operator, 12 Aug | — |
+| **D-05** | Supportability as a separate product | operator, 12 Aug | — |
 
-Operator direction, 8 Aug 2026: rather than fixing B-01/B-02 with a precedence
-rule, query configuration should be treated as a layer that composes and
-evolves — drawing on hard-wired configuration, operator-provided input, and
-other non-invasive variables. Configuration to be automatic and self-evolving.
-
-To be scoped as a separate project. B-01/B-02 remain unpatched in the meantime;
-their current behaviour is inert until a CLI exists.
-
----
-
-> **Observations recorded during M4.** Not a design, not a scope, not a
-> schedule. Whoever scopes D-01 owns every choice below and is free to discard
-> all of it. Recorded only so it does not have to be rediscovered.
-
-**Signals the pipeline already produces.** None require additional collection;
-all are logged today or will be by M6.
-
-| Signal | Source | What it might indicate |
-|---|---|---|
-| Coverage distribution per keyword | `coverage.py` | Terms consistently yielding low C may be poorly targeted |
-| Type 3 gap frequency across vacancies | `gaps.py` | A requirement recurring as unmet is a standing skills gap, not a scoring artefact |
-| Board yield after deduplication | `ingest.py` | Which sources contribute unique vacancies rather than overlap |
-| Response outcomes | Stage II, M6 | The only signal connecting query terms to real results |
-
-**Questions noted while writing the adapters.** Questions, not answers.
-
-1. Is adaptation per-board, global, or both?
-2. Does the operator see proposed changes before they take effect, or after?
-   The gap classifier's proposes/confirms split is one existing precedent.
-3. What prevents drift — a keyword set narrowing over time until it excludes
-   roles the operator would have wanted?
-4. Where does machine-written state live? `boards.yaml` is hand-maintained and
-   hot-reloadable.
-
-**Related existing ruling.** The directive's Objectivity Rule and the
-coverage-gates/cosine-ranks decision both turn on outputs being explainable.
-Whether that reasoning extends to an adapted query is a question for the design
-pass, not a constraint asserted here.
-
----
-
-### D-02 — CLI presentation layer
-
-**Status:** IMPLEMENTED 9 Aug 2026. `ui.py`, stdlib only.
-
-Three output defects were fixed 8 Aug 2026 — word-boundary truncation, terminal-width
-awareness, and collapsing skipped boards in `run`. What was NOT done, deliberately:
-
-- `rich.Table` for the list views (`review`, `boards`, `stats`). `rich` is already
-  proven in the operator's other codebase and would handle alignment and width
-  properly. Held until the CLI has been used for a fortnight — styling all nine
-  views on a guess about which matter is the wrong order.
-- `--json` output flag. Useful if any GUI or dashboard follows.
-- Any graphical interface. The system has scored two real adverts. Designing an
-  interface before the daily workflow is established risks building for imagined use.
-
-Tables suit list views. They suit the `review <id>` record view badly — exclusion
-reasons are prose of varying length and a grid would clip them, which is the defect
-that was just fixed.
-
----
-
-### D-03 — Coverage assumes structured adverts
-
-**Status:** NOTED. Not scheduled.
-
-Coverage-as-gate assumes an advert states discrete, extractable requirements.
-Government Success Profiles do. Commercial adverts largely do not — they are
-prose. On the first live run, 516 of 530 vacancies extracted fewer than six
-terms.
-
-Of the 27 that extracted properly, the ranking was still poor: an AI Trainer
-scored 0.700 against a Senior Data Engineer at 0.444, and two identically
-titled Senior Data Engineer roles scored 0.625 and 0.444.
-
-> Observations, not a design. Recorded 9 Aug 2026 so they need not be
-> rediscovered. Whoever scopes D-03 owns every choice.
-
-The original audit replaced cosine with coverage because cosine could not
-answer *which requirement failed*. That reasoning stands. What was not
-tested is that extraction only works on one advert type — the metric was
-validated against a single MoJ Success Profile advert.
-
-Open questions:
-
-1. Should coverage gate at all when \|R\| is small, or should such vacancies
-   route to a different assessment path entirely?
-2. Is there a reliable way to extract requirements from prose adverts, or is
-   the honest answer that only structured adverts can be scored?
-3. What ranks the rest — rank score alone, operator triage, something else?
-4. Does the Type 1/2/3 gap taxonomy survive if requirements are not discrete?
-
----
+D-02 was implemented 9 Aug (`ui.py`); the remainder are unscoped.
 
 ## 2. Configuration
 
@@ -280,6 +194,147 @@ considered design.
 
 ---
 
+### D-02 — CLI presentation layer
+
+**Status:** IMPLEMENTED 9 Aug 2026. `ui.py`, stdlib only.
+
+Three output defects were fixed 8 Aug 2026 — word-boundary truncation, terminal-width
+awareness, and collapsing skipped boards in `run`. What was NOT done, deliberately:
+
+- `rich.Table` for the list views (`review`, `boards`, `stats`). `rich` is already
+  proven in the operator's other codebase and would handle alignment and width
+  properly. Held until the CLI has been used for a fortnight — styling all nine
+  views on a guess about which matter is the wrong order.
+- `--json` output flag. Useful if any GUI or dashboard follows.
+- Any graphical interface. The system has scored two real adverts. Designing an
+  interface before the daily workflow is established risks building for imagined use.
+
+Tables suit list views. They suit the `review <id>` record view badly — exclusion
+reasons are prose of varying length and a grid would clip them, which is the defect
+that was just fixed.
+
+---
+
+### D-03 — Coverage assumes structured adverts
+
+**Status:** NOTED. Not scheduled.
+
+Coverage-as-gate assumes an advert states discrete, extractable requirements.
+Government Success Profiles do. Commercial adverts largely do not — they are
+prose. On the first live run, 516 of 530 vacancies extracted fewer than six
+terms.
+
+Of the 27 that extracted properly, the ranking was still poor: an AI Trainer
+scored 0.700 against a Senior Data Engineer at 0.444, and two identically
+titled Senior Data Engineer roles scored 0.625 and 0.444.
+
+> Observations, not a design. Recorded 9 Aug 2026 so they need not be
+> rediscovered. Whoever scopes D-03 owns every choice.
+
+The original audit replaced cosine with coverage because cosine could not
+answer *which requirement failed*. That reasoning stands. What was not
+tested is that extraction only works on one advert type — the metric was
+validated against a single MoJ Success Profile advert.
+
+Open questions:
+
+1. Should coverage gate at all when \|R\| is small, or should such vacancies
+   route to a different assessment path entirely?
+2. Is there a reliable way to extract requirements from prose adverts, or is
+   the honest answer that only structured adverts can be scored?
+3. What ranks the rest — rank score alone, operator triage, something else?
+4. Does the Type 1/2/3 gap taxonomy survive if requirements are not discrete?
+
+---
+
+### D-04 — Repository history as CV evidence
+
+**Status:** NOTED. Not scoped, not designed.
+
+Operator proposal, 12 Aug 2026: commit history is evidence of work in a way a
+CV bullet is not — timestamped, sequenced, and hard to fabricate after the
+fact. And repositories hold more than code: documentation, notebooks,
+infrastructure-as-code, runbooks, papers.
+
+Precedent exists in this project. `git` moved Tier C -> B on 9 Aug because
+sustained commit history had accumulated. That judgement was made by hand;
+D-04 asks whether it can be sourced from the repository directly.
+
+> **Observations recorded 12 Aug 2026.** Not a design, not a scope. Whoever
+> scopes D-04 owns every choice below and is free to discard all of it.
+
+**The narrow version, which is tractable now.** Read the operator's own
+repositories to propose CV bullets. Vanguard itself has a 700-test suite, a
+documented architecture and a defect register, none of which appears on the
+canonical CV. Attribution is certain — the operator's machine, the operator's
+repository — so this is a Type 1 proposal generator sourced from evidence
+rather than from semantic similarity.
+
+**The broad version, which is not.** Scoring any applicant's public repository
+as part of a supportability assessment. Three difficulties, the third
+disqualifying on its own:
+
+| Difficulty | |
+|---|---|
+| Activity is not competence | A thousand commits may be careful iteration or committing every save |
+| Attribution is unreliable | Forks, squashed merges, pair work, work accounts. This project's own commits are authored as `Scarfacee8900` while the CV cites `Olu-SHABA` — a naive tool finds nothing |
+| **Coverage bias** | Public repositories favour open-source contributors and employers who permit publication. Most enterprise work sits behind a firewall. A twenty-year network engineer has no public footprint and is not less qualified for it |
+
+**The framing that survives all three: corroboration, not scoring.** A
+repository may *support* a claim the CV already makes. Its absence supports
+nothing either way. "The CV claims Python; the linked repository shows 400
+Python commits over 18 months" is a legitimate signal. "No repository,
+therefore weaker" is a discrimination problem wearing a score.
+
+Open questions:
+
+1. Which artefacts count as evidence for which competencies, and who decides?
+2. How is authorship established when commit identity differs from CV identity?
+3. Does a private repository count if the operator vouches for it?
+4. Does this belong in Vanguard at all, or in the separate supportability
+   product noted under D-05?
+
+---
+
+### D-05 — Supportability as a separate product
+
+**Status:** NOTED. Not scoped. Commercial direction, not a Vanguard feature.
+
+Discussed 12 Aug 2026. Vanguard's truthfulness controls answer a question no
+applicant-facing tool wants answered: *is this claim actually supported by the
+rest of the document?*
+
+Applicants want a higher score. Employers want a truer one. The controls built
+here are aimed the wrong way for the former and the right way for the latter.
+
+Market check, same date: the existing tools detect **who wrote** a document —
+Originality.ai, GPTZero, Copyleaks and similar — with false positive rates of
+20-30% on resumes, because short documents give too little text for
+statistical patterns. Assessing internal consistency is a different question
+and does not have that failure mode.
+
+The distinction the industry has settled on is AI-as-editor (accepted) versus
+AI-as-ghostwriter (treated as misrepresentation, where the candidate cannot
+defend the bullets). The second is exactly what the Type 3 rule identifies.
+
+**The property worth preserving if this is ever built: it explains itself.**
+Every Tier C entry in `alias_table.yaml` carries a written reason. A
+supportability score that cannot say *why* is another opaque number, and the
+market has plenty.
+
+**The caution.** Unsupported is not untrue. The operator's own CV said "cloud
+computing" in a catch-all line — thin, not false. Applied to one CV that costs
+an application. Applied to 400 strangers it decides who gets read, and the
+people worst served would be those who write plainly rather than fluently.
+Which correlates with things no hiring filter should correlate with.
+
+So the defensible product is a **flag, not a filter**: *"here are the claims
+nothing else in this document supports"*, surfaced to a human who decides.
+The same architecture as Vanguard — the system reads, the human decides.
+
+---
+
+
 ## 9. Deferred by design
 
 | Item | Trigger |
@@ -297,6 +352,7 @@ considered design.
 |---|---|
 | 2026-08-08 | Created. Consolidates items raised across M0–M4 |
 | 2026-08-08 | `.env` loading added so credentials survive between shell sessions; `.env.example` committed. Unresolved `{{ TOKEN }}` placeholders no longer sent as literal query values (C-01, partial) |
+| 2026-08-12 | Operator proposal: repository history as CV evidence (D-04), and supportability assessment as a separate commercial product (D-05). Both recorded, neither scoped. The narrow form of D-04 — reading the operator's OWN repositories to propose Type 1 bullets — is tractable and has certain attribution. The broad form carries a coverage bias that would favour open-source-adjacent careers over enterprise ones |
 | 2026-08-12 | B-35: the same test broke twice for the same reason — clearing a subset of credentials and depending on the rest. Fixed properly by deriving the list from boards.yaml and asserting they match, so adding a board with new credentials fails the suite rather than silently coupling a test to the environment |
 | 2026-08-10 | B-34: fourth instance of the same failure shape — a number that looks like it describes what just happened and describes something else. Previously: C=1.000 from an unmeasured score, 533% parse rate, twenty duplicate queue rows. Each time the data was correct and the framing was not |
 | 2026-08-10 | Operator observation: the configured boards return stale vacancies. Confirmed — the posted date was captured and persisted from the first Reed run and never used. `max_days_old` was an API parameter only, on a board since demoted to manual. Third time in this build a setting existed but nothing read it (B-18, C-01, B-33) |
@@ -328,6 +384,7 @@ considered design.
 | 2026-08-08 | Skip guard for PDF tests corrected: tested package presence, not importability, so a missing GTK runtime failed instead of skipping |
 | 2026-08-08 | B-01/B-02 deferred to D-01 (adaptive query configuration) per operator direction. Observations from M4 recorded under D-01, explicitly non-binding |
 | 2026-08-08 | `.env` loading added so credentials survive between shell sessions; `.env.example` committed. Unresolved `{{ TOKEN }}` placeholders no longer sent as literal query values (C-01, partial) |
+| 2026-08-12 | Operator proposal: repository history as CV evidence (D-04), and supportability assessment as a separate commercial product (D-05). Both recorded, neither scoped. The narrow form of D-04 — reading the operator's OWN repositories to propose Type 1 bullets — is tractable and has certain attribution. The broad form carries a coverage bias that would favour open-source-adjacent careers over enterprise ones |
 | 2026-08-12 | B-35: the same test broke twice for the same reason — clearing a subset of credentials and depending on the rest. Fixed properly by deriving the list from boards.yaml and asserting they match, so adding a board with new credentials fails the suite rather than silently coupling a test to the environment |
 | 2026-08-10 | B-34: fourth instance of the same failure shape — a number that looks like it describes what just happened and describes something else. Previously: C=1.000 from an unmeasured score, 533% parse rate, twenty duplicate queue rows. Each time the data was correct and the framing was not |
 | 2026-08-10 | Operator observation: the configured boards return stale vacancies. Confirmed — the posted date was captured and persisted from the first Reed run and never used. `max_days_old` was an API parameter only, on a board since demoted to manual. Third time in this build a setting existed but nothing read it (B-18, C-01, B-33) |
