@@ -1081,10 +1081,14 @@ def archive_cmd(vacancy_id, root, limit) -> None:
 @click.option("--since-days", type=int, default=0, help="How far back to read.")
 @click.option("--limit", default=100, help="Maximum messages to fetch.")
 @click.option("--dry-run", is_flag=True, help="Classify and report; record nothing.")
+@click.option("--verbose", is_flag=True, help="Show sender addresses and full subjects.")
+@click.option("--show-uncorrelated", is_flag=True,
+              help="List messages that matched no application.")
 @click.option("--cv", default=DEFAULTS["cv"])
 @click.option("--db", default=DEFAULTS["db"])
 @click.option("--archive-root", default=str(ARCHIVE_ROOT))
-def poll_cmd(provider, since_days, limit, dry_run, cv, db, archive_root) -> None:
+def poll_cmd(provider, since_days, limit, dry_run, verbose, show_uncorrelated,
+             cv, db, archive_root) -> None:
     """Read the mailbox, correlate replies to applications, classify them.
 
     Read-only. Never sends, never replies, never deletes.
@@ -1149,21 +1153,21 @@ def poll_cmd(provider, since_days, limit, dry_run, cv, db, archive_root) -> None
                f"application(s)\n")
 
     archive = Archive(Path(archive_root))
-    rows, uncorrelated = [], 0
+    rows, uncorrelated = [], []
 
     for message in messages:
         result = correlate(message, applications)
         if not result.correlated:
-            uncorrelated += 1
+            uncorrelated.append(message)
             continue
 
         outcome = classify(message)
         rows.append([
             outcome.state.value,
             _clip(result.application.employer, 20),
-            _clip(message.subject, 34),
-            result.method.value,
-        ])
+            _clip(message.sender, 28) if verbose else _clip(message.subject, 34),
+            _clip(message.subject, 34) if verbose else result.method.value,
+        ] + ([result.method.value] if verbose else []))
 
         if not dry_run:
             archive.add_message(
@@ -1173,19 +1177,35 @@ def poll_cmd(provider, since_days, limit, dry_run, cv, db, archive_root) -> None
             )
 
     if rows:
-        click.echo(ui.table(
-            [
-                ui.Column("STATE", 0.4, 9),
-                ui.Column("EMPLOYER", 0.9, 12),
+        columns = [
+            ui.Column("STATE", 0.4, 9),
+            ui.Column("EMPLOYER", 0.8, 12),
+        ]
+        if verbose:
+            columns += [
+                ui.Column("SENDER", 1.2, 16, tone=ui.Tone.MUTED),
+                ui.Column("SUBJECT", 1.4, 16),
+                ui.Column("VIA", 0.4, 7, tone=ui.Tone.MUTED),
+            ]
+        else:
+            columns += [
                 ui.Column("SUBJECT", 1.6, 16),
                 ui.Column("VIA", 0.4, 7, tone=ui.Tone.MUTED),
-            ],
-            rows,
-        ))
+            ]
+        click.echo(ui.table(columns, rows))
 
     if uncorrelated:
-        click.echo(f"\n  {ui.badge(f'{uncorrelated} uncorrelated', ui.Tone.MUTED)} "
+        click.echo(f"\n  {ui.badge(f'{len(uncorrelated)} uncorrelated', ui.Tone.MUTED)} "
                    "— not matched to an application, and NOT classified")
+        if show_uncorrelated or verbose:
+            click.echo()
+            click.echo(ui.table(
+                [
+                    ui.Column("SENDER", 1.2, 16, tone=ui.Tone.MUTED),
+                    ui.Column("SUBJECT", 1.8, 20),
+                ],
+                [[m.sender, m.subject] for m in uncorrelated[:40]],
+            ))
 
     if dry_run:
         click.echo("\n  dry run — nothing recorded")

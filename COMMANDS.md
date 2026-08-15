@@ -399,6 +399,8 @@ vanguard poll --provider gmail
 | `--since-days` | How far back to read. Default 30 |
 | `--limit` | Maximum messages to fetch. Default 100 |
 | `--dry-run` | Classify and report; record nothing |
+| `--verbose` | Show sender addresses alongside subjects |
+| `--show-uncorrelated` | List messages that matched no application |
 | `--cv` | The CV whose contact address is monitored |
 | `--archive-root` | Where correspondence is filed |
 
