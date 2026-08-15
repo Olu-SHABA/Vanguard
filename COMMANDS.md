@@ -15,7 +15,7 @@ what.
 | [Getting vacancies in](#getting-vacancies-in) | `run` · `paste` |
 | [Looking at results](#looking-at-results) | `review` · `score` · `stats` · `diagnose` |
 | [Deciding](#deciding) | `approve` · `reject` · `resolve` · `override` · `dispatch` |
-| [Responses](#responses) | `mail` · `dormant` · `feedback` · `interview` |
+| [Responses](#responses) | `poll` · `mail` · `dormant` · `feedback` · `interview` |
 | [Operations](#operations) | `logs` · `archive` |
 
 ---
@@ -382,9 +382,76 @@ record of what was actually sent.
 
 # Responses
 
+## `vanguard poll`
+
+Read the mailbox, correlate replies to applications, classify them.
+
+```bash
+vanguard poll
+vanguard poll --dry-run
+vanguard poll --since-days 60 --limit 200
+vanguard poll --provider gmail
+```
+
+| Option | Effect |
+|---|---|
+| `--provider` | `imap` or `gmail`. Default from `VANGUARD_MAIL_PROVIDER`, else `imap` |
+| `--since-days` | How far back to read. Default 30 |
+| `--limit` | Maximum messages to fetch. Default 100 |
+| `--dry-run` | Classify and report; record nothing |
+| `--cv` | The CV whose contact address is monitored |
+| `--archive-root` | Where correspondence is filed |
+
+**Read-only.** Never sends, replies or deletes. The mailbox is opened read-only
+unless `VANGUARD_MAIL_MARK_SEEN` is set.
+
+**The address follows the CV.** An employer replies to whatever address the CV
+gave them, so it is derived from `canonical_cv.md` rather than configured
+separately — configuring it twice lets the two drift, and the symptom is
+replies that never correlate.
+
+### Credentials
+
+In `.env`, never in a tracked file.
+
+```
+VANGUARD_MAIL_PROVIDER=imap
+VANGUARD_MAIL_HOST=            # inferred for gmail, outlook, yahoo, icloud
+VANGUARD_MAIL_USER=you@example.com
+VANGUARD_MAIL_PASSWORD=        # APP PASSWORD, never the account password
+VANGUARD_MAIL_FOLDER=INBOX
+VANGUARD_MAIL_SINCE_DAYS=30
+```
+
+**Use an app password.** Most providers refuse the account password over IMAP
+once two-factor authentication is on, and an app password can be revoked
+without changing the account.
+
+- Gmail: `myaccount.google.com/apppasswords`
+- Outlook: `account.microsoft.com/security`
+
+### Gmail API instead
+
+```
+VANGUARD_MAIL_PROVIDER=gmail
+VANGUARD_MAIL_TOKEN=secrets/gmail_token.json
+```
+
+Needs a Google Cloud project with the Gmail API enabled and an OAuth client.
+Scope is `gmail.readonly` — the pipeline cannot send or delete even if
+something later asks it to. More secure, more setup.
+
+### Several mailboxes
+
+Where different CVs carry different addresses, configure each with its own
+prefix: `VANGUARD_MAIL_*`, `VANGUARD_MAIL2_*`.
+
+---
+
 ## `vanguard mail`
 
-Correlate and classify one inbound message.
+Correlate and classify one message from a file. `poll` does this for a whole
+mailbox; this is for a message you have saved by hand.
 
 ```bash
 vanguard mail --file reply.txt --sender "recruit@company.com" --subject "Your application"

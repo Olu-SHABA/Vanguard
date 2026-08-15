@@ -1075,6 +1075,123 @@ def archive_cmd(vacancy_id, root, limit) -> None:
     click.echo("  vanguard archive <ID>   for one application in full")
 
 
+@main.command("poll")
+@click.option("--provider", type=click.Choice(["imap", "gmail"]), default=None,
+              help="Override the provider. Default: VANGUARD_MAIL_PROVIDER, else imap.")
+@click.option("--since-days", type=int, default=0, help="How far back to read.")
+@click.option("--limit", default=100, help="Maximum messages to fetch.")
+@click.option("--dry-run", is_flag=True, help="Classify and report; record nothing.")
+@click.option("--cv", default=DEFAULTS["cv"])
+@click.option("--db", default=DEFAULTS["db"])
+@click.option("--archive-root", default=str(ARCHIVE_ROOT))
+def poll_cmd(provider, since_days, limit, dry_run, cv, db, archive_root) -> None:
+    """Read the mailbox, correlate replies to applications, classify them.
+
+    Read-only. Never sends, never replies, never deletes.
+
+    The monitored address is derived from the CV in use — an employer replies
+    to whatever address the CV gave them, so configuring it separately would
+    let the two drift.
+    """
+    from vanguard.mail import Application, classify, correlate
+    from vanguard.mailbox import (
+        MailboxConfig, MailboxError, build_provider, contact_address_from_cv,
+    )
+
+    store, queue = _ctx(db)
+    address = contact_address_from_cv(cv)
+    config = MailboxConfig.from_env(address, provider=provider or "imap")
+    if provider:
+        config.provider = provider
+    if since_days:
+        config.since_days = since_days
+
+    click.echo(ui.rule(f"MAILBOX  ·  {config.address or '(no address in CV)'}  ·  "
+                       f"{config.provider}"))
+
+    try:
+        mailbox = build_provider(config)
+        reachable, detail = mailbox.health_check()
+    except MailboxError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    if not reachable:
+        click.echo(f"  {ui.badge('UNREACHABLE', ui.Tone.BAD)}  {detail}")
+        click.echo("\n  Set VANGUARD_MAIL_HOST, VANGUARD_MAIL_USER and "
+                   "VANGUARD_MAIL_PASSWORD in .env.")
+        click.echo("  Use an APP PASSWORD, never the account password.")
+        return
+
+    click.echo(f"  {ui.badge('CONNECTED', ui.Tone.GOOD)}  {detail}")
+
+    try:
+        messages = mailbox.fetch(limit=limit)
+    except MailboxError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    if not messages:
+        click.echo(f"\n  no messages in the last {config.since_days} days")
+        return
+
+    # Only applications actually submitted can receive a reply.
+    applications = []
+    for row in store.list_queue(limit=500):
+        if row["status"] not in ("DISPATCHED", "APPROVED"):
+            continue
+        vacancy = store.vacancy(row["vacancy_id"])
+        applications.append(Application(
+            vacancy_id=row["vacancy_id"], employer=row["employer"],
+            title=row["title"],
+            reference=(vacancy["reference"] if vacancy else "") or "",
+        ))
+
+    click.echo(f"\n  {len(messages)} message(s), {len(applications)} open "
+               f"application(s)\n")
+
+    archive = Archive(Path(archive_root))
+    rows, uncorrelated = [], 0
+
+    for message in messages:
+        result = correlate(message, applications)
+        if not result.correlated:
+            uncorrelated += 1
+            continue
+
+        outcome = classify(message)
+        rows.append([
+            outcome.state.value,
+            _clip(result.application.employer, 20),
+            _clip(message.subject, 34),
+            result.method.value,
+        ])
+
+        if not dry_run:
+            archive.add_message(
+                result.application.vacancy_id, message.body,
+                subject=message.subject, sender=message.sender,
+                kind=outcome.state.value.lower(),
+            )
+
+    if rows:
+        click.echo(ui.table(
+            [
+                ui.Column("STATE", 0.4, 9),
+                ui.Column("EMPLOYER", 0.9, 12),
+                ui.Column("SUBJECT", 1.6, 16),
+                ui.Column("VIA", 0.4, 7, tone=ui.Tone.MUTED),
+            ],
+            rows,
+        ))
+
+    if uncorrelated:
+        click.echo(f"\n  {ui.badge(f'{uncorrelated} uncorrelated', ui.Tone.MUTED)} "
+                   "— not matched to an application, and NOT classified")
+
+    if dry_run:
+        click.echo("\n  dry run — nothing recorded")
+    click.echo("\n  read-only: nothing was sent, replied to or deleted")
+
+
 # ---------------------------------------------------------------------------
 # Response loop (Route 5) — classify only. Never sends.
 # ---------------------------------------------------------------------------
