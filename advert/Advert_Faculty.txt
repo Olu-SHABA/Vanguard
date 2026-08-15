@@ -1,0 +1,65 @@
+About the job
+
+Why Faculty? 
+
+We established Faculty in 2014 because we thought that AI would be the most important technology of our time. Since then, we’ve worked with over 350 global customers to transform their performance through human-centric AI. You can read about our real-world impact here.
+
+We don’t chase hype cycles. We innovate, build and deploy responsible AI which moves the needle - and we know a thing or two about doing it well. We bring an unparalleled depth of technical, product and delivery expertise to our clients who span government, finance, retail, energy, life sciences and defence.
+
+Our business, and reputation, is growing fast and we’re always on the lookout for individuals who share our intellectual curiosity and desire to build a positive legacy through technology.
+
+AI is an epoch-defining technology, join a company where you’ll be empowered to envision its most powerful applications, and to make them happen.
+
+About The Team
+
+Our Retail and Consumer Business Unit is committed to leveraging AI to transform how retail and consumer businesses operate, compete, and serve their customers.
+
+From optimising supply chains and pricing strategies, to personalising customer experiences, through to forecasting demand with greater precision — we know that AI offers opportunities to drive improvements at every level of the retail and consumer value chain, and we are proud to lead on some of the most impactful work happening in the sector.
+
+About The Role
+
+As a Data Scientist, you will work closely with clients and cross functional teams to define project scope, ensure technical feasibility, and drive delivery excellence.
+
+You'll design and deliver bespoke data science solutions, shaping the technical direction of high-impact projects and solidifying our reputation as a leader in practical, measurable AI.
+
+What You'll Be Doing
+
+    Mapping the end-to-end data science approach and designing the associated software architecture for projects
+    Driving the technical scoping and feasibility assessment of new projects
+    Building strong client relationships by acting as a technical advisor and shaping the direction of current and future engagements
+    Delivering bespoke algorithms and scalable software solutions that adhere to best practices for high-stakes decision-making
+    Setting the technical bar for the project team, ensuring the highest standards of code, rigour, and delivery quality (IC leadership)
+    Contributing to Faculty's thought leadership and reputation through teaching, public speaking, or open-source projects
+
+Who We're Looking For
+
+    You have proven experience in a professional data science or quantitative academic role, underpinned by high mathematical and statistical competence.
+    You are a strong Python programmer, proficient in essential libraries (NumPy, Pandas) and a deep-learning framework (TensorFlow/PyTorch).
+    You possess a solid grasp of core data science techniques (supervised/unsupervised learning, time-series, NLP, model validation) and the ability to innovate new algorithms.
+    You apply a rigorous scientific and entrepreneurial mindset, translating complex business problems into a mathematical framework and measuring model impact upon deployment.
+    You are an exceptional communicator, adept at translating complex technical solutions into persuasive, actionable insights for senior and non-technical audiences.
+    You contribute to team success by project planning, assessing technical feasibility, estimating delivery timelines, and achieving measurable outcomes.
+
+Our Interview Process
+
+    Talent Team Screen (30 minutes)
+    Take Home Technical Assessment
+    Technical Interview (90 minutes)
+    Commercial Interview (60 minutes)
+
+Our Recruitment Ethos
+
+We aim to grow the best team - not the most similar one. We know that diversity of individuals fosters diversity of thought, and that strengthens our principle of seeking truth. And we know from experience that diverse teams deliver better work, relevant to the world in which we live. We’re united by a deep intellectual curiosity and desire to use our abilities for measurable positive impact. We strongly encourage applications from people of all backgrounds, ethnicities, genders, religions and sexual orientations.
+
+Some Of Our Standout Benefits
+
+    Unlimited Annual Leave Policy
+    Private healthcare and dental
+    Enhanced parental leave
+    Family-Friendly Flexibility & Flexible working
+    Sanctus Coaching
+    Hybrid Working
+
+If you don’t feel you meet all the requirements, but are excited by the role and know you bring some key strengths, please don't hesitate in applying as you might be right for this role, or other roles. We are open to conversations about part-time hours.
+
+A note on AI: we're happy for you to use it for research and interview prep, but please don't use it to generate answers during live interviews. We also use an AI note-taker (Metaview) in interviews so interviewers can stay present (which you can opt out of just let us know,) and every application is reviewed by a human, never decided by AI.

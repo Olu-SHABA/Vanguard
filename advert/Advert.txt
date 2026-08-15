@@ -1,103 +1,114 @@
 Senior Data Scientist
-Data Science - Remote / UK, London, City of
 
-About Beatport
+Location: United Kingdom; Europe
 
-For over 20 years, Beatport has been the global leader in DJ and club culture, pushing the boundaries of dance music to all corners of the world. Created by DJs for DJs, Beatport has always been dedicated to innovating new products and services to support evolving generations of music performers and producers.
+Employment Type: Full time
 
+Location Type: Remote
 
-The Beatport Group includes some of the best-known brands in DJ culture, including Beatport, Beatport Open Format, Ampsuite, LabelRadar, Plugin Boutique, Beatport Live & The International Music Summit (IMS). We are consistently looking for bright, creative professionals with diverse perspectives and backgrounds.
+Department: Data Science
 
+Compensation: UK £85K – £140K • Offers Equity • Offers Bonus. Europe €95K – €135K • Offers Equity • Offers Bonus
 
-Where you come in:
-
-We are seeking an experienced and adaptable Senior Data Scientist, with strong ML Engineering skills, to join a nimble and best-in-class data team at The Beatport Group. The role will report to the Director of Intelligence Engineering, and will share in the ownership and delivery of cutting edge, scalable ML models.
-
-Initial workstreams will likely include:
-
-    Content Recommendation and Personalisation
-    Search Optimisation 
-    Audio Modelling
-
-You will play a crucial role in transforming our data into genuinely useful product features that empower artists and connect DJs with the music that they love.
+The compensation offered for this role will depend on various factors, including the candidate's location, qualifications, work history, and interview performance, and may differ from the stated range.
 
 
 
-The ideal candidate will have 4-5 years of direct experience as a Data Scientist, with some experience in ML Engineering being advantageous. The candidate will demonstrate expert proficiency in Google Cloud Platform’s (GCP) latest ML/AI tooling, including, but not limited to:
+Who we are:
 
-    Vertex AI
-    BigQuery
-    Gemini APIs
+Sardine is the leading agentic risk platform for fighting financial crime. Our integrated solution unifies data across risk teams to help organizations stop fraud in real time, prevent AI-driven attacks, and automate fraud and AML operations. Sardine’s platform is strengthened by one of the fastest-growing fraud consortiums in the market, spanning more than 6 billion profiled devices, 800 million consumers, and 3 million businesses worldwide. Leading companies including FIS, GoDaddy, Intuit, Edward Jones, ZoomInfo, and Checkout.com rely on Sardine to secure and grow trust in their products.
 
-The candidate will also work closely with our Lead Data Scientist in developing and maintaining the team’s API service which delivers real-time ML output to Platform Engineering. FastAPI experience would be advantageous in this regard.
+Our culture:
 
+    We have hubs in the Bay Area, NYC, Austin, Toronto, and São Paulo. However, we maintain a remote-first work culture. #WorkFromAnywhere
 
+    We hire talented, self-motivated individuals with extreme ownership and high growth orientation.
 
-This role can be hybrid (London) or remote (but must have UK right to work and be based in the UK).
-The Technology Group is spread across Europe and North America. This is an exciting opportunity to shape the future of our ML/AI roadmap for a group at the forefront of electronic music and DJ culture.
+    We value performance and not hours worked. We believe you shouldn't have to miss your family dinner, your kid's school play, friends get-together, or doctor's appointments for the sake of adhering to an arbitrary work schedule.
 
+Location:
 
+    Remote - UK/Germany/Spain/Ireland/Poland/Netherlands/Lithuania/Bulgaria
 
-As a Senior Data Scientist, you will be responsible for:
+    From Home / Beach / Mountain / Cafe / Anywhere!
 
-    Developing and implementing ML-based solutions to enhance and optimise the Beatport customer experience. This may include semantic search to improve crate digging, content recommendation/personalisation engines, or leveraging our catalog for the development of best-in-class audio models for music professionals.
-    Acting as a subject matter expert regarding GCP’s latest ML/AI tooling, and continuously prototyping and advocating for new tooling to ensure that our MLOps and AI infrastructure remains fit for purpose.
-    Collaborating with Platform Engineering and Product to prioritise relevant workstreams across the Beatport Group. 
-    Working in conjunction with the Group’s Data Engineers and Data Analysts to refine and develop scalable data architectures to deliver unified and actionable ML-based intelligence across the Beatport Group data stack.
+    We are a remote-first company with a globally distributed team. You can find your productive zone and work from there.
 
+Location
 
+    Remote - USA or Canada
 
-As a Senior Data Scientist, you will need:
+    From Home / Beach / Mountain / Cafe / Anywhere!
 
-    4-5 years of direct experience as a Data Scientist, with 1+ year in a senior capacity preferred. 
-    Bachelor's degree in Computer Science, Statistics, Mathematics, or a related quantitative field.
-    Expert proficiency in GCP’s ML/AI tooling, and its data ecosystem in general.
-    Expert proficiency with Python and its core ML libraries e.g. PyTorch, TensorFlow.
-    Expert proficiency with SQL development, with Google dialects being advantageous.
-    Robust CI/CD discipline for ML, for example, GitHub Actions or GitLab CI, and infrastructure as code solutions for automating model rollout such as Terraform.
+We are a remote-first company with a globally distributed team. So you can find your productive zone and work from there.
+ 
 
+About the role
 
-It would be beneficial to have:
-
-    Proficiency with an API web framework e.g. FastAPI, Django, Flask.
-    Familiarity with experimentation and AB testing frameworks and packages.
-    Experience with vector databases or other methodologies that can support larger scale semantic search and retrieval pipelines. 
-    Domain knowledge in digital signal processing and/or audio fingerprinting in the context of the music industry. 
-    General music industry experience and/or an interest in DJ culture. 
+We're looking for a data-driven professional to help us measure, understand, and improve the performance of our risk strategies — and to stay ahead of evolving fraud threats by designing and deploying data-driven solutions with real-world impact. You'll work directly with clients to understand their unique fraud challenges, rapidly prototype proof-of-concept models, and build scalable, production-ready solutions using machine learning and graph analytics. You'll also analyze complex datasets, design metrics, build dashboards, and collaborate closely with stakeholders across the business to drive decision-making and optimize outcomes.
+This is a hands-on, high-impact role ideal for someone who thrives at the intersection of data science, client-facing problem solving, and real-time risk.
 
 
+What you'll be doing
 
-The Beatport Group Culture 
+    Champion a data-first approach across internal teams and client engagements, promoting clarity and impact
 
-At Beatport Group, creativity and community are at the forefront of everything we do. Our company is a hub of innovation, driven by a commitment to authenticity and a deep understanding of the music landscape. Our culture is built on the values of D.A.N.C.E (Demand Diversity, Accountability to our communities, Nurturing our ecosystem, Community first, always, and Evolution of our mission). We promote inclusiveness, innovative thinking, and thoughtful contributions, ensuring that we not only serve but also evolve with the diverse global DJ & music producer market. 
+    Build and deploy machine learning models to prevent fraud across diverse fintech use cases, from proof-of-concept through to production
 
+    Develop and track metrics to measure and monitor the performance of our risk products and the effectiveness of risk management strategies
 
-How to apply 
+    Conduct in-depth analyses to uncover insights contributing to fraud reduction and higher approval rates for our clients
 
-Please apply with your resume by clicking the "apply" link 
+    Work directly with clients to understand their fraud challenges and translate complex data insights into clear, actionable recommendations
 
+    Use data and models to support the development of risk mitigation strategies and interventions while preserving and improving the user experience
 
-Benefits 
+    Create and automate self-serve dashboards leveraging BI tools
 
-The position is within a highly motivated team with a positive working climate, allowing you to express your talent fully. In addition, we offer appropriate remuneration and very good development opportunities within a dynamically growing enterprise. Beyond this, the position provides an intensive integration into the international music scene. 
+    Collaborate with engineering to scale models into production, optimize performance, and support data instrumentation
 
+    Partner with cross-functional teams (Business, Product, and Engineering) to translate business requirements into data-driven solutions
 
-    Participation in company's annual bonus pool program
-    A professional environment with room for creativity and fun 
-    VIP Access to local music events & Livestreams
-    Enhanced holiday allowance 
-    Focus Days 
-    BUPA Health Insurance 
-    Learning Days 
-    Employer matched pension 
-    + More
+What you'll need
 
+    7+ years of experience in data science, quantitative modeling, or a data-focused role (product analytics, business analytics) with demonstrated high impact in fraud or risk contexts
 
-Equal Employment Opportunity 
+    Strong hands-on experience with Python/R and SQL is essential, with Spark being a nice to have
 
-The Beatport Group strongly supports equal employment opportunity for all applicants regardless of race, color, religion, sex, gender identity, pregnancy, national origin, ancestry, citizenship, age, marital status, physical disability, mental disability, medical condition, sexual orientation, genetic information, or any other characteristic protected by state or federal law. 
+    Expertise in BI tools such as Tableau, Sigma, or Metabase
 
+    Proven ability to structure and analyze complex data using techniques like EDA and cohort analysis, and communicate findings effectively to both technical and non-technical audiences, including clients
 
-Hiring Practices 
+    Sharp critical thinking and creative problem-solving skills with a bias toward action
 
-This job description has been designed to indicate the general nature and level of work performed by employees within this classification. It is not intended to contain or be interpreted as a comprehensive inventory of all duties, responsibilities, and qualifications required of employees assigned to this job. The Beatport Group’s recruitment policies are designed to place the most highly qualified persons available in a timely and efficient manner. The Beatport Group may pursue all avenues available, including promotion from within, employee referrals, outside advertising, Internet recruiting, job fairs and college recruiting. The Beatport Group does not accept speculative CV's from employment agencies unless specifically requested by the Talent Team. Please can we politely request that you do not contact our hiring managers.
+    Proficiency in defining, tracking, and communicating performance metrics
+
+Benefits we offer:
+
+    Generous compensation in cash and equity
+
+    Early exercise for all options, including pre-vested
+
+    Work from anywhere: Remote-first Culture
+
+    Flexible paid time off and Year-end break
+
+    Health insurance, dental, and vision coverage for employees and dependents - US and Canada specific
+
+    4% matching in 401k / RRSP - US and Canada specific
+
+    MacBook Pro delivered to your door
+
+    One-time stipend to set up a home office — desk, chair, screen, etc.
+
+    Monthly meal stipend
+
+    Monthly social meet-up stipend
+
+    Annual health and wellness stipend
+
+    Annual Learning stipend
+
+Join a fast-growing company with world-class professionals from around the world. If you are seeking a meaningful career, you found the right place, and we would love to hear from you.
+
+To learn more about how we process your personal information and your rights in regards to your personal information as an applicant and Sardine employee, please visit our Applicant and Worker Privacy Notice.

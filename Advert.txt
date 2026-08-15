@@ -1,0 +1,114 @@
+Senior Data Scientist
+
+Location: United Kingdom; Europe
+
+Employment Type: Full time
+
+Location Type: Remote
+
+Department: Data Science
+
+Compensation: UK £85K – £140K • Offers Equity • Offers Bonus. Europe €95K – €135K • Offers Equity • Offers Bonus
+
+The compensation offered for this role will depend on various factors, including the candidate's location, qualifications, work history, and interview performance, and may differ from the stated range.
+
+
+
+Who we are:
+
+Sardine is the leading agentic risk platform for fighting financial crime. Our integrated solution unifies data across risk teams to help organizations stop fraud in real time, prevent AI-driven attacks, and automate fraud and AML operations. Sardine’s platform is strengthened by one of the fastest-growing fraud consortiums in the market, spanning more than 6 billion profiled devices, 800 million consumers, and 3 million businesses worldwide. Leading companies including FIS, GoDaddy, Intuit, Edward Jones, ZoomInfo, and Checkout.com rely on Sardine to secure and grow trust in their products.
+
+Our culture:
+
+    We have hubs in the Bay Area, NYC, Austin, Toronto, and São Paulo. However, we maintain a remote-first work culture. #WorkFromAnywhere
+
+    We hire talented, self-motivated individuals with extreme ownership and high growth orientation.
+
+    We value performance and not hours worked. We believe you shouldn't have to miss your family dinner, your kid's school play, friends get-together, or doctor's appointments for the sake of adhering to an arbitrary work schedule.
+
+Location:
+
+    Remote - UK/Germany/Spain/Ireland/Poland/Netherlands/Lithuania/Bulgaria
+
+    From Home / Beach / Mountain / Cafe / Anywhere!
+
+    We are a remote-first company with a globally distributed team. You can find your productive zone and work from there.
+
+Location
+
+    Remote - USA or Canada
+
+    From Home / Beach / Mountain / Cafe / Anywhere!
+
+We are a remote-first company with a globally distributed team. So you can find your productive zone and work from there.
+ 
+
+About the role
+
+We're looking for a data-driven professional to help us measure, understand, and improve the performance of our risk strategies — and to stay ahead of evolving fraud threats by designing and deploying data-driven solutions with real-world impact. You'll work directly with clients to understand their unique fraud challenges, rapidly prototype proof-of-concept models, and build scalable, production-ready solutions using machine learning and graph analytics. You'll also analyze complex datasets, design metrics, build dashboards, and collaborate closely with stakeholders across the business to drive decision-making and optimize outcomes.
+This is a hands-on, high-impact role ideal for someone who thrives at the intersection of data science, client-facing problem solving, and real-time risk.
+
+
+What you'll be doing
+
+    Champion a data-first approach across internal teams and client engagements, promoting clarity and impact
+
+    Build and deploy machine learning models to prevent fraud across diverse fintech use cases, from proof-of-concept through to production
+
+    Develop and track metrics to measure and monitor the performance of our risk products and the effectiveness of risk management strategies
+
+    Conduct in-depth analyses to uncover insights contributing to fraud reduction and higher approval rates for our clients
+
+    Work directly with clients to understand their fraud challenges and translate complex data insights into clear, actionable recommendations
+
+    Use data and models to support the development of risk mitigation strategies and interventions while preserving and improving the user experience
+
+    Create and automate self-serve dashboards leveraging BI tools
+
+    Collaborate with engineering to scale models into production, optimize performance, and support data instrumentation
+
+    Partner with cross-functional teams (Business, Product, and Engineering) to translate business requirements into data-driven solutions
+
+What you'll need
+
+    7+ years of experience in data science, quantitative modeling, or a data-focused role (product analytics, business analytics) with demonstrated high impact in fraud or risk contexts
+
+    Strong hands-on experience with Python/R and SQL is essential, with Spark being a nice to have
+
+    Expertise in BI tools such as Tableau, Sigma, or Metabase
+
+    Proven ability to structure and analyze complex data using techniques like EDA and cohort analysis, and communicate findings effectively to both technical and non-technical audiences, including clients
+
+    Sharp critical thinking and creative problem-solving skills with a bias toward action
+
+    Proficiency in defining, tracking, and communicating performance metrics
+
+Benefits we offer:
+
+    Generous compensation in cash and equity
+
+    Early exercise for all options, including pre-vested
+
+    Work from anywhere: Remote-first Culture
+
+    Flexible paid time off and Year-end break
+
+    Health insurance, dental, and vision coverage for employees and dependents - US and Canada specific
+
+    4% matching in 401k / RRSP - US and Canada specific
+
+    MacBook Pro delivered to your door
+
+    One-time stipend to set up a home office — desk, chair, screen, etc.
+
+    Monthly meal stipend
+
+    Monthly social meet-up stipend
+
+    Annual health and wellness stipend
+
+    Annual Learning stipend
+
+Join a fast-growing company with world-class professionals from around the world. If you are seeking a meaningful career, you found the right place, and we would love to hear from you.
+
+To learn more about how we process your personal information and your rights in regards to your personal information as an applicant and Sardine employee, please visit our Applicant and Worker Privacy Notice.

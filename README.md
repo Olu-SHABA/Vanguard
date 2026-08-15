@@ -31,6 +31,7 @@ Per-board detail and configuration: **`MANUAL_ENTRY.md`**.
 Full command reference: **`COMMANDS.md`**.
 Open defects, deferrals and unverified assumptions: **`OUTSTANDING.md`**.
 Route to completion: **`ROADMAP.md`**.
+Phase 2 flowchart and specification: **`docs/PHASE_2.md`**.
 
 ## Install
 

@@ -1,0 +1,58 @@
+About the job
+
+DATA SCIENTIST
+
+ 
+
+SALARY BETWEEN £50,000-£60,000
+
+ 
+
+LONDON
+
+ 
+
+HYBRID WORKING (ONCE A WEEK IN-OFFICE)
+
+ 
+
+Harnham are working with an early-stage FinTech lender that is looking to hire a Data Scientist to join its growing credit function. This is an excellent opportunity for someone with strong quantitative skills to have a direct impact on lending decisions and help shape a business from an early stage.
+
+ 
+
+THE COMPANY
+
+This growing FinTech lender is building a modern lending platform that combines data-driven decision making with strong credit risk practices. Having recently secured funding and obtained the regulatory foundations needed for growth, the business is entering an exciting phase of expansion. Led by an experienced leadership team with a proven track record in consumer lending and financial services, the company offers the opportunity to join early, learn from industry experts, and play a key role in shaping the future of the business.
+
+ 
+
+THE ROLE
+
+As a Data Scientist, you will focus on credit risk, decisioning, and lending strategy. You will play a key role in developing and implementing analytical solutions that support lending decisions, pricing, affordability assessments, and portfolio performance.
+
+Specifically, you can expect to be involved in the following:
+
+    Building and monitoring credit risk scorecards, pricing models, and decisioning strategies.
+    Developing analytical solutions using customer, transactional, and external data sources.
+    Supporting affordability analysis, portfolio monitoring, and performance reporting.
+    Enhancing lending policies and strategies through data-driven insights.
+    Collaborating with commercial, product, and technology teams to improve lending outcomes.
+
+ 
+
+SKILLS AND EXPERIENCE
+
+The successful Data Scientist will have the following skills and experience:
+
+    A strong academic background with a degree in a quantitative STEM discipline.
+    2-4 years of experience in Data Science, Credit Risk Analytics, or a related quantitative field.
+    Experience within financial services, lending, insurance, or a similarly regulated environment.
+    Strong Python and SQL skills.
+    Knowledge of statistical modelling and machine learning techniques.
+    Ability to communicate analytical findings clearly to both technical and non-technical stakeholders.
+
+ 
+
+BENEFITS
+
+The successful Data Scientist will receive a salary up to £60,000.

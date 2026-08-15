@@ -1,0 +1,56 @@
+Data Scientist/Analyst
+Full-time
+Remote
+Skills
+Python
+Data Analysis
+Data Science
+Overview
+
+About Turing:
+
+Turing is one of the world’s fastest-growing AI companies accelerating the advancement and deployment of powerful AI systems.
+
+Turing helps customers in two ways: Working with the world’s leading AI labs to advance frontier model capabilities in thinking, reasoning, coding, agentic behavior, multimodality, multilinguality, STEM and frontier knowledge; and leveraging that work to build real-world AI systems that solve mission-critical priorities for companies.
+
+Role Overview:
+We are actively seeking talented Data Scientists & Analysts proficient in Python to join our ambitious team dedicated to pushing the frontiers of AI technology. This opportunity is tailored for professionals who thrive on developing innovative solutions and aspire to be at the forefront of AI advancements. You will work with companies in the US looking to develop cutting-edge commercial and research AI solutions. You will write effective Python code to tackle complex issues but also use your business sense and analytical abilities to glean valuable insights from public databases, fix bugs in the code, and create thorough documentation. The ideal candidate will communicate clearly with researchers and help the organization in realizing its objectives, and clearly express the reasoning and logic when writing code in Jupyter notebooks, or other suitable mediums. It will also utilize extensive data analysis skills to develop and respond to important business queries using available datasets (such as those from Kaggle, the UN, the US government, etc.) 
+
+
+What does day-to-day look like:
+
+    Design, develop, and maintain efficient, high-quality code to train and optimize AI models.
+    Conduct evaluations (Evals) to benchmark model performance and analyze results for continuous improvement.
+    Evaluate and rank AI model responses to user queries across diverse domains, ensuring alignment with predefined criteria.
+    Develop comprehensive explanations and rationales for evaluations, showcasing excellent reasoning and technical expertise.
+    Lead efforts in Supervised Fine-Tuning (SFT), including creating and maintaining high-quality, task-specific datasets.
+    Collaborate with researchers and annotators to execute Reinforcement Learning with Human Feedback (RLHF) and refine reward models.
+    Design innovative evaluation strategies and processes to improve the model's alignment with user needs and ethical guidelines.
+    Create and refine optimal responses to improve AI performance, emphasizing clarity, relevance, and technical accuracy.
+    Conduct thorough peer reviews of code and documentation, providing constructive feedback and identifying areas for improvement.
+    Collaborate with cross-functional teams to improve model performance and contribute to product enhancements.
+    Continuously explore and integrate new tools, techniques, and methodologies to enhance AI training processes.
+
+Required Skills
+
+    Bachelor’s/Master’s degree in Engineering, Computer Science (or equivalent experience) 
+    A desire to have a significant impact on the field of artificial intelligence 
+    Strong data analytic abilities and business sense are required to draw the appropriate conclusions from the dataset, respond to those conclusions, and clearly convey the key findings 
+    Excellent problem-solving and analytical skills 
+    Excellent communication abilities to work with stakeholders and researchers successfully 
+    Fluent in conversational and written English communication skills 
+
+Perks of Freelancing With Turing:
+
+    Work in a fully remote environment.
+    Opportunity to work on cutting-edge AI projects with leading LLM companies.
+
+Offer Details:
+
+    Commitments Required: at least 4 hours per day and minimum 20 hours per week with overlap of 4 hours with PST. (We have 3 options of time commitment: 20 hrs/week, 30 hrs/week or 40 hrs/week)
+    Engagement  type  : Contractor assignment (no medical/paid leave)
+    Duration of contract : 1 month; [expected start date is next week]
+
+Evaluation Process (approximately 75 mins) :
+
+    Two rounds of interviews (60 min technical + 15 min cultural &, offer discussion)

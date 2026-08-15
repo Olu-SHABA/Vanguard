@@ -151,7 +151,11 @@ classified.
 
 ## PHASE 2 — Evidence-driven correction
 
-**Effort: 3–5 days. Trigger: Phase 1 exit criteria met.**
+**Superseded 12 Aug 2026 by `docs/PHASE_2.md`**, which is derived from Phase 1
+operation rather than anticipated before it. The parameter work below remains
+valid; the flowchart and build sequence are in that document.
+
+**Effort: 3-5 days for parameters, ~15 days for the Phase 2 build.**
 
 | Item | What the evidence decides |
 |---|---|

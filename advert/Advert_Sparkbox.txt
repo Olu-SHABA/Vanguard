@@ -1,0 +1,45 @@
+About the job
+
+This is a job that Jill, our AI Recruiter, is recruiting for on behalf of one of our customers.
+
+She will pick the best candidates from Jack's network.
+
+The next step is to speak to Jack.
+
+Job Title
+
+Data Scientist / Senior Data Scientist
+
+Salary
+
+Not Disclosed
+
+Company Description
+
+Sparkbox.ai is a venture-backed London retail tech company recognized by Forbes and Tech Nation for building AI-driven inventory and pricing optimization tools for global brands like New Balance and River Island.
+
+Job Description
+
+You will develop the machine learning models powering demand forecasting and pricing optimization for global retail brands. Working alongside the Principal Data Scientist, you will own the full model lifecycle—from design and testing to production deployment on GCP—ensuring solutions are scalable, robust, and deliver actionable commercial insights.
+
+Location
+
+London, UK
+
+Why this role is remarkable
+
+    Work on real-world ML problems that directly impact margins and sustainability for major global retailers like River Island and New Balance.
+    Join a high-growth, venture-backed startup recognized by Forbes and Tech Nation as one of the UK’s most innovative early-stage tech companies.
+    Experience a high level of ownership, seeing your models move from development to production deployment quickly within a lean, expert team.
+
+What You Will Do
+
+    Design and improve predictive ML models for price optimization and demand forecasting using Python and cloud-based infrastructure.
+    Build end-to-end production solutions following strict software engineering practices, including unit testing, Git best practices, and object-oriented programming.
+    Analyze complex retail datasets to uncover actionable insights that inform product strategy and commercial decision-making for enterprise clients.
+
+The ideal candidate
+
+    Proven experience applying predictive machine learning to real-world problems with production-quality Python code using scikit-learn and pandas.
+    Hands-on expertise deploying and maintaining ML models in cloud environments, specifically GCP or similar platforms.
+    Strong software engineering foundations, including unit testing and the ability to write clean, scalable code beyond simple notebooks.

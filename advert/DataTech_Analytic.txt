@@ -1,0 +1,79 @@
+About the job
+
+Data Scientist
+
+Salary: Competitive up to £80,000 Depending on experience & skills 
+
+Location: Remote
+
+Job Reference: J13176
+
+Full UK working rights required - no sponsorship available
+
+The Role
+
+
+Our client is a global leader in supply chain risk and compliance technology, helping more than 50,000 organisations protect their people, operations and the planet. Their innovative software helps businesses and contractors stay compliant with critical standards across health and safety, sustainability and ethical behaviour.
+
+
+As a Data Scientist, you'll join a growing, highly skilled team spanning data science, data engineering, AI engineering and DevOps. You'll play a key role in building and deploying machine learning and AI solutions that power business applications and internal processes, helping shape how clients and contractors get to work faster, stay compliant and ultimately come home safely every day.
+
+
+This is an exciting opportunity to work across machine learning, predictive analytics, NLP and Large Language Models, with the chance to integrate innovative AI capabilities including LLMs, MCPs, APIs and enterprise data into production platforms. You'll work closely with Engineering and Product teams in a collaborative Agile environment, turning complex data and technology into solutions that deliver tangible business value.
+
+
+The role will include
+
+• Designing, developing and deploying machine learning models for risk scoring, compliance prediction, churn analysis and contractor performance analytics
+
+• Building and deploying LLM-based solutions for text analytics, anomaly detection and automated compliance checks
+
+• Working with Engineering and Product teams to integrate models into production environments across AWS and Azure
+
+• Using Microsoft Fabric for data ingestion, transformation and feature engineering
+
+• Implementing model monitoring, retraining and performance optimisation
+
+• Translating business requirements into effective technical solutions and communicating outcomes to non-technical stakeholders
+
+• Working collaboratively within a cross-functional Agile environment
+
+• Keeping up to date with emerging developments across AI, machine learning and predictive analytics
+
+• Developing innovative data-driven solutions that improve compliance, safety and business performance
+
+
+Skills
+
+• Proven commercial experience in Data Science and Machine Learning
+
+• Strong Python and SQL skills
+
+• Experience with machine learning frameworks such as TensorFlow, PyTorch and Jupyter Notebooks
+
+• Strong understanding of predictive modelling and machine learning techniques
+
+• Experience with NLP and Large Language Models (LLMs)
+
+• Familiarity with AWS services, including S3, SageMaker and Lambda
+
+• Experience or knowledge of Microsoft Fabric
+
+• Understanding of the machine learning model development and deployment lifecycle
+
+• Strong analytical and problem-solving abilities
+
+• Excellent communication skills, with the ability to explain complex technical concepts to non-technical stakeholders
+
+• Bachelor's or Master's degree in Data Science, Computer Science, Statistics or a related discipline
+
+• A proactive, curious mindset with a passion for emerging AI and ML technologies
+
+
+If you would like to hear more, please do get in touch.
+
+
+Alternatively, you can refer a friend or colleague by taking part in our fantastic referral scheme. For every relevant candidate you introduce who we successfully place, you'll be rewarded through our generous gift and voucher programme.
+
+
+Datatech is one of the UK's leading recruitment agencies specialising in Analytics, Data Science, AI and Business Intelligence, and host of the critically acclaimed Women in Data® initiative. For more information, visit www.datatech.org.uk.
