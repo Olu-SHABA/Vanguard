@@ -677,3 +677,50 @@ def test_quick_guide_is_actually_short() -> None:
     """It exists because the reference was too long to follow while working."""
     lines = (ROOT / "HOW_TO_ADD_A_JOB.md").read_text(encoding="utf-8").split("\n")
     assert len(lines) < 130, "if this grows past a page it has stopped being quick"
+
+
+def test_dispatch_archives_the_application(runner: CliRunner, tmp_path: Path) -> None:
+    """Directive §5. Without it, an interview six weeks later has no record of
+    what was submitted."""
+    vid = _seed(runner, tmp_path)
+    db = str(tmp_path / "v.db")
+    root = tmp_path / "Pipeline_Archive"
+
+    for command in (["resolve", vid], ["approve", vid]):
+        runner.invoke(main, [*command, "--db", db])
+    result = runner.invoke(main, ["dispatch", vid, "--db", db,
+                                  "--archive-root", str(root),
+                                  "--cv-source", str(ROOT / "data" / "canonical_cv.md")])
+
+    assert result.exit_code == 0
+    assert "archived" in result.output
+    assert list(root.glob("*/*/manifest.json"))
+
+
+def test_no_archive_flag_is_honoured(runner: CliRunner, tmp_path: Path) -> None:
+    vid = _seed(runner, tmp_path)
+    db = str(tmp_path / "v.db")
+    root = tmp_path / "Pipeline_Archive"
+    for command in (["resolve", vid], ["approve", vid]):
+        runner.invoke(main, [*command, "--db", db])
+    runner.invoke(main, ["dispatch", vid, "--db", db, "--no-archive",
+                         "--archive-root", str(root)])
+    assert not root.exists()
+
+
+def test_archive_command_lists_applications(runner: CliRunner, tmp_path: Path) -> None:
+    vid = _seed(runner, tmp_path)
+    db = str(tmp_path / "v.db")
+    root = tmp_path / "Pipeline_Archive"
+    for command in (["resolve", vid], ["approve", vid]):
+        runner.invoke(main, [*command, "--db", db])
+    runner.invoke(main, ["dispatch", vid, "--db", db, "--archive-root", str(root),
+                         "--cv-source", str(ROOT / "data" / "canonical_cv.md")])
+
+    out = runner.invoke(main, ["archive", "--root", str(root)]).output
+    assert "Senior Data Engineer" in out or "Job_Specs" in out
+
+
+def test_archive_command_handles_empty(runner: CliRunner, tmp_path: Path) -> None:
+    out = runner.invoke(main, ["archive", "--root", str(tmp_path / "none")]).output
+    assert "nothing archived" in out

@@ -16,7 +16,7 @@ what.
 | [Looking at results](#looking-at-results) | `review` · `score` · `stats` · `diagnose` |
 | [Deciding](#deciding) | `approve` · `reject` · `resolve` · `override` · `dispatch` |
 | [Responses](#responses) | `mail` · `dormant` · `feedback` · `interview` |
-| [Operations](#operations) | `logs` |
+| [Operations](#operations) | `logs` · `archive` |
 
 ---
 
@@ -356,7 +356,27 @@ Overriding it is a deliberate, recorded act rather than a click.
 
 ## `vanguard dispatch <id>`
 
-Record that **you** submitted the application. Vanguard sends nothing.
+Record that **you** submitted the application, and archive what was sent.
+Vanguard sends nothing.
+
+```bash
+vanguard dispatch reed:57092035
+vanguard dispatch reed:57092035 --cv out\cv.pdf --cover-letter out\letter.pdf
+vanguard dispatch reed:57092035 --no-archive
+```
+
+| Option | Effect |
+|---|---|
+| `--note` | Free text recorded on the transition |
+| `--cv` | The CV PDF actually submitted. Defaults to `out/cv.pdf` if present |
+| `--cover-letter` | The cover letter or essay actually submitted |
+| `--cv-source` | Canonical CV markdown archived alongside the PDF |
+| `--archive-root` | Where applications are archived. Default `Pipeline_Archive` |
+| `--no-archive` | Record the dispatch without writing an archive |
+
+**Why it archives.** An interview happens six weeks after dispatch. By then the
+advert has been taken down and the CV has been edited. Without this there is no
+record of what was actually sent.
 
 ---
 
@@ -591,3 +611,49 @@ defaults:
 ```
 
 Override for a single invocation with the global `--log` / `--no-log` flags.
+
+
+## `vanguard archive`
+
+What was submitted, and when.
+
+```bash
+vanguard archive                    # every application, newest first
+vanguard archive reed:57092035      # one application in full
+vanguard archive --limit 50
+vanguard archive --root elsewhere
+```
+
+| Option | Effect |
+|---|---|
+| `--root` | Archive location. Default `Pipeline_Archive` |
+| `--limit` | How many applications to list. Default 20 |
+
+### Layout
+
+```
+Pipeline_Archive/
+└── Ministry_of_Justice/
+    └── 20260812T1015_reed-57092035/
+        ├── 20260812T1015_Job_Specs.txt
+        ├── 20260812T1015_Optimized_CV.md
+        ├── 20260812T1015_Optimized_CV.pdf
+        ├── 20260812T1015_Cover_Letter.pdf
+        ├── 20260812T1015_Answers.json
+        └── manifest.json
+```
+
+**A subfolder per vacancy, not per employer.** Applying to one employer twice
+would otherwise produce files with the same timestamp prefix and no way to tell
+which application either belonged to.
+
+`manifest.json` records the vacancy id, reference, submission type, coverage,
+ceiling and which embedder produced them — so a score can be explained months
+later.
+
+Correspondence is filed alongside the application it concerns: acknowledgements,
+interview invitations and rejections land in the same folder.
+
+**Written at dispatch, not at approval.** Approval means eligible for dispatch,
+not submitted. Archiving at approval would create folders for applications never
+sent.

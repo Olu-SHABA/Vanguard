@@ -35,6 +35,7 @@ except ImportError:  # pragma: no cover
 
 from vanguard import ui
 from vanguard.adapters.base import Query, load_registry
+from vanguard.archive import ARCHIVE_ROOT, Archive, ArchiveError
 from vanguard.coverage import compute_coverage, load_aliases
 from vanguard.cv import load as load_cv
 from vanguard.extract import extract
@@ -710,11 +711,66 @@ def override(vacancy_id, why, db) -> None:
 @main.command()
 @click.argument("vacancy_id")
 @click.option("--note", default="")
+@click.option("--cv", "cv_pdf", type=click.Path(exists=True),
+              help="The CV PDF actually submitted.")
+@click.option("--cover-letter", type=click.Path(exists=True),
+              help="The cover letter or essay actually submitted.")
+@click.option("--archive-root", default=str(ARCHIVE_ROOT),
+              help="Where applications are archived.")
+@click.option("--no-archive", is_flag=True, help="Record the dispatch without archiving.")
+@click.option("--cv-source", default=DEFAULTS["cv"],
+              help="Canonical CV markdown to archive alongside the PDF.")
 @click.option("--db", default=DEFAULTS["db"])
-def dispatch(vacancy_id, note, db) -> None:
-    """Record a submission YOU made. Vanguard never transmits."""
-    _, queue = _ctx(db)
+def dispatch(vacancy_id, note, cv_pdf, cover_letter, archive_root,
+             no_archive, cv_source, db) -> None:
+    """Record a submission YOU made, and archive what was sent.
+
+    Vanguard never transmits. This records that you did, and writes the job
+    description and CV to `Pipeline_Archive/` so the application can be
+    reconstructed when an interview happens six weeks later and the advert has
+    been taken down.
+    """
+    store, queue = _ctx(db)
     _apply(queue.dispatch, vacancy_id, note)
+
+    if no_archive:
+        return
+
+    vacancy = store.vacancy(vacancy_id)
+    if vacancy is None:
+        return
+
+    record = store.queue_record(vacancy_id)
+    score = store.latest_score(vacancy_id)
+    default_cv = Path("out/cv.pdf")
+
+    try:
+        archived = Archive(Path(archive_root)).write(
+            vacancy_id=vacancy_id,
+            employer=vacancy["employer"],
+            title=vacancy["title"],
+            job_description=vacancy["description"],
+            cv_markdown=Path(cv_source).read_text(encoding="utf-8")
+                        if Path(cv_source).is_file() else "",
+            cv_pdf=Path(cv_pdf) if cv_pdf else (default_cv if default_cv.is_file() else None),
+            cover_letter=Path(cover_letter) if cover_letter else None,
+            metadata={
+                "url": vacancy["url"],
+                "reference": vacancy["reference"],
+                "submission_type": record["submission_type"] if record else "",
+                "coverage": score["coverage"] if score else None,
+                "ceiling": score["ceiling"] if score else None,
+                "embedder": score["embedder"] if score else "",
+            },
+        )
+    except ArchiveError as exc:
+        click.echo(f"  not archived: {exc}", err=True)
+        return
+
+    click.echo(f"  archived {archived.summary()}")
+    if not archived.complete:
+        click.echo("  WARNING: no CV archived — pass --cv, or render out/cv.pdf first",
+                   err=True)
 
 
 def _apply(fn, vacancy_id: str, arg: str) -> None:
@@ -961,6 +1017,62 @@ def logs_cmd(db, boards_path, limit, errors_only, do_archive) -> None:
     click.echo()
     click.echo(f"  verbose detail: {config.directory}/vanguard.log")
     click.echo("  vanguard logs --archive   move old records aside (nothing deleted)")
+
+
+@main.command("archive")
+@click.argument("vacancy_id", required=False)
+@click.option("--root", default=str(ARCHIVE_ROOT))
+@click.option("--limit", default=20)
+def archive_cmd(vacancy_id, root, limit) -> None:
+    """What was actually submitted, and when.
+
+    An interview happens weeks after dispatch, by which time the advert has
+    been taken down and the CV has been edited. This is the record of what
+    was sent.
+    """
+    store = Archive(Path(root))
+    applications = (store.for_vacancy(vacancy_id) if vacancy_id
+                    else store.applications())
+
+    if not applications:
+        click.echo("nothing archived yet" if not vacancy_id
+                   else f"nothing archived for {vacancy_id}")
+        return
+
+    width = _terminal_width()
+
+    if vacancy_id or len(applications) == 1:
+        for application in applications:
+            click.echo()
+            click.echo(ui.rule(_clip(f"{application.title} — {application.employer}",
+                                     width - 8)))
+            click.echo(ui.field_list([
+                ("archived", application.archived_at[:16].replace("T", " ")),
+                ("vacancy", application.vacancy_id),
+                ("folder", str(application.directory)),
+            ], indent="  "))
+            click.echo()
+            for key, path in sorted(application.files.items()):
+                mark = "ok " if path.is_file() else "-- "
+                click.echo(f"  {mark} {key:<20} {path.name}")
+            if not application.complete:
+                click.echo(f"\n  {ui.badge('INCOMPLETE', ui.Tone.WARN)} "
+                           "no CV archived with this application")
+        return
+
+    click.echo(ui.rule(f"ARCHIVE  ·  {len(applications)} application(s)"))
+    click.echo(ui.table(
+        [
+            ui.Column("WHEN", 0.6, 12),
+            ui.Column("EMPLOYER", 1.1, 12),
+            ui.Column("TITLE", 1.8, 16),
+            ui.Column("FILES", 0.3, 5, "right"),
+        ],
+        [[a.archived_at[:16].replace("T", " "), a.employer, a.title,
+          str(len(a.files))] for a in applications[:limit]],
+    ))
+    click.echo()
+    click.echo("  vanguard archive <ID>   for one application in full")
 
 
 # ---------------------------------------------------------------------------
