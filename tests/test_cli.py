@@ -922,3 +922,38 @@ def test_phase_document_matches_what_is_built() -> None:
             f"{heading} is built ({', '.join(modules)}) but PHASE_2.md does "
             "not say so"
         )
+
+
+def test_readme_lists_every_command() -> None:
+    """The front page is where someone starts. A command absent from it is a
+    command they will not know exists.
+
+    This fired when Phase 2 added eight commands and the README still stopped
+    at the Phase 1 set.
+    """
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    missing = [name for name in main.commands
+               if f"vanguard {name}" not in readme]
+    assert not missing, f"README.md does not mention {missing}"
+
+
+def test_readme_records_no_test_count() -> None:
+    """A figure in prose is false after the next commit and nobody notices.
+
+    The README carried "417 tests at milestone" for weeks after the suite had
+    passed a thousand.
+    """
+    import re
+
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    claims = re.findall(r"\b\d{3,}\s+tests?\b", readme, re.I)
+    assert not claims, f"README.md claims a test count: {claims}"
+
+
+def test_readme_layout_covers_every_working_directory() -> None:
+    """A directory the system creates and the README does not mention is one
+    the operator will find by accident."""
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    for directory in ("adverts/", "Pipeline_Archive/", "logs/", "out/",
+                      "docs/", "config/", "data/", "render/"):
+        assert directory in readme, f"README.md does not mention {directory}"

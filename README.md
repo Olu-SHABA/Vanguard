@@ -10,6 +10,8 @@ Governing documents: `PROJECT_VANGUARD_DIRECTIVE.md` (behaviour),
 
 ## Status
 
+**Phase 1 — build.** All six milestones complete.
+
 | Milestone | State |
 |---|---|
 | M0 Foundations | Complete |
@@ -18,12 +20,27 @@ Governing documents: `PROJECT_VANGUARD_DIRECTIVE.md` (behaviour),
 | M3 Drafting | Complete |
 | M4 Ingestion | Complete |
 | M5 Governance and queue | Complete |
-| **M6 Response loop** | **Complete — 417 tests at milestone** |
+| M6 Response loop | Complete |
 
-**All milestones complete.**
+**Phase 2 — derived from live operation.** All three parts complete. Specified
+in `docs/PHASE_2.md`, which was written from what Phase 1 running against real
+job boards actually exposed.
 
-Test counts above are recorded at each milestone, not maintained between them.
-Run `pytest` for the current figure.
+| Part | State |
+|---|---|
+| A.1 Archive on dispatch | `archive.py` · `vanguard archive` |
+| A.2 Mailbox polling | `mailbox.py` · `vanguard poll` — IMAP and Gmail |
+| A.3 Multi-round interviews | `process.py` · `vanguard interviews` |
+| — Batch advert ingestion | `adverts.py` · `vanguard adverts` |
+| B Repository evidence | `repo.py` · `vanguard evidence` |
+| C Application channel | `channel.py` · `vanguard apply`, `vanguard registrations` |
+
+**What remains** is either blocked on external access, deferred by operator
+ruling, or waiting on evidence from real use. See `OUTSTANDING.md` and
+`ROADMAP.md`.
+
+No test count is recorded here. A figure in prose is false after the next
+commit and nobody notices — run `pytest`.
 
 Day-to-day operation and troubleshooting: **`SOP.md`**.
 Adding a job by hand, five steps: **`HOW_TO_ADD_A_JOB.md`**.
@@ -119,7 +136,10 @@ vanguard paste --file advert.txt    # Tier 3: hand-feed one vacancy
 vanguard review                     # PENDING, strongest first
 vanguard review <id>                # coverage, itemised gaps, history
 vanguard approve <id>
+vanguard reject <id> --reason "..."
+vanguard resolve <id>               # clear a FLAGGED ambiguity
 vanguard override <id> --why "..."  # apply despite an unreachable ceiling
+vanguard apply <id>                 # what it needs, and where — then stops
 vanguard dispatch <id>              # record a submission YOU made
 vanguard stats                      # coverage distribution, recurring gaps
 vanguard diagnose                   # why adverts refuse; unrecognised headings
@@ -127,6 +147,9 @@ vanguard adverts ingest             # batch-ingest a folder of pasted adverts
 vanguard poll                       # read the mailbox, correlate, classify
 vanguard interviews                 # interview processes, all rounds
 vanguard archive                    # what was actually submitted
+vanguard evidence --repo <path|url> # propose CV bullets from your own repos
+vanguard registrations list         # where you hold accounts
+vanguard logs                       # run history and recorded errors
 vanguard score --advert advert.txt  # standalone, no database
 
 vanguard mail --file reply.txt      # correlate + classify one message
@@ -228,12 +251,21 @@ history, not identity.
 ## Layout
 
 ```
-config/     boards.yaml, alias_table.yaml
-data/       canonical_cv.md — single source of truth
-render/     standard.css, anonymised.css
+config/             boards.yaml, alias_table.yaml
+data/               canonical_cv.md — single source of truth
+render/             standard.css, anonymised.css
+docs/               PHASE_2.md
 src/vanguard/
 tests/
+
+adverts/            pasted adverts awaiting ingest      (gitignored)
+Pipeline_Archive/   what was actually submitted         (gitignored)
+logs/               operational log, rotated nightly    (gitignored)
+out/                rendered PDFs                       (gitignored)
 ```
 
 `data/canonical_cv.md` is the only place employment history is edited. PDFs
 are disposable outputs; regenerate rather than repair.
+
+The four gitignored directories are created on first use. `COMMANDS.md`
+records which of them grow without bound and when to act.
