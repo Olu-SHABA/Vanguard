@@ -402,7 +402,8 @@ vanguard poll --provider gmail
 | `--verbose` | Show sender addresses alongside subjects |
 | `--show-uncorrelated` | List messages that matched no application |
 | `--category` | Gmail tab: `primary` (default) or `all` |
-| `--broad` | Read everything in the window instead of searching for known employers and references |
+| `--strategy` | `auto` (default), `targeted` or `window` |
+| `--broad` | Alias for `--strategy window` |
 | `--cv` | The CV whose contact address is monitored |
 | `--archive-root` | Where correspondence is filed |
 
@@ -421,10 +422,36 @@ Two things address it:
 search, restricting to the tab where employer replies land. `--category all`
 reads everything.
 
-**Targeted search.** Rather than reading the most recent N and correlating
-afterwards, the poll searches for the employers and references of your open
-applications. A reply from three weeks ago is found regardless of how much
-promotional mail arrived since. `--broad` disables this.
+### Two fetch strategies
+
+| | Targeted | Window |
+|---|---|---|
+| Query | `after:date category:primary {"19568" "Beatport" ...}` | `after:date category:primary` |
+| Query length | Grows with applications | **Fixed** |
+| Messages fetched | Few, pre-filtered | All in the window |
+| Correlation | On a small set | On everything |
+| Best when | Few applications | **Many applications** |
+
+**The trade inverts with volume.** At 7 open applications a search is a real
+filter — most of the inbox is irrelevant. At 500 it is a thousand-term query
+narrowing almost nothing, and it runs into IMAP command length and Gmail's own
+query limits.
+
+`auto` switches at `window_threshold` in `boards.yaml`, default 40. That number
+is an **estimate, not a measurement** — 40 applications is roughly 80 search
+terms, still a short query, but the right value depends on how much
+non-application mail arrives in the monitored tab.
+
+```yaml
+defaults:
+  mail:
+    strategy: auto           # auto | targeted | window
+    window_threshold: 40     # ESTIMATE. Revisit with real volume
+```
+
+**Every run states which strategy it used and why.** A silent switch would be
+invisible, and a change in behaviour with no stated cause is exactly the
+failure this project keeps finding.
 
 Neither applies to non-Gmail providers, which fall back to a plain `SINCE`
 search.

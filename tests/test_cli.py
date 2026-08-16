@@ -724,3 +724,24 @@ def test_archive_command_lists_applications(runner: CliRunner, tmp_path: Path) -
 def test_archive_command_handles_empty(runner: CliRunner, tmp_path: Path) -> None:
     out = runner.invoke(main, ["archive", "--root", str(tmp_path / "none")]).output
     assert "nothing archived" in out
+
+
+def test_poll_strategy_is_configurable() -> None:
+    from vanguard.cli import _mail_strategy, _window_threshold
+
+    assert _mail_strategy(str(ROOT / "config" / "boards.yaml")) in (
+        "auto", "targeted", "window")
+    assert _window_threshold(str(ROOT / "config" / "boards.yaml")) > 0
+
+
+def test_poll_reports_which_strategy_it_used(runner: CliRunner, tmp_path: Path) -> None:
+    """Without this a switch would be invisible.
+
+    With no credentials the command stops at the health check, before a
+    strategy is chosen — so the mailbox line is what proves it got that far.
+    `choose_strategy` is tested directly in test_mailbox.
+    """
+    out = runner.invoke(main, ["poll", "--db", str(tmp_path / "v.db"),
+                               "--cv", str(ROOT / "data" / "canonical_cv.md")]).output
+    assert "MAILBOX" in out
+    assert "UNREACHABLE" in out or "TARGETED" in out or "WINDOW" in out

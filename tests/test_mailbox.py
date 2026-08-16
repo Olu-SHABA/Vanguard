@@ -343,3 +343,76 @@ def test_extra_terms_are_grouped_as_an_or() -> None:
 
     wire = b"".join(connection.sent).decode()
     assert '{"A" "B"}' in wire
+
+
+# ---------------------------------------------------------------------------
+# Fetch strategy — targeted below the threshold, window above
+#
+# The trade inverts with volume. At 7 applications a search is a real filter;
+# at 500 it is a thousand-term query narrowing almost nothing, and it runs
+# into IMAP command length and Gmail's own query limits.
+# ---------------------------------------------------------------------------
+
+from vanguard.mailbox import (  # noqa: E402
+    DEFAULT_WINDOW_THRESHOLD,
+    FetchStrategy,
+    choose_strategy,
+)
+
+
+@pytest.mark.parametrize("count", [0, 1, 7, 39])
+def test_below_threshold_uses_targeted(count: int) -> None:
+    strategy, _ = choose_strategy(FetchStrategy.AUTO, count)
+    assert strategy is FetchStrategy.TARGETED
+
+
+@pytest.mark.parametrize("count", [40, 75, 525, 5000])
+def test_at_or_above_threshold_uses_window(count: int) -> None:
+    """At 75 applications a day, a targeted search becomes a thousand-term
+    query within a week."""
+    strategy, _ = choose_strategy(FetchStrategy.AUTO, count)
+    assert strategy is FetchStrategy.WINDOW
+
+
+def test_the_boundary_is_inclusive() -> None:
+    assert choose_strategy(FetchStrategy.AUTO, DEFAULT_WINDOW_THRESHOLD - 1)[0] \
+        is FetchStrategy.TARGETED
+    assert choose_strategy(FetchStrategy.AUTO, DEFAULT_WINDOW_THRESHOLD)[0] \
+        is FetchStrategy.WINDOW
+
+
+def test_threshold_is_configurable() -> None:
+    """Authored, not measured. It must be tunable without a code change."""
+    assert choose_strategy(FetchStrategy.AUTO, 10, threshold=5)[0] \
+        is FetchStrategy.WINDOW
+    assert choose_strategy(FetchStrategy.AUTO, 10, threshold=100)[0] \
+        is FetchStrategy.TARGETED
+
+
+@pytest.mark.parametrize("forced", [FetchStrategy.TARGETED, FetchStrategy.WINDOW])
+def test_explicit_strategy_overrides_the_count(forced: FetchStrategy) -> None:
+    strategy, reason = choose_strategy(forced, 5000)
+    assert strategy is forced
+    assert "forced" in reason
+
+
+def test_the_reason_is_always_stated() -> None:
+    """A silent switch would be invisible, and a change in behaviour with no
+    stated cause is the failure this project keeps finding."""
+    for count in (0, 39, 40, 500):
+        _, reason = choose_strategy(FetchStrategy.AUTO, count)
+        assert reason and str(count) in reason
+
+
+def test_window_query_length_does_not_grow(monkeypatch) -> None:
+    """The point of the window strategy: a fixed-length query, immune to IMAP
+    command length and Gmail's query limits however many applications exist."""
+    for name in ("VANGUARD_MAIL_HOST", "VANGUARD_MAIL_USER"):
+        monkeypatch.delitem(os.environ, name, raising=False)
+
+    provider = ImapProvider(MailboxConfig(address="x@gmail.com",
+                                          host="imap.gmail.com",
+                                          username="u", password="p"))
+    query = provider._gmail_query(datetime(2026, 8, 1, tzinfo=timezone.utc))
+    assert len(query) < 60
+    assert "{" not in query, "no OR expression, so nothing to grow"

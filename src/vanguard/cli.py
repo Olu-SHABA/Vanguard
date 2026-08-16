@@ -42,6 +42,7 @@ from vanguard.extract import extract
 from vanguard.gaps import classify_all
 from vanguard.ingest import health_check_all, ingest
 from vanguard.logs import LogConfig, RunLog, configure
+from vanguard.mailbox import FetchStrategy, choose_strategy
 from vanguard.mail import Message
 from vanguard.queue import IllegalTransition, QueueManager, Status
 from vanguard.rank import LexicalEmbedder, rank_score
@@ -233,6 +234,31 @@ def _score_and_queue(vacancy, store, queue, canonical, alias_table, embedder, na
         f"{_clip(vacancy.title, max(16, width - 48))}"
     )
     return status.value
+
+
+def boards_default() -> str:
+    return DEFAULTS["boards"]
+
+
+def _mail_block(boards_path: str) -> dict:
+    try:
+        return (load_registry(boards_path).defaults.get("mail") or {})
+    except Exception:
+        return {}
+
+
+def _mail_strategy(boards_path: str) -> str:
+    return str(_mail_block(boards_path).get("strategy", "auto")).lower()
+
+
+def _window_threshold(boards_path: str) -> int:
+    from vanguard.mailbox import DEFAULT_WINDOW_THRESHOLD
+
+    try:
+        return int(_mail_block(boards_path).get(
+            "window_threshold", DEFAULT_WINDOW_THRESHOLD))
+    except (TypeError, ValueError):
+        return DEFAULT_WINDOW_THRESHOLD
 
 
 def _open_applications(store) -> list:
@@ -1114,14 +1140,15 @@ def archive_cmd(vacancy_id, root, limit) -> None:
 @click.option("--show-uncorrelated", is_flag=True,
               help="List messages that matched no application.")
 @click.option("--category", default="", help="Gmail tab: primary (default) or all.")
-@click.option("--broad", is_flag=True,
-              help="Read everything in the window instead of searching for known "
-                   "employers and references.")
+@click.option("--strategy", "strategy_name",
+              type=click.Choice(["auto", "targeted", "window"]), default=None,
+              help="How to narrow the mailbox. Default from boards.yaml, else auto.")
+@click.option("--broad", is_flag=True, help="Alias for --strategy window.")
 @click.option("--cv", default=DEFAULTS["cv"])
 @click.option("--db", default=DEFAULTS["db"])
 @click.option("--archive-root", default=str(ARCHIVE_ROOT))
 def poll_cmd(provider, since_days, limit, dry_run, verbose, show_uncorrelated,
-             category, broad, cv, db, archive_root) -> None:
+             category, strategy_name, broad, cv, db, archive_root) -> None:
     """Read the mailbox, correlate replies to applications, classify them.
 
     Read-only. Never sends, never replies, never deletes.
@@ -1169,32 +1196,36 @@ def poll_cmd(provider, since_days, limit, dry_run, verbose, show_uncorrelated,
     # reply can sit outside a recent-N window entirely.
     applications = _open_applications(store)
 
+    # Which strategy, and why. A silent switch would be invisible, and a
+    # change in behaviour with no stated cause is the failure this project
+    # keeps finding.
+    requested = FetchStrategy(
+        "window" if broad else (strategy_name or _mail_strategy(boards_default())))
+    threshold = _window_threshold(boards_default())
+    strategy, reason = choose_strategy(requested, len(applications), threshold)
+
     extra_terms: list[str] = []
-    if not broad:
+    if strategy is FetchStrategy.TARGETED:
         for app in applications:
             if app.reference:
                 extra_terms.append(f'"{app.reference}"')
             employer = app.employer.split(",")[0].strip()
             if len(employer) > 3:
                 extra_terms.append(f'"{employer}"')
-        # Deduplicate, and cap only where the query would become unwieldy.
-        # 20 was arbitrary and dropped terms silently — roughly ten
-        # applications' worth. Gmail accepts long queries; the practical
-        # limit is the IMAP literal, which is generous.
         extra_terms = list(dict.fromkeys(extra_terms))
         if len(extra_terms) > MAX_SEARCH_TERMS:
             click.echo(f"  {ui.badge('TRUNCATED', ui.Tone.WARN)} "
-                       f"{len(extra_terms)} search terms exceeds "
-                       f"{MAX_SEARCH_TERMS}; the oldest applications are not "
-                       "searched for. Use --broad to read the window instead.")
+                       f"{len(extra_terms)} terms exceeds {MAX_SEARCH_TERMS}. "
+                       "Use --strategy window.")
             extra_terms = extra_terms[:MAX_SEARCH_TERMS]
 
-    if extra_terms:
-        click.echo(f"  searching for {len(applications)} employer(s) and "
-                   f"reference(s) in category:{config.category}")
+    if strategy is FetchStrategy.TARGETED:
+        click.echo(f"  {ui.badge('TARGETED', ui.Tone.INFO)} {len(extra_terms)} "
+                   f"search term(s) in category:{config.category}")
     else:
-        click.echo(f"  reading category:{config.category}, "
-                   f"last {config.since_days} days")
+        click.echo(f"  {ui.badge('WINDOW', ui.Tone.INFO)} category:"
+                   f"{config.category}, last {config.since_days} days")
+    click.echo(f"      {reason}")
 
     try:
         messages = mailbox.fetch(limit=limit, extra_terms=extra_terms)

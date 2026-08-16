@@ -43,6 +43,7 @@ import os
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from enum import Enum
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterator, Sequence
@@ -50,6 +51,8 @@ from typing import Iterator, Sequence
 from vanguard.mail import Message
 
 __all__ = [
+    "FetchStrategy",
+    "choose_strategy",
     "MailboxError",
     "MailboxConfig",
     "MailProvider",
@@ -62,6 +65,63 @@ __all__ = [
 
 class MailboxError(RuntimeError):
     """The mailbox could not be reached or read."""
+
+
+class FetchStrategy(str, Enum):
+    """How to narrow the mailbox before correlating.
+
+    **TARGETED** searches for the employers and references of open
+    applications. Precise while there are few of them: most of the inbox is
+    irrelevant and the query removes it.
+
+    **WINDOW** fetches everything in the date range and correlates in memory.
+    The query is fixed length — `after:date category:primary` — so it is
+    immune to the limits targeted search runs into: IMAP command length,
+    Gmail's own query limits, and the diminishing return of filtering when
+    almost everything in the window is already relevant.
+
+    The trade inverts with volume. At 7 applications a search is a real
+    filter; at 500 it is a thousand-term query that narrows almost nothing.
+    """
+
+    TARGETED = "targeted"
+    WINDOW = "window"
+    AUTO = "auto"
+
+
+#: Open applications at which AUTO switches to WINDOW.
+#:
+#: **ESTIMATE, not measured.** Reasoning: 40 applications is roughly 80 search
+#: terms, still a comfortably short query. What the number should be depends
+#: on how much non-application mail arrives in the monitored tab, which is
+#: unknown until the system has run at volume. Revisit with real data.
+DEFAULT_WINDOW_THRESHOLD = 40
+
+
+def choose_strategy(requested: FetchStrategy, open_applications: int,
+                    threshold: int = DEFAULT_WINDOW_THRESHOLD
+                    ) -> tuple[FetchStrategy, str]:
+    """Resolve AUTO, and say why. Returns (strategy, reason).
+
+    The reason is reported on every run. Without it a silent switch would be
+    invisible, and a change in behaviour with no stated cause is the failure
+    mode this project keeps finding.
+    """
+    if requested is FetchStrategy.TARGETED:
+        return FetchStrategy.TARGETED, "forced by --strategy"
+    if requested is FetchStrategy.WINDOW:
+        return FetchStrategy.WINDOW, "forced by --strategy"
+
+    if open_applications >= threshold:
+        return FetchStrategy.WINDOW, (
+            f"{open_applications} open applications at or above the "
+            f"threshold of {threshold} — a search would be long and would "
+            "narrow little"
+        )
+    return FetchStrategy.TARGETED, (
+        f"{open_applications} open application(s), below the threshold of "
+        f"{threshold}"
+    )
 
 
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")

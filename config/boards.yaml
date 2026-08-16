@@ -44,6 +44,25 @@ defaults:
     to_database: true
     to_file: true
 
+  # Mailbox polling strategy.
+  #
+  # `targeted` searches for the employers and references of open
+  # applications — precise while there are few. `window` fetches everything
+  # in the date range and correlates in memory: a fixed-length query, immune
+  # to IMAP command length and Gmail's query limits.
+  #
+  # The trade inverts with volume. At 7 applications a search is a real
+  # filter; at 500 it is a thousand-term query narrowing almost nothing.
+  #
+  # `auto` switches at the threshold below.
+  mail:
+    strategy: auto           # auto | targeted | window
+    # ESTIMATE, not measured. 40 applications is ~80 search terms, still a
+    # short query. The right number depends on how much non-application mail
+    # arrives in the monitored tab, which is unknown until the system has run
+    # at volume. Revisit with real data.
+    window_threshold: 40
+
   # Rank-score floor for the pre-filter. Document-level similarity costs one
   # embedding; hydration and scoring cost an API call plus per-term work.
   # Vacancies below this floor are not hydrated and not scored.
