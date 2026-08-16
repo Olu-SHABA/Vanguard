@@ -669,12 +669,14 @@ def test_manual_entry_guide_names_only_real_boards() -> None:
     assert referenced <= known, f"unknown boards: {referenced - known}"
 
 
-@pytest.mark.parametrize("guide", ["HOW_TO_ADD_A_JOB.md", "HOW_TO_ADD_MANY_JOBS.md"])
+@pytest.mark.parametrize("guide", ["HOW_TO_ADD_A_JOB.md", "HOW_TO_ADD_MANY_JOBS.md",
+                                  "HOW_TO_HANDLE_REPLIES.md"])
 def test_quick_guide_exists(guide: str) -> None:
     assert (ROOT / guide).is_file()
 
 
-@pytest.mark.parametrize("guide", ["HOW_TO_ADD_A_JOB.md", "HOW_TO_ADD_MANY_JOBS.md"])
+@pytest.mark.parametrize("guide", ["HOW_TO_ADD_A_JOB.md", "HOW_TO_ADD_MANY_JOBS.md",
+                                  "HOW_TO_HANDLE_REPLIES.md"])
 def test_quick_guides_stay_short(guide: str) -> None:
     """They exist because the reference was too long to follow while working.
 

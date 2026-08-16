@@ -266,6 +266,8 @@ requirements, and the score is marked `not measured`.
 
 ## When a recruiter replies
 
+Step by step in **`HOW_TO_HANDLE_REPLIES.md`**.
+
 ```
 [ ] vanguard poll --dry-run          see what is there, record nothing
 [ ] vanguard poll                    correlate, classify, archive
