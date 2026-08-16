@@ -3,7 +3,8 @@
 **Per-board detail and configuration.**
 
 > **Just want the steps?** See **`HOW_TO_ADD_A_JOB.md`** — five steps, one page.
-> This document is the reference behind it.
+> Adding many at once: **`HOW_TO_ADD_MANY_JOBS.md`**.
+> This document is the reference behind both.
 
 ---
 

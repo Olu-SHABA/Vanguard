@@ -12,6 +12,16 @@ Two audiences, two reading paths.
 **Reference:** `COMMANDS.md` for every command and option. This document is
 what to *do*; that one is what things *are*.
 
+**Step-by-step guides**, for a task you have not done before:
+
+| Guide | For |
+|---|---|
+| `HOW_TO_ADD_A_JOB.md` | Entering one vacancy by hand |
+| `HOW_TO_ADD_MANY_JOBS.md` | Entering fifty at once |
+| `HOW_TO_HANDLE_REPLIES.md` | Replies, interviews and rejections |
+| `HOW_TO_USE_REPOSITORY_EVIDENCE.md` | Finding CV evidence in your repositories |
+| `MANUAL_ENTRY.md` | Per-board detail and configuration |
+
 ---
 
 # PART 1 — Orientation
@@ -142,6 +152,9 @@ CV is reworded. That is a true finding, not a failure.
 ## Confirming a Type 1 gap
 
 The classifier proposes; you confirm. It cannot know what you actually did.
+
+`vanguard evidence` can propose these from your own repositories — see
+**`HOW_TO_USE_REPOSITORY_EVIDENCE.md`**. The same three questions apply.
 
 **Confirm when** the competency is genuinely demonstrable from work already on
 the CV, and you could defend it in an interview with specifics — what system,
@@ -363,6 +376,7 @@ return.
 [ ] vanguard logs --archive            move old records aside, gzip old files
 [ ] review boards.yaml                 still the right keywords and location?
 [ ] check OUTSTANDING.md               anything now answerable?
+[ ] vanguard evidence --repo <x> --all-gaps    anything unstated recoverable?
 [ ] re-render the CV if it changed
 ```
 

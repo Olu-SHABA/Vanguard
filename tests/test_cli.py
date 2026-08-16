@@ -867,3 +867,30 @@ def test_operational_docs_cover_the_response_loop() -> None:
     sop = (ROOT / "SOP.md").read_text(encoding="utf-8")
     for command in ("vanguard poll", "vanguard interviews", "vanguard adverts"):
         assert command in sop, f"{command} absent from SOP.md"
+
+
+#: Every step-by-step guide, and the documents that must point at it. A guide
+#: nobody links to is a guide nobody reads.
+GUIDES = (
+    "HOW_TO_ADD_A_JOB.md",
+    "HOW_TO_ADD_MANY_JOBS.md",
+    "HOW_TO_HANDLE_REPLIES.md",
+    "HOW_TO_USE_REPOSITORY_EVIDENCE.md",
+)
+
+
+@pytest.mark.parametrize("document", ["README.md", "SOP.md", "COMMANDS.md"])
+def test_every_guide_is_reachable(document: str) -> None:
+    """The reference, the routine and the front page must each name every
+    guide. Linking from one and not the others is how a guide gets lost —
+    the repository guide was reachable from the README alone."""
+    text = (ROOT / document).read_text(encoding="utf-8")
+    missing = [guide for guide in GUIDES if guide not in text]
+    assert not missing, f"{document} does not mention {missing}"
+
+
+def test_every_guide_that_exists_is_listed() -> None:
+    """The reverse: a guide added without being added to GUIDES escapes the
+    check above entirely."""
+    on_disk = {path.name for path in ROOT.glob("HOW_TO_*.md")}
+    assert on_disk == set(GUIDES), f"GUIDES is out of step with {on_disk}"

@@ -21,6 +21,20 @@ what.
 
 ---
 
+## Step-by-step guides
+
+This document is the reference — what each command *is*. For what to *do*:
+
+| Guide | For |
+|---|---|
+| `HOW_TO_ADD_A_JOB.md` | Entering one vacancy by hand |
+| `HOW_TO_ADD_MANY_JOBS.md` | Entering fifty at once |
+| `HOW_TO_HANDLE_REPLIES.md` | Replies, interviews and rejections |
+| `HOW_TO_USE_REPOSITORY_EVIDENCE.md` | Finding CV evidence in your repositories |
+| `SOP.md` | The daily, weekly and monthly routine |
+
+---
+
 ## Conventions
 
 **Two execution contexts.** `run` is autonomous — it never blocks, never
@@ -162,6 +176,7 @@ than whatever the search returned first.
 ## `vanguard paste`
 
 Ingest a vacancy by hand, then score it identically.
+*Step by step: `HOW_TO_ADD_A_JOB.md`.*
 
 ```bash
 vanguard paste --file advert.txt --employer "Acme" --url "https://..."
@@ -191,6 +206,7 @@ paste produces the same problem as an unhydrated fetch.
 ## `vanguard adverts`
 
 A watched folder of pasted adverts, ingested in one pass.
+*Step by step: `HOW_TO_ADD_MANY_JOBS.md`.*
 
 ```bash
 vanguard adverts list                                   # what is there
@@ -357,6 +373,7 @@ software output.
 ## `vanguard evidence`
 
 Propose CV bullets from work in your own repositories.
+*Step by step: `HOW_TO_USE_REPOSITORY_EVIDENCE.md`.*
 
 ```bash
 vanguard evidence --repo C:\path\to\project --all-gaps
@@ -555,6 +572,7 @@ record of what was actually sent.
 ## `vanguard poll`
 
 Read the mailbox, correlate replies to applications, classify them.
+*Step by step: `HOW_TO_HANDLE_REPLIES.md`.*
 
 ```bash
 vanguard poll
