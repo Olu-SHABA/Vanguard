@@ -98,6 +98,7 @@ class Correlation(str, Enum):
     SENDER_DOMAIN = "sender_domain"
     ATS = "ats"                    # applicant-tracking system, on behalf of the employer
     FUZZY = "fuzzy"                # employer + title in subject
+    AMBIGUOUS = "ambiguous"        # several applications matched equally well
     NONE = "none"
 
 
@@ -296,12 +297,33 @@ class Classification:
 
 @dataclass(frozen=True)
 class CorrelationResult:
+    """Which application a message belongs to, or why that is not decidable.
+
+    `candidates` is populated when several applications matched equally well
+    — two live applications at the same employer, and a reply carrying nothing
+    to tell them apart. Picking the first would attach an interview
+    invitation, or a rejection, to the wrong vacancy.
+    """
+
     application: Application | None
     method: Correlation
+    candidates: tuple[Application, ...] = ()
 
     @property
     def correlated(self) -> bool:
         return self.application is not None
+
+    @property
+    def ambiguous(self) -> bool:
+        return self.method is Correlation.AMBIGUOUS
+
+    def describe(self) -> str:
+        if self.ambiguous:
+            names = ", ".join(a.vacancy_id for a in self.candidates)
+            return f"matched {len(self.candidates)} applications: {names}"
+        if self.correlated:
+            return f"{self.application.vacancy_id} via {self.method.value}"
+        return "no application matched"
 # ---------------------------------------------------------------------------
 # Correlation
 # ---------------------------------------------------------------------------
@@ -401,6 +423,27 @@ def domain_of(url: str) -> str:
     return "" if _sender_is_a_job_board(host) else host
 
 
+def _one_of(matches: list[Application], method: Correlation
+            ) -> CorrelationResult | None:
+    """Resolve a stage's matches into a result, or None to try the next stage.
+
+    One match decides. Several is AMBIGUOUS and is surfaced rather than
+    guessed: two live applications at the same employer, and a reply with
+    nothing to tell them apart, would otherwise attach an interview
+    invitation — or a rejection — to the wrong vacancy.
+
+    Identical vacancy ids are collapsed first, so the same application
+    appearing twice is not mistaken for two.
+    """
+    unique = {app.vacancy_id: app for app in matches}
+    if not unique:
+        return None
+    if len(unique) == 1:
+        return CorrelationResult(next(iter(unique.values())), method)
+    return CorrelationResult(None, Correlation.AMBIGUOUS,
+                             tuple(unique.values()))
+
+
 def _domain_resembles_employer(domain: str, employer: str) -> bool:
     """Does this sender domain plausibly belong to this employer?
 
@@ -471,6 +514,8 @@ def correlate(
     classification outcome — an uncorrelated message is queued for review, not
     guessed at.
     """
+    pending: CorrelationResult | None = None
+
     # A broadcast is never a reply. Filtered first: a job board advertising a
     # vacancy at an employer must not be attributed to an application at that
     # employer.
@@ -501,10 +546,15 @@ def correlate(
     #    here, and it is the employer's own.
     domain = message.sender_domain
     if domain and not _sender_is_a_job_board(domain):
-        for app in applications:
-            emp_domain = (app.employer_domain or domain_of(app.url)).lower().strip()
-            if emp_domain and (domain == emp_domain or domain.endswith("." + emp_domain)):
-                return CorrelationResult(app, Correlation.SENDER_DOMAIN)
+        by_domain = [
+            app for app in applications
+            if (emp := (app.employer_domain or domain_of(app.url)).lower().strip())
+            and (domain == emp or domain.endswith("." + emp))
+        ]
+        decided = _one_of(by_domain, Correlation.SENDER_DOMAIN)
+        if decided is not None and not decided.ambiguous:
+            return decided
+        pending = decided or pending
 
         # No configured domain — which is the norm, because a vacancy sourced
         # from a job board yields none. `domain_of()` correctly returns empty
@@ -514,9 +564,12 @@ def correlate(
         # this, `hr@sanderson.com` did not correlate to an application at
         # Sanderson, and since most vacancies come from boards, most genuine
         # employer replies failed to correlate at all.
-        for app in applications:
-            if _domain_resembles_employer(domain, app.employer):
-                return CorrelationResult(app, Correlation.SENDER_DOMAIN)
+        by_name = [app for app in applications
+                   if _domain_resembles_employer(domain, app.employer)]
+        decided = _one_of(by_name, Correlation.SENDER_DOMAIN)
+        if decided is not None and not decided.ambiguous:
+            return decided
+        pending = decided or pending
 
     # 3. An applicant-tracking system writing on the employer's behalf.
     #
@@ -527,12 +580,15 @@ def correlate(
     if looks_like_an_acknowledgement(message):
         subject_norm = _norm(message.subject)
         body_head = _norm(message.body[:400])
-        for app in applications:
-            employer = _norm(app.employer)
-            if not employer or len(employer) < 3:
-                continue
-            if employer in subject_norm or employer in body_head:
-                return CorrelationResult(app, Correlation.ATS)
+        named = [
+            app for app in applications
+            if (employer := _norm(app.employer)) and len(employer) >= 3
+            and (employer in subject_norm or employer in body_head)
+        ]
+        decided = _one_of(named, Correlation.ATS)
+        if decided is not None and not decided.ambiguous:
+            return decided
+        pending = decided or pending
 
     # 4. Employer name AND job title in the subject. Both, not either —
     #    "Data Engineer" alone would match every open data application.
@@ -548,13 +604,32 @@ def correlate(
         return CorrelationResult(None, Correlation.NONE)
 
     subject = _norm(message.subject)
-    for app in applications:
-        employer, title = _norm(app.employer), _norm(app.title)
-        if not (employer and title):
-            continue
-        if (employer in subject and title in subject
-                and _sender_plausible(app, domain)):
-            return CorrelationResult(app, Correlation.FUZZY)
+    matched = [
+        app for app in applications
+        if (pair := (_norm(app.employer), _norm(app.title))) and all(pair)
+        and pair[0] in subject and pair[1] in subject
+        and _sender_plausible(app, domain)
+    ]
+    # Where one title contains another — "Machine Learning Engineer" inside
+    # "MLE- Machine Learning Engineer" — both match, and the longer is the
+    # more specific. Preferring it resolves the pair rather than reporting an
+    # ambiguity the subject actually settles.
+    if len(matched) > 1:
+        longest = max(len(_norm(app.title)) for app in matched)
+        specific = [app for app in matched if len(_norm(app.title)) == longest]
+        if len(specific) == 1:
+            matched = specific
+
+    decided = _one_of(matched, Correlation.FUZZY)
+    if decided is not None and not decided.ambiguous:
+        return decided
+    pending = decided or pending
+
+    # A stage that matched several is reported as ambiguous only if no later,
+    # more specific stage could decide it. The sender domain identifies the
+    # employer; the subject may still identify which vacancy.
+    if pending is not None:
+        return pending
 
     return CorrelationResult(None, Correlation.NONE)
 

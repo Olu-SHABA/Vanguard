@@ -1319,10 +1319,17 @@ def poll_cmd(provider, since_days, limit, dry_run, verbose, show_uncorrelated,
 
     archive = Archive(Path(archive_root))
     rows, uncorrelated = [], []
+    ambiguous: list = []
     processes: list = []
 
     for message in messages:
         result = correlate(message, applications)
+        if result.ambiguous:
+            # Two live applications at one employer, and nothing in the reply
+            # to tell them apart. Attaching it to either would put an
+            # interview invitation — or a rejection — on the wrong vacancy.
+            ambiguous.append((message, result))
+            continue
         if not result.correlated:
             uncorrelated.append(message)
             continue
@@ -1366,6 +1373,19 @@ def poll_cmd(provider, since_days, limit, dry_run, verbose, show_uncorrelated,
                 ui.Column("VIA", 0.4, 7, tone=ui.Tone.MUTED),
             ]
         click.echo(ui.table(columns, rows))
+
+    if ambiguous:
+        width = _terminal_width()
+        click.echo()
+        click.echo(ui.rule(f"AMBIGUOUS  ·  {len(ambiguous)}"))
+        click.echo("  matched several applications. Resolve by hand — attaching\n"
+                   "  one to the wrong vacancy is worse than leaving it queued.\n")
+        for message, result in ambiguous:
+            click.echo(f"  {ui.badge('WHICH?', ui.Tone.WARN)} "
+                       f"{_clip(message.subject, width - 20)}")
+            for candidate in result.candidates:
+                click.echo(f"      {candidate.vacancy_id:<28} "
+                           f"{_clip(candidate.title, width - 40)}")
 
     if uncorrelated:
         click.echo(f"\n  {ui.badge(f'{len(uncorrelated)} uncorrelated', ui.Tone.MUTED)} "

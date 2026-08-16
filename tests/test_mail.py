@@ -636,3 +636,90 @@ def test_a_configured_domain_still_wins() -> None:
     result = correlate(msg("Body.", subject="Update",
                            sender="hr@careers.acme.co.uk"), apps)
     assert result.method is Correlation.SENDER_DOMAIN
+
+
+# ---------------------------------------------------------------------------
+# Several applications at one employer
+#
+# Observed 12 Aug 2026: a reply from hr@sanderson.com matched two live
+# Sanderson applications and the system picked the first. Attaching an
+# interview invitation — or a rejection — to the wrong vacancy is worse than
+# leaving it queued.
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def two_at_one_employer() -> list[Application]:
+    return [
+        Application("reed:57092035", "Sanderson", "Machine Learning Engineer",
+                    reference="19568"),
+        Application("reed:57205320", "Sanderson", "MLE- Machine Learning Engineer"),
+    ]
+
+
+def test_several_matches_are_reported_not_guessed(two_at_one_employer) -> None:
+    result = correlate(
+        msg("We would like to invite you to interview.",
+            subject="Interview invitation", sender="hr@sanderson.com"),
+        two_at_one_employer,
+    )
+    assert result.ambiguous
+    assert not result.correlated
+    assert len(result.candidates) == 2
+
+
+def test_a_reference_resolves_the_ambiguity(two_at_one_employer) -> None:
+    """The strongest signal still decides."""
+    result = correlate(
+        msg("Regarding vacancy 19568.", subject="Update",
+            sender="hr@sanderson.com"),
+        two_at_one_employer,
+    )
+    assert result.method is Correlation.REFERENCE
+    assert result.application.vacancy_id == "reed:57092035"
+
+
+@pytest.mark.parametrize(
+    "subject, expected",
+    [
+        ("Sanderson MLE- Machine Learning Engineer", "reed:57205320"),
+        ("Sanderson Machine Learning Engineer", "reed:57092035"),
+    ],
+)
+def test_the_title_resolves_where_it_can(two_at_one_employer, subject: str,
+                                         expected: str) -> None:
+    """One title contains the other. The longer is the more specific, so it
+    wins rather than the pair being reported ambiguous."""
+    result = correlate(msg("Body.", subject=subject, sender="hr@sanderson.com"),
+                       two_at_one_employer)
+    assert result.correlated
+    assert result.application.vacancy_id == expected
+
+
+def test_one_application_is_never_ambiguous() -> None:
+    apps = [Application("reed:1", "Sanderson", "Machine Learning Engineer")]
+    result = correlate(
+        msg("We would like to invite you to interview.",
+            subject="Interview invitation", sender="hr@sanderson.com"),
+        apps,
+    )
+    assert result.correlated and not result.ambiguous
+
+
+def test_the_same_application_twice_is_not_two() -> None:
+    """Identical vacancy ids collapse before the count is taken."""
+    app = Application("reed:1", "Sanderson", "Machine Learning Engineer")
+    result = correlate(
+        msg("We would like to invite you to interview.",
+            subject="Interview invitation", sender="hr@sanderson.com"),
+        [app, app],
+    )
+    assert result.correlated and not result.ambiguous
+
+
+def test_ambiguous_result_describes_itself(two_at_one_employer) -> None:
+    result = correlate(
+        msg("Body.", subject="Interview invitation", sender="hr@sanderson.com"),
+        two_at_one_employer,
+    )
+    assert "2 applications" in result.describe()
+    assert "reed:57092035" in result.describe()

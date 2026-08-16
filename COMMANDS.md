@@ -604,6 +604,17 @@ decline to the wrong vacancy.
 | `sender_domain` | Sender domain is the employer's | `careers@beatport.com` |
 | `ats` | Applicant-tracking system, employer named in the subject | `no-reply@ashbyhq.com`, "Thank you for applying to Sardine" |
 | `fuzzy` | Employer and title in the subject, from a plausible sender | `hiring@beatport-talent.com` |
+| `ambiguous` | **Several applications matched equally well** | Two live applications at one employer, and nothing to tell them apart |
+
+**Ambiguity is reported, never guessed.** With two live applications at the
+same employer and a reply carrying no reference and no distinguishing title,
+the system names both and leaves the message queued. Attaching an interview
+invitation — or a rejection — to the wrong vacancy is worse than leaving it
+for you.
+
+A later stage may still resolve it: the sender domain identifies the employer,
+and the subject may identify which vacancy. Where one job title contains
+another, the longer and more specific one wins.
 
 **The ATS stage requires applied-language.** An acknowledgement and a job
 advert are both third parties naming an employer; the difference is intent,
