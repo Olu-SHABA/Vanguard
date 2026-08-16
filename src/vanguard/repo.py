@@ -48,19 +48,116 @@ from __future__ import annotations
 
 import re
 import subprocess
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Sequence
 
 __all__ = [
+    "CloneError",
     "Evidence",
+    "is_remote",
+    "cloned",
     "RepositoryScan",
     "Signal",
     "SIGNALS",
     "scan_repository",
+    "scan_target",
+    "normalise_remote",
     "propose_bullets",
 ]
+
+
+class CloneError(RuntimeError):
+    """A remote repository could not be cloned."""
+
+
+#: Any URL scheme, or an scp-style git address. Matching schemes generally
+#: rather than listing them means `file://` — used to test the clone path
+#: without network — is not mistaken for a bare hostname needing https://.
+_REMOTE = re.compile(r"^(?:[a-z][a-z0-9+.-]*://|[\w.-]+@[\w.-]+:)", re.I)
+
+
+def is_remote(target: str) -> bool:
+    """Is this a URL to clone, or a directory to read?
+
+    `github.com/user/repo` without a scheme is treated as remote too — it is
+    the form people paste, and a bare path that happens to contain a dot is
+    far rarer than a pasted GitHub URL.
+    """
+    text = str(target).strip()
+    if _REMOTE.match(text):
+        return True
+    return bool(re.match(r"^(?:www\.)?(?:github|gitlab|bitbucket)\.", text, re.I))
+
+
+def normalise_remote(target: str) -> str:
+    """A clonable URL. Adds https:// where a bare host was given."""
+    text = str(target).strip().rstrip("/")
+    if _REMOTE.match(text):
+        return text
+    return f"https://{text}"
+
+
+@contextmanager
+def cloned(url: str, *, shallow: bool = False, timeout: int = 300):
+    """Clone into a temporary directory, yield it, then remove it.
+
+    **Nothing is left behind.** A repository cloned for a scan is working
+    material, and leaving copies of the operator's code scattered around is
+    not this tool's business.
+
+    A full clone by default, because the commit span is part of the evidence:
+    sustained work over two years is a different claim from a weekend, and a
+    shallow clone cannot tell them apart. `shallow` trades that for speed.
+
+    Credentials come from the operator's own git configuration — a
+    credential helper, an SSH key, or a token already in the URL. Vanguard
+    never asks for them and never stores them.
+    """
+    import shutil
+    import tempfile
+
+    target = normalise_remote(url)
+    directory = Path(tempfile.mkdtemp(prefix="vanguard_clone_"))
+    destination = directory / "repo"
+
+    command = ["git", "clone", "--quiet"]
+    if shallow:
+        command += ["--depth", "50"]
+    command += [target, str(destination)]
+
+    try:
+        result = subprocess.run(command, capture_output=True, text=True,
+                                timeout=timeout, check=False)
+        if result.returncode != 0:
+            detail = (result.stderr or "").strip().splitlines()
+            reason = detail[-1] if detail else "git clone failed"
+            raise CloneError(f"{target}: {reason}")
+        yield destination
+    except subprocess.TimeoutExpired as exc:
+        raise CloneError(f"{target}: clone timed out after {timeout}s") from exc
+    except FileNotFoundError as exc:
+        raise CloneError("git is not installed or not on PATH") from exc
+    finally:
+        shutil.rmtree(directory, ignore_errors=True)
+
+
+def scan_target(target: str, *, shallow: bool = False) -> RepositoryScan:
+    """Scan a local path or a remote URL, whichever this is.
+
+    A remote is cloned to a temporary directory, scanned, and the clone
+    removed.
+    """
+    if not is_remote(target):
+        return scan_repository(target)
+
+    name = normalise_remote(target).rstrip("/").rsplit("/", 1)[-1]
+    name = name[:-4] if name.endswith(".git") else name
+
+    with cloned(target, shallow=shallow) as directory:
+        return scan_repository(directory, name=name)
 
 
 @dataclass(frozen=True)

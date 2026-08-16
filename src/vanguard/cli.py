@@ -1820,14 +1820,16 @@ def interviews_cmd(vacancy_id, show_all, withdraw, db) -> None:
 
 
 @main.command("evidence")
-@click.option("--repo", "repos", multiple=True, type=click.Path(exists=True),
-              help="A repository to scan. Repeat for several.")
+@click.option("--repo", "repos", multiple=True,
+              help="A local path or a repository URL. Repeat for several.")
+@click.option("--shallow", is_flag=True,
+              help="Clone only recent history. Faster, but loses the commit span.")
 @click.option("--vacancy", default="", help="Match against one vacancy's gaps.")
 @click.option("--all-gaps", is_flag=True,
               help="Match against every recurring unmet requirement instead.")
 @click.option("--db", default=DEFAULTS["db"])
 @click.option("--cv", default=DEFAULTS["cv"])
-def evidence_cmd(repos, vacancy, all_gaps, db, cv) -> None:
+def evidence_cmd(repos, shallow, vacancy, all_gaps, db, cv) -> None:
     """Propose CV bullets from work in your own repositories.
 
     A repository evidences only what was BUILT. It can supply a Type 1 gap —
@@ -1838,14 +1840,15 @@ def evidence_cmd(repos, vacancy, all_gaps, db, cv) -> None:
     suite exists; it cannot know whether you wrote it, or whether you could
     defend it under questioning.
     """
-    from vanguard.repo import propose_bullets, scan_repository
+    from vanguard.repo import CloneError, is_remote, propose_bullets, scan_target
 
     store, _ = _ctx(db)
     width = _terminal_width()
 
     if not repos:
         raise click.ClickException(
-            "pass --repo. Own repositories only: attribution has to be certain")
+            "pass --repo, a local path or a URL. Own repositories only: "
+            "attribution has to be certain")
 
     if vacancy:
         rows = store.gaps_for(vacancy)
@@ -1861,7 +1864,19 @@ def evidence_cmd(repos, vacancy, all_gaps, db, cv) -> None:
         click.echo("no unmet requirements to match against")
         return
 
-    scans = [scan_repository(path) for path in repos]
+    scans = []
+    for target in repos:
+        if is_remote(target):
+            click.echo(f"  cloning {target} …")
+        try:
+            scans.append(scan_target(target, shallow=shallow))
+        except CloneError as exc:
+            # One unreachable repository must not stop the others.
+            click.echo(f"  {ui.badge('FAILED', ui.Tone.BAD)} {exc}", err=True)
+            continue
+
+    if not scans:
+        raise click.ClickException("no repository could be read")
 
     click.echo(ui.rule(f"REPOSITORIES  ·  {len(scans)}"))
     for scan in scans:

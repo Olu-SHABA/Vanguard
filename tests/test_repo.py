@@ -178,3 +178,125 @@ def test_every_signal_names_what_it_answers() -> None:
     for signal in SIGNALS:
         assert signal.answers, f"{signal.competency} answers no advert term"
         assert signal.patterns
+
+
+# ---------------------------------------------------------------------------
+# Remote repositories
+#
+# Most of the operator's work is on GitHub, not on the machine running this.
+# A remote is cloned to a temporary directory, scanned, and the clone removed.
+# ---------------------------------------------------------------------------
+
+from vanguard.repo import (  # noqa: E402
+    CloneError,
+    cloned,
+    is_remote,
+    normalise_remote,
+    scan_target,
+)
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        "https://github.com/user/repo",
+        "github.com/user/repo",
+        "git@github.com:user/repo.git",
+        "https://gitlab.com/user/repo",
+        "ssh://git@host/repo.git",
+        "file:///tmp/repo.git",
+    ],
+)
+def test_urls_are_recognised_as_remote(target: str) -> None:
+    assert is_remote(target)
+
+
+@pytest.mark.parametrize(
+    "target",
+    [".", "..", "/home/user/project", "C:\\Users\\USER\\project",
+     "../other", "src"],
+)
+def test_paths_are_not_remote(target: str) -> None:
+    assert not is_remote(target)
+
+
+def test_a_bare_host_gains_https() -> None:
+    assert normalise_remote("github.com/a/b") == "https://github.com/a/b"
+
+
+def test_an_existing_scheme_is_left_alone() -> None:
+    """Matching schemes generally rather than listing them means `file://` is
+    not mistaken for a hostname needing https://."""
+    for url in ("git@github.com:a/b.git", "file:///tmp/x.git",
+                "ssh://git@host/repo.git"):
+        assert normalise_remote(url) == url
+
+
+def _make_remote(tmp_path: Path) -> str:
+    """A bare repository standing in for a remote, so the clone path is
+    tested without network."""
+    import subprocess
+
+    source = tmp_path / "source"
+    (source / "tests").mkdir(parents=True)
+    for i in range(8):
+        (source / "tests" / f"test_{i}.py").write_text("def test(): pass\n")
+    (source / "Dockerfile").write_text("FROM python:3.12\n")
+
+    def git(*args, cwd):
+        subprocess.run(["git", *args], cwd=str(cwd), capture_output=True,
+                       check=False)
+
+    git("init", "-q", ".", cwd=source)
+    git("config", "user.email", "t@t.com", cwd=source)
+    git("config", "user.name", "Test", cwd=source)
+    git("add", "-A", cwd=source)
+    git("commit", "-qm", "initial", cwd=source)
+
+    bare = tmp_path / "remote.git"
+    subprocess.run(["git", "clone", "-q", "--bare", str(source), str(bare)],
+                   capture_output=True, check=False)
+    return f"file://{bare}"
+
+
+def test_a_remote_is_cloned_and_scanned(tmp_path: Path) -> None:
+    scan = scan_target(_make_remote(tmp_path))
+    found = {e.competency for e in scan.sufficient_evidence}
+    assert "automated testing" in found
+    assert scan.is_git and scan.commits >= 1
+
+
+def test_the_clone_is_removed_afterwards(tmp_path: Path) -> None:
+    """A repository cloned for a scan is working material. Leaving copies of
+    the operator's code scattered around is not this tool's business."""
+    remote = _make_remote(tmp_path)
+    with cloned(remote) as directory:
+        assert directory.is_dir()
+        recorded = directory
+    assert not recorded.exists()
+
+
+def test_the_clone_is_removed_even_on_failure(tmp_path: Path) -> None:
+    remote = _make_remote(tmp_path)
+    recorded = None
+    with pytest.raises(ValueError):
+        with cloned(remote) as directory:
+            recorded = directory
+            raise ValueError("something went wrong downstream")
+    assert recorded is not None and not recorded.exists()
+
+
+def test_an_unreachable_remote_raises_clearly(tmp_path: Path) -> None:
+    with pytest.raises(CloneError):
+        with cloned(f"file://{tmp_path}/does-not-exist.git"):
+            pass
+
+
+def test_a_remote_name_comes_from_the_url(tmp_path: Path) -> None:
+    """An unnamed repository cannot be cited."""
+    scan = scan_target(_make_remote(tmp_path))
+    assert scan.name == "remote"
+
+
+def test_a_local_path_still_works(repo: Path) -> None:
+    assert scan_target(str(repo)).sufficient_evidence

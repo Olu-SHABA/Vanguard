@@ -360,14 +360,39 @@ Propose CV bullets from work in your own repositories.
 
 ```bash
 vanguard evidence --repo C:\path\to\project --all-gaps
-vanguard evidence --repo . --repo ..\other --vacancy reed:57092035
+vanguard evidence --repo https://github.com/you/project --all-gaps
+vanguard evidence --repo . --repo github.com/you/other --vacancy reed:57092035
 ```
 
 | Option | Effect |
 |---|---|
-| `--repo` | A repository to scan. Repeat for several |
+| `--repo` | A local path **or a repository URL**. Repeat for several |
+| `--shallow` | Clone only recent history. Faster, but loses the commit span |
 | `--vacancy` | Match against one vacancy's unmet requirements |
 | `--all-gaps` | Match against every recurring unmet requirement |
+
+### Local or remote
+
+A path is read where it sits. A URL is **cloned to a temporary directory,
+scanned, and the clone removed** — nothing is left behind.
+
+```
+--repo .                                   local
+--repo C:\Users\USER\project              local
+--repo https://github.com/you/project      cloned
+--repo github.com/you/project              cloned, https:// assumed
+--repo git@github.com:you/project.git      cloned over SSH
+```
+
+**Private repositories work** if your git credentials already do — a
+credential helper, an SSH key, or a token in the URL. Vanguard never asks for
+credentials and never stores them.
+
+A full clone by default, because **the commit span is part of the evidence**:
+sustained work over two years is a different claim from a weekend, and a
+shallow clone cannot tell them apart. `--shallow` trades that for speed.
+
+One unreachable repository does not stop the others.
 
 **A repository evidences only what was built.** It can supply a **Type 1**
 gap — something genuinely done but absent from your CV's wording. It cannot
