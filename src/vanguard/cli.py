@@ -121,6 +121,11 @@ def _logging(boards_path: str) -> LogConfig:
     return config
 
 
+#: Gmail accepts long queries; the constraint is the IMAP literal, which is
+#: generous. High enough that truncation is rare, and reported when it happens.
+MAX_SEARCH_TERMS = 120
+
+
 STATUS_TONE = {
     "PENDING": ui.Tone.GOOD,
     "APPROVED": ui.Tone.GOOD,
@@ -1172,7 +1177,17 @@ def poll_cmd(provider, since_days, limit, dry_run, verbose, show_uncorrelated,
             employer = app.employer.split(",")[0].strip()
             if len(employer) > 3:
                 extra_terms.append(f'"{employer}"')
-        extra_terms = list(dict.fromkeys(extra_terms))[:20]
+        # Deduplicate, and cap only where the query would become unwieldy.
+        # 20 was arbitrary and dropped terms silently — roughly ten
+        # applications' worth. Gmail accepts long queries; the practical
+        # limit is the IMAP literal, which is generous.
+        extra_terms = list(dict.fromkeys(extra_terms))
+        if len(extra_terms) > MAX_SEARCH_TERMS:
+            click.echo(f"  {ui.badge('TRUNCATED', ui.Tone.WARN)} "
+                       f"{len(extra_terms)} search terms exceeds "
+                       f"{MAX_SEARCH_TERMS}; the oldest applications are not "
+                       "searched for. Use --broad to read the window instead.")
+            extra_terms = extra_terms[:MAX_SEARCH_TERMS]
 
     if extra_terms:
         click.echo(f"  searching for {len(applications)} employer(s) and "

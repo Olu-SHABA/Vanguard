@@ -49,11 +49,13 @@ __all__ = [
     "Classification",
     "correlate",
     "is_broadcast",
+    "looks_like_an_acknowledgement",
     "domain_of",
     "classify",
     "dormant_sweep",
     "DECLINE_MARKERS",
     "is_broadcast",
+    "looks_like_an_acknowledgement",
     "domain_of",
     "domain_of",
     "PROGRESS_MARKERS",
@@ -86,6 +88,7 @@ class State(str, Enum):
 class Correlation(str, Enum):
     REFERENCE = "reference"        # application reference or vacancy id
     SENDER_DOMAIN = "sender_domain"
+    ATS = "ats"                    # applicant-tracking system, on behalf of the employer
     FUZZY = "fuzzy"                # employer + title in subject
     NONE = "none"
 
@@ -194,6 +197,12 @@ def is_broadcast(message: Message) -> bool:
     Checked before correlation. A job board advertising a vacancy at an
     employer is not that employer writing back.
     """
+    # An acknowledgement is never a broadcast, whatever the sender looks
+    # like. `jobs-noreply@linkedin.com` sends both adverts and "your
+    # application was sent to X" — the subject separates them.
+    if looks_like_an_acknowledgement(message):
+        return False
+
     sender = (message.sender or "").lower()
     local = sender.split("@", 1)[0]
     domain = sender.rsplit("@", 1)[-1] if "@" in sender else ""
@@ -281,6 +290,61 @@ _COMMON_EMPLOYER_WORDS = frozenset({
     "technologies", "consulting", "consultancy", "international", "global",
     "systems", "partners", "associates", "company", "corporation",
 })
+
+# ---------------------------------------------------------------------------
+# Applicant-tracking systems
+#
+# Observed 12 Aug 2026: four genuine acknowledgements failed to correlate.
+#
+#   notifications@app.bamboohr.com   "Thank you for applying at Beatport"
+#   no-reply@ashbyhq.com             "Thank you for applying to Sardine!"
+#   no-reply@ashbyhq.com             "Faculty | Application Confirmation"
+#   no-reply@jobs.reed.co.uk         "We've sent your application to Method Resourcing"
+#
+# An ATS mails on the employer's behalf, so the sender domain is never the
+# employer's. The employer name is in the SUBJECT.
+#
+# This is not the same as a job board advertising a vacancy, though both are
+# third parties naming an employer. The difference is intent, and it is
+# visible in the subject: an advert invites an application; an
+# acknowledgement confirms one already made.
+# ---------------------------------------------------------------------------
+
+_ATS_DOMAINS = (
+    "bamboohr.com", "ashbyhq.com", "greenhouse.io", "lever.co",
+    "workable.com", "smartrecruiters.com", "teamtailor.com", "workday.com",
+    "myworkdayjobs.com", "icims.com", "taleo.net", "successfactors.com",
+    "jobvite.com", "breezy.hr", "recruitee.com", "pinpointhq.com",
+    "applytojob.com", "hire.withgoogle.com", "personio.de", "factorialhr.com",
+    "jobs.reed.co.uk", "notifications.linkedin.com",
+)
+
+#: Phrases marking an application ALREADY MADE. An advert never says these.
+_APPLIED_PHRASES = (
+    "thank you for applying", "thanks for applying", "application confirmation",
+    "application received", "we have received your application",
+    "your application was sent", "we've sent your application",
+    "we have sent your application", "application submitted",
+    "confirming your application", "your application to", "your application for",
+    "application update", "regarding your application", "you applied",
+)
+
+
+def looks_like_an_acknowledgement(message: Message) -> bool:
+    """The subject confirms an application already made.
+
+    Distinguishes an ATS acknowledgement from a job board advert, both of
+    which are third parties naming an employer.
+    """
+    subject = (message.subject or "").lower()
+    return any(phrase in subject for phrase in _APPLIED_PHRASES)
+
+
+def _sender_is_an_ats(domain: str) -> bool:
+    domain = (domain or "").lower()
+    return any(domain == known or domain.endswith("." + known)
+               for known in _ATS_DOMAINS)
+
 
 #: Domains that broker vacancies rather than employ. A message from one names
 #: an employer without being from that employer.
@@ -389,13 +453,29 @@ def correlate(
             if emp_domain and (domain == emp_domain or domain.endswith("." + emp_domain)):
                 return CorrelationResult(app, Correlation.SENDER_DOMAIN)
 
-    # 3. Employer name AND job title in the subject. Both, not either —
+    # 3. An applicant-tracking system writing on the employer's behalf.
+    #
+    #    The sender domain is the ATS, never the employer, so stage 2 cannot
+    #    match. The employer name is in the subject instead. Requires
+    #    applied-language so that an advert from the same domain does not
+    #    qualify — "thank you for applying at X" is not "apply now to X".
+    if looks_like_an_acknowledgement(message):
+        subject_norm = _norm(message.subject)
+        body_head = _norm(message.body[:400])
+        for app in applications:
+            employer = _norm(app.employer)
+            if not employer or len(employer) < 3:
+                continue
+            if employer in subject_norm or employer in body_head:
+                return CorrelationResult(app, Correlation.ATS)
+
+    # 4. Employer name AND job title in the subject. Both, not either —
     #    "Data Engineer" alone would match every open data application.
     #
     #    Only when the sender is plausibly the employer. A job board's advert
     #    naming an employer and a title is not correspondence from that
     #    employer, and this stage cannot tell the difference on subject alone.
-    #    Broadcasts are excluded HERE rather than earlier. Stages 1 and 2 rest
+    #    Broadcasts are excluded HERE rather than earlier. Stages 1 to 3 rest
     #    on a reference or the employer's own domain, both specific enough to
     #    be trusted from a no-reply address. Stage 3 rests only on words in a
     #    subject line, which every job advert also contains.

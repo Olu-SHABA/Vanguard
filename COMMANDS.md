@@ -486,6 +486,24 @@ domain, then employer plus title in the subject. An uncorrelated message is
 queued for review and **never classified** — guessing which application it
 belongs to would attach a decline to the wrong vacancy.
 
+### Correlation stages
+
+Four, strongest first. A message that matches none is reported and **never
+classified** — guessing which application a message belongs to would attach a
+decline to the wrong vacancy.
+
+| Stage | Matches on | Example |
+|---|---|---|
+| `reference` | The vacancy reference in the text | "Regarding vacancy 19568" |
+| `sender_domain` | Sender domain is the employer's | `careers@beatport.com` |
+| `ats` | Applicant-tracking system, employer named in the subject | `no-reply@ashbyhq.com`, "Thank you for applying to Sardine" |
+| `fuzzy` | Employer and title in the subject, from a plausible sender | `hiring@beatport-talent.com` |
+
+**The ATS stage requires applied-language.** An acknowledgement and a job
+advert are both third parties naming an employer; the difference is intent,
+and it is visible in the subject. "Thank you for applying at X" correlates;
+"apply now to X" does not.
+
 | State | Meaning |
 |---|---|
 | `DECLINE` | Application closed unsuccessfully |

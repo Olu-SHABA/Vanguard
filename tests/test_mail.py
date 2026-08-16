@@ -412,3 +412,100 @@ def test_broadcast_check_precedes_correlation() -> None:
     advert = msg("Vacancy 19568 and others.", sender="jobs-noreply@linkedin.com",
                  subject="New jobs for you")
     assert not correlate(advert, apps).correlated
+
+
+# ---------------------------------------------------------------------------
+# ATS acknowledgements — observed 12 Aug 2026
+#
+# Four genuine acknowledgements failed to correlate. An applicant-tracking
+# system mails on the employer's behalf, so the sender domain is never the
+# employer's; the employer name is in the subject instead.
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def ats_apps() -> list[Application]:
+    return [
+        Application("reed:1", "Beatport", "Senior Data Scientist", reference="19568"),
+        Application("reed:2", "Sardine", "Data Scientist"),
+        Application("reed:3", "Faculty", "Data Scientist"),
+        Application("reed:4", "Method Resourcing", "Data Engineer"),
+        Application("reed:5", "Harnham", "Data Scientist"),
+    ]
+
+
+@pytest.mark.parametrize(
+    "sender, subject, employer",
+    [
+        ("notifications@app.bamboohr.com", "Thank you for applying at Beatport",
+         "Beatport"),
+        ("no-reply@ashbyhq.com", "Thank you for applying to Sardine!", "Sardine"),
+        ("no-reply@ashbyhq.com", "Faculty | Application Confirmation for Data Scientist",
+         "Faculty"),
+        ("no-reply@jobs.reed.co.uk", "We've sent your application to Method Resourcing",
+         "Method Resourcing"),
+        ("jobs-noreply@linkedin.com", "Olumide, your application was sent to Harnham",
+         "Harnham"),
+    ],
+)
+def test_observed_acknowledgements_correlate(
+    ats_apps, sender: str, subject: str, employer: str
+) -> None:
+    result = correlate(msg("Body.", subject=subject, sender=sender), ats_apps)
+    assert result.correlated
+    assert result.method is Correlation.ATS
+    assert result.application.employer == employer
+
+
+@pytest.mark.parametrize(
+    "subject",
+    [
+        "Olumide, apply now to 'Senior Data Scientist at Beatport'",
+        "Data Scientist at Sardine",
+        "New jobs at Faculty",
+    ],
+)
+def test_adverts_naming_the_same_employers_do_not_correlate(
+    ats_apps, subject: str
+) -> None:
+    """An advert and an acknowledgement are both third parties naming an
+    employer. The difference is intent, visible in the subject."""
+    advert = msg("Body.", subject=subject, sender="jobs-noreply@linkedin.com")
+    assert not correlate(advert, ats_apps).correlated
+
+
+def test_acknowledgement_is_not_a_broadcast() -> None:
+    """`jobs-noreply@linkedin.com` sends both adverts and 'your application
+    was sent to X'. The sender cannot separate them; the subject can."""
+    from vanguard.mail import is_broadcast
+
+    assert not is_broadcast(msg("Body.", sender="jobs-noreply@linkedin.com",
+                                subject="Your application was sent to Harnham"))
+    assert is_broadcast(msg("Body.", sender="jobs-noreply@linkedin.com",
+                            subject="apply now to Senior Data Scientist"))
+
+
+def test_ats_stage_requires_applied_language(ats_apps) -> None:
+    """The employer name alone is not enough — that is stage 4's test, and it
+    requires a plausible sender."""
+    bare = msg("Body.", subject="Beatport", sender="no-reply@ashbyhq.com")
+    assert not correlate(bare, ats_apps).correlated
+
+
+def test_employer_in_the_body_also_correlates(ats_apps) -> None:
+    """Some acknowledgements name the employer only in the body."""
+    result = correlate(
+        msg("Thank you for applying. Your application to Sardine has been received.",
+            subject="Application confirmation", sender="no-reply@ashbyhq.com"),
+        ats_apps,
+    )
+    assert result.method is Correlation.ATS
+
+
+def test_reference_still_wins_over_ats(ats_apps) -> None:
+    """Stage order is unchanged: a reference is the strongest signal."""
+    result = correlate(
+        msg("Regarding vacancy 19568.", subject="Thank you for applying at Beatport",
+            sender="no-reply@ashbyhq.com"),
+        ats_apps,
+    )
+    assert result.method is Correlation.REFERENCE
