@@ -894,3 +894,30 @@ def test_every_guide_that_exists_is_listed() -> None:
     check above entirely."""
     on_disk = {path.name for path in ROOT.glob("HOW_TO_*.md")}
     assert on_disk == set(GUIDES), f"GUIDES is out of step with {on_disk}"
+
+
+def test_phase_document_matches_what_is_built() -> None:
+    """A phase marked as upcoming after it has been built sends the reader to
+    the wrong place — and it happened twice before this test existed.
+
+    Each phase names its module. If the module is present, the phase must be
+    marked complete.
+    """
+    phase = (ROOT / "docs" / "PHASE_2.md").read_text(encoding="utf-8")
+    source = ROOT / "src" / "vanguard"
+
+    built = {
+        "A · Foundations": ("archive.py", "mailbox.py", "process.py"),
+        "B · Repository evidence": ("repo.py",),
+    }
+
+    for heading, modules in built.items():
+        if not all((source / module).is_file() for module in modules):
+            continue
+        section = phase.split(heading, 1)
+        assert len(section) == 2, f"{heading} absent from PHASE_2.md"
+        opening = section[1][:160]
+        assert "COMPLETE" in opening, (
+            f"{heading} is built ({', '.join(modules)}) but PHASE_2.md does "
+            "not say so"
+        )

@@ -97,8 +97,9 @@ the operator's ratchet ruling. Both thresholds live in config.
 **N-01** NHS Jobs · **N-02** Find a Job — both blocked on external access.
 
 **Built since this document was written:** N-06 mailbox polling, N-07 archive,
-N-08 batch ingestion, N-09 multi-round interview tracking. Phase 2 A is
-complete; see `docs/PHASE_2.md`.
+N-08 batch ingestion, N-09 multi-round interview tracking, N-10 repository
+evidence loop. **Phase 2 A and B are complete**; C is next. See
+`docs/PHASE_2.md`.
 
 ## Cosmetic
 

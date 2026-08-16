@@ -481,18 +481,33 @@ bottleneck, while the interview path is weeks away.
 | B-42 | Vacancy ids truncated in the queue, so rows could not be acted on |
 | B-43 | No `OFFER` state at all. A job offer classified as AMBIGUOUS |
 
-## B · Repository evidence loop
+## B · Repository evidence loop — **COMPLETE, 12 August 2026**
 
-| | Effort |
+| | State |
 |---|---|
-| Read local and remote repositories | 2 days |
-| Map artefacts to competencies | 2 days |
-| Propose Type 1 edits, operator confirms | 1 day |
+| Read local and remote repositories | **Done.** `repo.py`. A path is read where it sits; a URL is cloned to a temporary directory, scanned, and the clone removed |
+| Map artefacts to competencies | **Done.** Eleven signals, each an artefact that had to be built and made to work. Not commit counts — frequency is not competence |
+| Propose Type 1 edits, operator confirms | **Done.** `vanguard evidence`. Nothing is written to the CV |
 
-**Why second:** it needs the FLAGGED branch defined, which section 3b does.
-Bounded by truthfulness — recovers unstated claims only.
+**The constraint held in its first real test.** Scanned against the twelve
+recurring unmet requirements, it proposed bullets for `pytest` and
+`documentation` and **nothing** for AWS, Azure, GCP, Docker, Terraform or
+Kubernetes — because none exist in that repository. A repository evidences
+only what was built, and the top of the gap list is a cloud gap no amount of
+mining closes.
 
-## C · Application channel — brink of autonomous
+**Defects surfaced by building B:**
+
+| | |
+|---|---|
+| B-46 | Clones were never deleted on Windows. Git marks `.git/objects` read-only and `rmtree(ignore_errors=True)` swallowed the failure, so every run left a copy of the operator's source in `%TEMP%`, silently |
+| B-47 | Repository names parsed by splitting on `/` only, so a Windows `file://C:/…` URL yielded the whole path |
+
+Only running on Windows caught B-46. The sandbox is Linux, where read-only
+files delete without complaint — so cleanup appeared to work perfectly while
+failing on the machine that matters.
+
+## C · Application channel — brink of autonomous · **NEXT**
 
 | | Effort |
 |---|---|
