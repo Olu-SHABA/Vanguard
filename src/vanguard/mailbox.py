@@ -249,6 +249,32 @@ class ImapProvider(MailProvider):
             terms.append(self.config.search)
         return " ".join(terms)
 
+    @staticmethod
+    def _gmail_search(connection, query: str):
+        """Issue X-GM-RAW with the query as an IMAP literal.
+
+        The query contains double quotes around multi-word employer names, so
+        wrapping the whole thing in quotes again produces nested quotes and
+        `BAD Could not parse command`. A literal carries a byte count and
+        needs no quoting at all.
+        """
+        encoded = query.encode("utf-8")
+        literal = f"{{{len(encoded)}}}".encode()
+        tag = connection._new_tag()
+        connection.send(b"%s SEARCH X-GM-RAW %s\r\n" % (tag, literal))
+
+        # The server replies with a continuation before accepting the payload.
+        while True:
+            line = connection._get_line()
+            if line.startswith(b"+"):
+                break
+            if line.startswith(tag):
+                return "NO", None
+
+        connection.send(encoded + b"\r\n")
+        typ, data = connection._command_complete("SEARCH", tag)
+        return connection._untagged_response(typ, data, "SEARCH")
+
     def fetch(self, *, since: datetime | None = None,
               limit: int = 100, extra_terms: Sequence[str] = ()) -> list[Message]:
         connection = self._connect()
@@ -258,16 +284,22 @@ class ImapProvider(MailProvider):
             connection.select(self.config.folder, readonly=not self.config.mark_seen)
 
             gmail_query = self._gmail_query(since)
+            status, data = "NO", None
+
             if gmail_query:
                 if extra_terms:
                     gmail_query = f"{gmail_query} {{{' '.join(extra_terms)}}}"
-                status, data = connection.search(None, "X-GM-RAW", f'"{gmail_query}"')
+                try:
+                    status, data = self._gmail_search(connection, gmail_query)
+                except Exception:
+                    status = "NO"
                 if status != "OK":
-                    # Not every Gmail-hosted account accepts X-GM-RAW. Fall
-                    # back rather than returning nothing.
-                    status, data = connection.search(
-                        None, f'(SINCE "{since.strftime("%d-%b-%Y")}")')
-            else:
+                    # Not every Gmail-hosted account accepts X-GM-RAW, and a
+                    # malformed query must degrade to reading the window
+                    # rather than returning nothing.
+                    gmail_query = None
+
+            if status != "OK":
                 criterion = f'(SINCE "{since.strftime("%d-%b-%Y")}")'
                 status, data = connection.search(None, criterion)
 

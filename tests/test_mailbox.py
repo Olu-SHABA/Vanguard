@@ -222,3 +222,124 @@ def test_html_only_mail_is_flattened() -> None:
 def test_date_header_is_used() -> None:
     parsed = parse_message(DECLINE)
     assert parsed is not None and parsed.received.year == 2026
+
+
+# ---------------------------------------------------------------------------
+# Gmail search — X-GM-RAW must be sent as a literal
+#
+# Observed 12 Aug 2026: the query contains double quotes around multi-word
+# employer names. Wrapping it in quotes again produced nested quotes and
+# `BAD Could not parse command`, so the poll returned nothing at all.
+# ---------------------------------------------------------------------------
+
+class FakeGmailConn:
+    """Records the raw bytes sent, so the wire format can be asserted."""
+
+    def __init__(self, accept_literal: bool = True,
+                 messages: list[bytes] | None = None) -> None:
+        self.accept_literal = accept_literal
+        self.messages = messages or [DECLINE]
+        self.sent: list[bytes] = []
+        self.plain_searches: list[str] = []
+        self._tag = 0
+
+    def _new_tag(self):
+        self._tag += 1
+        return f"AAAA{self._tag}".encode()
+
+    def send(self, payload):
+        self.sent.append(payload)
+
+    def _get_line(self):
+        return b"+ ready" if self.accept_literal else b"AAAA1 BAD nope"
+
+    def _command_complete(self, command, tag):
+        return "OK", [b"1"]
+
+    def _untagged_response(self, typ, data, name):
+        return typ, data
+
+    def select(self, folder, readonly=True):
+        return "OK", [b"1"]
+
+    def search(self, charset, *criteria):
+        self.plain_searches.append(" ".join(str(c) for c in criteria))
+        return "OK", [b"1"]
+
+    def fetch(self, identifier, spec):
+        return "OK", [(b"1 (RFC822)", self.messages[0])]
+
+    def logout(self):
+        pass
+
+
+def gmail_config(**overrides) -> MailboxConfig:
+    return MailboxConfig(**{
+        "address": "x@gmail.com", "host": "imap.gmail.com",
+        "username": "u", "password": "p", **overrides,
+    })
+
+
+def test_gmail_query_restricts_to_primary() -> None:
+    """Primary is not an IMAP folder. INBOX returns promotions and social too,
+    so a recent-N fetch can miss a genuine reply entirely."""
+    query = ImapProvider(gmail_config())._gmail_query(
+        datetime(2026, 7, 15, tzinfo=timezone.utc))
+    assert "category:primary" in query and "after:2026/07/15" in query
+
+
+def test_category_all_reads_everything() -> None:
+    query = ImapProvider(gmail_config(category="all"))._gmail_query(
+        datetime(2026, 7, 15, tzinfo=timezone.utc))
+    assert "category:" not in query
+
+
+def test_non_gmail_host_uses_plain_imap() -> None:
+    assert ImapProvider(gmail_config(host="outlook.office365.com"))._gmail_query(
+        datetime(2026, 7, 15, tzinfo=timezone.utc)) is None
+
+
+def test_search_is_sent_as_a_literal_not_a_quoted_string() -> None:
+    """A quoted string containing quotes is unparseable. A literal carries a
+    byte count and needs no quoting."""
+    connection = FakeGmailConn()
+    ImapProvider(gmail_config(), connection=connection).fetch(
+        extra_terms=['"19568"', '"Ministry of Justice"'])
+
+    wire = b"".join(connection.sent).decode()
+    assert "X-GM-RAW {" in wire, "query must be sent as a literal"
+    assert 'X-GM-RAW "' not in wire, "a quoted string would nest quotes"
+    assert "Ministry of Justice" in wire
+
+
+def test_literal_byte_count_matches_the_query() -> None:
+    connection = FakeGmailConn()
+    ImapProvider(gmail_config(), connection=connection).fetch(
+        extra_terms=['"Beatport"'])
+
+    wire = b"".join(connection.sent).decode()
+    declared = int(wire.split("{")[1].split("}")[0])
+    payload = wire.split("\r\n", 1)[1].rstrip("\r\n")
+    assert declared == len(payload.encode("utf-8"))
+
+
+def test_refused_literal_falls_back_to_a_plain_search() -> None:
+    """Not every Gmail-hosted account accepts X-GM-RAW. Returning nothing
+    would be worse than reading the window."""
+    connection = FakeGmailConn(accept_literal=False)
+    messages = ImapProvider(gmail_config(), connection=connection).fetch(
+        extra_terms=['"x"'])
+
+    assert connection.plain_searches, "must fall back to SINCE"
+    assert messages, "and still return what it found"
+
+
+def test_extra_terms_are_grouped_as_an_or() -> None:
+    """Gmail treats {a b} as OR. Without the braces a message would have to
+    mention every employer at once."""
+    connection = FakeGmailConn()
+    ImapProvider(gmail_config(), connection=connection).fetch(
+        extra_terms=['"A"', '"B"'])
+
+    wire = b"".join(connection.sent).decode()
+    assert '{"A" "B"}' in wire
