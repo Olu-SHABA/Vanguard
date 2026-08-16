@@ -174,3 +174,34 @@ def test_one_bad_entry_does_not_block_the_folder(folder) -> None:
                            encoding="utf-8")
 
     assert [p.name for p, _ in folder.ingestible()] == ["good.txt"]
+
+
+# ---------------------------------------------------------------------------
+# The template must not destroy work in progress
+# ---------------------------------------------------------------------------
+
+def test_filled_template_is_not_overwritten(tmp_path: Path) -> None:
+    """Filling in seventy rows and re-running --template would blank the lot,
+    and the loss is invisible until the columns are noticed empty."""
+    from vanguard.cli import _filled_rows
+
+    path = tmp_path / "to_register.csv"
+    path.write_text("filename,employer,url,board\n"
+                    "job.txt,Acme,https://example.com/1,linkedin\n",
+                    encoding="utf-8")
+    assert _filled_rows(path) == 1
+
+
+def test_blank_template_is_disposable(tmp_path: Path) -> None:
+    from vanguard.cli import _filled_rows
+
+    path = tmp_path / "to_register.csv"
+    path.write_text("filename,employer,url,board\njob.txt,,,linkedin\n",
+                    encoding="utf-8")
+    assert _filled_rows(path) == 0
+
+
+def test_unreadable_template_counts_as_empty(tmp_path: Path) -> None:
+    from vanguard.cli import _filled_rows
+
+    assert _filled_rows(tmp_path / "absent.csv") == 0

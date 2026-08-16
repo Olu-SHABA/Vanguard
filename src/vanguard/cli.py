@@ -263,6 +263,24 @@ def _window_threshold(boards_path: str) -> int:
         return DEFAULT_WINDOW_THRESHOLD
 
 
+def _filled_rows(path: Path) -> int:
+    """Rows in a template that carry an employer or a url.
+
+    A template of blank rows is disposable; one with work in it is not.
+    """
+    import csv as csv_module
+
+    try:
+        with path.open(newline="", encoding="utf-8") as handle:
+            return sum(
+                1 for row in csv_module.DictReader(handle)
+                if (row.get("employer") or "").strip()
+                or (row.get("url") or "").strip()
+            )
+    except (OSError, ValueError):
+        return 0
+
+
 def _open_applications(store) -> list:
     """Applications that could receive a reply — submitted or awaiting it.
 
@@ -885,7 +903,8 @@ def score(advert, cv, aliases, boards, no_model) -> None:
 
 @main.command()
 @click.option("--db", default=DEFAULTS["db"])
-def stats(db) -> None:
+@click.option("--storage", is_flag=True, help="Row counts and database size.")
+def stats(db, storage) -> None:
     """Coverage distribution and recurring gaps. The recalibration input."""
     store, queue = _ctx(db)
     rows = store.coverage_distribution()
@@ -906,6 +925,30 @@ def stats(db) -> None:
                 f"({30 - len(values)} more logged applications before the 0.94 "
                 "threshold can be revisited against evidence — OUTSTANDING P-01)"
             )
+
+    if storage:
+        footprint = store.storage_footprint()
+        counts = footprint["counts"]
+        size_mb = footprint["bytes"] / 1_048_576
+        per_vacancy = footprint["bytes_per_vacancy"]
+
+        click.echo()
+        click.echo(ui.rule("STORAGE"))
+        click.echo(ui.table(
+            [ui.Column("TABLE", 1.0, 12), ui.Column("ROWS", 0.4, 8, "right")],
+            [[name, f"{n:,}"] for name, n in sorted(
+                counts.items(), key=lambda kv: -kv[1])],
+        ))
+        click.echo()
+        click.echo(ui.field_list([
+            ("database", f"{size_mb:.1f} MB"),
+            ("per vacancy", f"{per_vacancy / 1024:.1f} KB" if per_vacancy else "-"),
+            ("projected", f"{per_vacancy * 75 * 365 / 1_073_741_824:.2f} GB/year "
+                          "at 75 vacancies/day" if per_vacancy else "-"),
+        ], indent="  "))
+        click.echo()
+        click.echo("  SQLite handles multi-gigabyte databases. The first symptom of")
+        click.echo("  growth is slower queries, not disk. Measure before acting.")
 
     recurring = store.unmet_term_frequency(12)
     if recurring:
@@ -1400,7 +1443,11 @@ def adverts_list(directory) -> None:
 @click.option("--dir", "directory", default=str(ADVERTS_DIR))
 @click.option("--template", is_flag=True,
               help="Write a CSV listing unregistered files, ready to fill in.")
-def adverts_register(csv_path, directory, template) -> None:
+@click.option("--out", "out_path", default="",
+              help="Where to write the template. Default <dir>/to_register.csv")
+@click.option("--force", is_flag=True,
+              help="Overwrite a template that already has entries filled in.")
+def adverts_register(csv_path, directory, template, out_path, force) -> None:
     """Register many adverts at once from a CSV.
 
     At seventy adverts a day, `adverts add` one at a time is the bottleneck
@@ -1422,7 +1469,20 @@ def adverts_register(csv_path, directory, template) -> None:
         if not unregistered:
             click.echo("  everything in the folder is registered")
             return
-        out = Path(directory) / "to_register.csv"
+        out = Path(out_path) if out_path else Path(directory) / "to_register.csv"
+
+        # Refuse to destroy work in progress. Filling in seventy rows and
+        # then re-running --template would silently blank the lot, and the
+        # loss is invisible until the columns are noticed empty.
+        if out.is_file() and not force:
+            filled = _filled_rows(out)
+            if filled:
+                raise click.ClickException(
+                    f"{out} already has {filled} completed row(s). Register it "
+                    "first, pass --out to write elsewhere, or --force to "
+                    "overwrite."
+                )
+
         with out.open("w", newline="", encoding="utf-8") as handle:
             writer = csv_module.writer(handle)
             writer.writerow(["filename", "employer", "url", "board"])

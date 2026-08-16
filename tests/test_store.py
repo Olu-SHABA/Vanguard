@@ -419,3 +419,19 @@ def test_re_scoring_still_refreshes_metadata(store: Store) -> None:
     row = store.queue_record("b:1")
     assert row["status"] == "DISPATCHED"
     assert row["submission_type"] == "SUCCESS_PROFILE"
+
+
+def test_storage_footprint_reports_row_counts(store: Store) -> None:
+    """Growth must be measurable, not estimated. The decision to archive or
+    index is then made on numbers."""
+    store.upsert_vacancy(vac())
+    footprint = store.storage_footprint()
+    assert footprint["counts"]["vacancies"] == 1
+    assert footprint["rows"] >= 1
+    assert footprint["bytes"] > 0
+
+
+def test_footprint_survives_an_empty_database(tmp_path: Path) -> None:
+    empty = Store(tmp_path / "v.db")
+    empty.initialise()
+    assert empty.storage_footprint()["bytes_per_vacancy"] == 0

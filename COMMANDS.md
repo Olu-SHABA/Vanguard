@@ -343,6 +343,10 @@ most frequently unmet:
    28x  AWS
 ```
 
+| Option | Effect |
+|---|---|
+| `--storage` | Row counts, database size, and a projection at 75 vacancies/day |
+
 **The unmet list is the useful part.** A requirement appearing 31 times is a
 standing skills gap, not a scoring artefact. That is career information, not
 software output.
@@ -867,3 +871,48 @@ interview invitations and rejections land in the same folder.
 **Written at dispatch, not at approval.** Approval means eligible for dispatch,
 not submitted. Archiving at approval would create folders for applications never
 sent.
+
+
+---
+
+# WHAT GROWS, AND WHAT DOES NOT
+
+Measured at 75 vacancies in one batch, not estimated.
+
+| File | Created | Grows? | Bounded by |
+|---|---|---|---|
+| `data/vanguard.db` | First command run | **Yes** | Nothing. ~12 KB per vacancy; ~0.3 GB/year at 75/day |
+| `Pipeline_Archive/` | First `dispatch` | **Yes** | Applications actually submitted, not vacancies scored |
+| `logs/vanguard.log` | First run with logging on | **No** | Rotation. New file each midnight, size cap as backstop |
+| `archive.db` | First `logs --archive` | Slowly | Only records past the retention window |
+| `adverts/manifest.yaml` | First `adverts add` | **No** | Files currently in the folder. Entries die with their file |
+| `adverts/to_register.csv` | `adverts register --template` | **No** | Unregistered files only. Overwritten, never appended |
+| `out/cv.pdf` | Rendering the CV | **No** | Replaced each render |
+| `.env`, `config/*.yaml` | By hand | **No** | — |
+
+**Only two grow without bound**, and only one is a database.
+
+## Inside the database
+
+| Table | Rows per vacancy |
+|---|---|
+| `gaps` | ~21 |
+| `vacancies`, `scores`, `queue`, `transitions` | 1 each |
+| `diagnostics` | 1 per scoring run |
+
+`gaps` is the bulk. It is also the most useful table — the recurring-unmet
+report comes from it.
+
+## When to act
+
+**Not on size.** SQLite handles multi-gigabyte databases without complaint.
+
+The first symptom is **slower queries** — `review` and `stats` scan the whole
+table. Watch for those becoming noticeable, then add indices or extend
+`logs --archive` to cover vacancies.
+
+```bash
+vanguard stats --storage
+```
+
+Run it weekly during heavy use. Decide on the numbers, not on a projection.

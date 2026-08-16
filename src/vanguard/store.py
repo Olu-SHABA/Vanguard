@@ -382,6 +382,33 @@ class Store:
                             "employer": row["employer"], "notes": notes})
         return out[:limit]
 
+    def storage_footprint(self) -> dict[str, object]:
+        """Row counts and file size. Visible so growth can be MEASURED.
+
+        At 75 vacancies a day the database is the only thing that grows
+        without bound — the advert manifest and CSV template are bounded by
+        what is currently in the folder. Reporting it here means the decision
+        to archive or index is made on numbers rather than on a guess.
+        """
+        counts: dict[str, int] = {}
+        with self.connect() as conn:
+            for table in ("vacancies", "scores", "gaps", "queue",
+                          "transitions", "diagnostics"):
+                try:
+                    counts[table] = conn.execute(
+                        f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+                except sqlite3.Error:
+                    counts[table] = 0
+
+        size = self.path.stat().st_size if self.path.is_file() else 0
+        vacancies = counts.get("vacancies", 0)
+        return {
+            "counts": counts,
+            "bytes": size,
+            "rows": sum(counts.values()),
+            "bytes_per_vacancy": (size / vacancies) if vacancies else 0,
+        }
+
     def parse_health(self) -> dict[str, int]:
         """How many adverts parse, refuse, or were never HTML.
 
