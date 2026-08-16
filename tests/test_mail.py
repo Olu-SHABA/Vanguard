@@ -509,3 +509,42 @@ def test_reference_still_wins_over_ats(ats_apps) -> None:
         ats_apps,
     )
     assert result.method is Correlation.REFERENCE
+
+
+# ---------------------------------------------------------------------------
+# OFFER — added 12 Aug 2026
+#
+# Without it a job offer fell through to AMBIGUOUS, which is the single worst
+# message to leave unclassified and the one that terminates a process.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "We are pleased to offer you the position of Senior Data Engineer.",
+        "We are delighted to offer you the role.",
+        "Please find attached your formal offer of employment.",
+        "Congratulations, and welcome to the team!",
+        "We would like to make you an offer.",
+    ],
+)
+def test_offers_are_classified(body: str) -> None:
+    assert classify(msg(body)).state is State.OFFER
+
+
+def test_offer_outranks_progress_phrasing() -> None:
+    """An offer routinely invites a further conversation. Reading that as
+    another interview round would miss the outcome entirely."""
+    result = classify(msg(
+        "We would like to offer you the position, and would like to arrange "
+        "a call to discuss the details."))
+    assert result.state is State.OFFER
+
+
+def test_decline_still_outranks_offer_language() -> None:
+    """A rejection mentioning that the role was offered to someone else must
+    not read as an offer."""
+    result = classify(msg(
+        "We have made an offer of employment to another candidate, so you "
+        "have not been successful on this occasion."))
+    assert result.state is State.DECLINE

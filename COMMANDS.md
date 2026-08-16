@@ -15,7 +15,7 @@ what.
 | [Getting vacancies in](#getting-vacancies-in) | `run` · `paste` · `adverts` |
 | [Looking at results](#looking-at-results) | `review` · `score` · `stats` · `diagnose` |
 | [Deciding](#deciding) | `approve` · `reject` · `resolve` · `override` · `dispatch` |
-| [Responses](#responses) | `poll` · `mail` · `dormant` · `feedback` · `interview` |
+| [Responses](#responses) | `poll` · `mail` · `dormant` · `feedback` · `interview` · `interviews` |
 | [Operations](#operations) | `logs` · `archive` |
 | [What grows](#what-grows-and-what-does-not) | Which files accumulate, and when to act |
 
@@ -613,6 +613,7 @@ and it is visible in the subject. "Thank you for applying at X" correlates;
 | State | Meaning |
 |---|---|
 | `DECLINE` | Application closed unsuccessfully |
+| `OFFER` | The role was offered. Terminates the interview process |
 | `PROGRESS` | Interview, call, assessment or further information requested |
 | `ACK` | Receipt only, no decision |
 | `QUERY` | A question needing a human answer |
@@ -655,6 +656,45 @@ vanguard feedback reed:57092035 --name "..." --contact "..." --recipient "Sarah 
 
 Prints a draft. **You review and send it.** Refuses on any state other than
 DECLINE — asking for feedback on a decision nobody made is worse than silence.
+
+## `vanguard interviews`
+
+Interview processes, across all their rounds.
+
+```bash
+vanguard interviews                       # active processes
+vanguard interviews --all                 # closed ones too
+vanguard interviews reed:57092035         # one process in full
+vanguard interviews reed:57092035 --withdraw "accepted another role"
+```
+
+| Option | Effect |
+|---|---|
+| `--all` | Include closed processes |
+| `--withdraw` | Close a process, with a reason |
+
+**A process opens on the first PROGRESS** correlated to a dispatched
+application, and every subsequent message attaches to it.
+
+| Message | Effect |
+|---|---|
+| `PROGRESS` | Opens a new round |
+| `ADMIN`, `QUERY`, `ACK`, `AMBIGUOUS` | Attach to the current round |
+| `OFFER` | **Closes** the process |
+| `DECLINE` | **Closes** the process |
+| operator `--withdraw` | **Closes** the process |
+
+**Nothing else closes one.** Not silence, not an administrative message.
+Employers go quiet between rounds and return, so dormancy is never an outcome.
+
+A message arriving after closure is recorded and changes nothing — a rejection
+must not reopen because a mailing list mentions the company afterwards.
+
+**Rounds drive the rehearsal.** Template E has three phases: CV claims, a
+runtime case study, an executive behavioural test. The process suggests the
+phase matching the round you are entering.
+
+---
 
 ## `vanguard interview <id>`
 

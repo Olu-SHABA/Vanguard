@@ -54,6 +54,7 @@ __all__ = [
     "classify",
     "dormant_sweep",
     "DECLINE_MARKERS",
+    "OFFER_MARKERS",
     "is_broadcast",
     "looks_like_an_acknowledgement",
     "domain_of",
@@ -64,11 +65,18 @@ __all__ = [
 
 
 class State(str, Enum):
+    """Classification of one inbound message.
+
+    OFFER was added 12 Aug 2026. Without it a job offer fell through to
+    AMBIGUOUS — the single worst message to leave unclassified, and the one
+    that terminates an interview process.
+    """
     ACK = "ACK"                    # receipt only, no decision conveyed
     PROGRESS = "PROGRESS"          # advancement requested
     DECLINE = "DECLINE"            # closed unsuccessfully
     QUERY = "QUERY"                # employer asks a question needing a human
     ADMIN = "ADMIN"                # scheduling logistics, no decision
+    OFFER = "OFFER"
     AMBIGUOUS = "AMBIGUOUS"        # confidence low, or signals conflict
 
     @property
@@ -106,6 +114,28 @@ DECLINE_MARKERS: tuple[str, ...] = (
     "we will not be taking your application further",
     "have decided not to proceed",
     "regret to inform you",
+)
+
+#: An offer terminates the process. Checked BEFORE progress, because an offer
+#: routinely invites a further conversation — "we would like to offer you the
+#: position, and would like to arrange a call to discuss" would otherwise read
+#: as another interview round.
+#:
+#: Added 12 Aug 2026. Without it an offer fell through to AMBIGUOUS, which is
+#: the single worst message to leave unclassified.
+OFFER_MARKERS: tuple[str, ...] = (
+    "pleased to offer you",
+    "delighted to offer you",
+    "happy to offer you",
+    "would like to offer you",
+    "we are offering you",
+    "offer of employment",
+    "formal offer",
+    "job offer",
+    "offer letter",
+    "make you an offer",
+    "welcome you to the team",
+    "welcome to the team",
 )
 
 PROGRESS_MARKERS: tuple[str, ...] = (
@@ -497,7 +527,7 @@ def correlate(
 # --- classification --------------------------------------------------------
 
 def classify(message: Message) -> Classification:
-    """Assign one of six states. First rule to fire wins.
+    """Assign one of seven states. First rule to fire wins.
 
     DECLINE is checked before PROGRESS. A decline phrase always wins over a
     progress phrase in the same message.
@@ -514,10 +544,17 @@ def classify(message: Message) -> Classification:
         )
         return Classification(State.DECLINE, 1, tuple(declines), note)
 
-    # RULE 2 — PROGRESS.
+    # RULE 2 — OFFER. Before PROGRESS: an offer often invites a further call,
+    # and reading that as another interview round would miss the outcome.
+    offers = _matches(low, OFFER_MARKERS)
+    if offers:
+        return Classification(State.OFFER, 2, tuple(offers),
+                              "an offer terminates the interview process")
+
+    # RULE 3 — PROGRESS.
     progress = _matches(low, PROGRESS_MARKERS)
     if progress:
-        return Classification(State.PROGRESS, 2, tuple(progress))
+        return Classification(State.PROGRESS, 3, tuple(progress))
 
     # RULE 3 — ACK. Receipt only. An ACK carrying a question is a QUERY.
     acks = _matches(low, ACK_MARKERS)

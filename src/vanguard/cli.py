@@ -43,6 +43,7 @@ from vanguard.gaps import classify_all
 from vanguard.ingest import health_check_all, ingest
 from vanguard.logs import LogConfig, RunLog, configure
 from vanguard.mailbox import FetchStrategy, choose_strategy
+from vanguard.process import ProcessStore
 from vanguard.mail import Message
 from vanguard.queue import IllegalTransition, QueueManager, Status
 from vanguard.rank import LexicalEmbedder, rank_score
@@ -1318,6 +1319,7 @@ def poll_cmd(provider, since_days, limit, dry_run, verbose, show_uncorrelated,
 
     archive = Archive(Path(archive_root))
     rows, uncorrelated = [], []
+    processes: list = []
 
     for message in messages:
         result = correlate(message, applications)
@@ -1339,6 +1341,13 @@ def poll_cmd(provider, since_days, limit, dry_run, verbose, show_uncorrelated,
                 subject=message.subject, sender=message.sender,
                 kind=outcome.state.value.lower(),
             )
+            # Attach to the interview process. Opens one on the first
+            # PROGRESS; closes it on OFFER or DECLINE. Nothing else ends it.
+            process = ProcessStore(db).record(
+                result.application.vacancy_id, outcome.state,
+                subject=message.subject, sender=message.sender)
+            if process is not None:
+                processes.append((result.application, process, outcome.state))
 
     if rows:
         columns = [
@@ -1370,6 +1379,22 @@ def poll_cmd(provider, since_days, limit, dry_run, verbose, show_uncorrelated,
                 ],
                 [[m.sender, m.subject] for m in uncorrelated[:40]],
             ))
+
+    if processes:
+        from vanguard.process import ProcessState, suggested_phase
+
+        click.echo()
+        click.echo(ui.rule("INTERVIEW PROCESSES"))
+        for application, process, state in processes:
+            tone = (ui.Tone.GOOD if process.state is ProcessState.OFFER
+                    else ui.Tone.BAD if process.state is ProcessState.DECLINE
+                    else ui.Tone.WARN)
+            click.echo(f"  {ui.badge(process.state.value, tone)} "
+                       f"{_clip(application.employer, 24)} — {process.summary()}")
+            if process.active and state.value == "PROGRESS":
+                phase = suggested_phase(process.current_round)
+                click.echo(f"      vanguard interview {application.vacancy_id} "
+                           f"--phase {phase}")
 
     if dry_run:
         click.echo("\n  dry run — nothing recorded")
@@ -1674,6 +1699,104 @@ def adverts_ingest(directory, move_to, dry_run, boards, cv, aliases, db,
     if move_to and moved:
         click.echo(f"\n  moved {moved} file(s) to {move_to}")
     click.echo("\n  vanguard review   to work through them")
+
+
+@main.command("interviews")
+@click.argument("vacancy_id", required=False)
+@click.option("--all", "show_all", is_flag=True, help="Closed processes too.")
+@click.option("--withdraw", default="", help="Close a process, with a reason.")
+@click.option("--db", default=DEFAULTS["db"])
+def interviews_cmd(vacancy_id, show_all, withdraw, db) -> None:
+    """Interview processes, across all their rounds.
+
+    A process opens on the first PROGRESS and closes only on OFFER, DECLINE or
+    your own withdrawal. Silence never closes one — employers go quiet between
+    rounds and return.
+    """
+    from vanguard.process import ProcessState, ProcessStore, suggested_phase
+
+    store, _ = _ctx(db)
+    processes = ProcessStore(db)
+
+    if withdraw:
+        if not vacancy_id:
+            raise click.ClickException("--withdraw needs a vacancy id")
+        if not processes.withdraw(vacancy_id, withdraw):
+            raise click.ClickException(f"no interview process for {vacancy_id}")
+        click.echo(f"  {ui.badge('WITHDRAWN', ui.Tone.MUTED)} {vacancy_id}")
+        click.echo(f"      {withdraw}")
+        return
+
+    if vacancy_id:
+        process = processes.get(vacancy_id)
+        if process is None:
+            click.echo(f"no interview process for {vacancy_id}")
+            return
+
+        vacancy = store.vacancy(vacancy_id)
+        width = _terminal_width()
+        click.echo()
+        click.echo(ui.rule(_clip(
+            f"{vacancy['title']} — {vacancy['employer']}" if vacancy
+            else vacancy_id, width - 8)))
+        click.echo(ui.field_list([
+            ("state", process.state.value),
+            ("opened", process.opened_at[:16].replace("T", " ")),
+            ("closed", process.closed_at[:16].replace("T", " ")),
+            ("rounds", str(process.current_round)),
+            ("messages", str(process.message_count)),
+            ("outcome", process.outcome_note),
+        ], indent="  "))
+
+        if process.rounds:
+            click.echo()
+            click.echo(ui.rule("ROUNDS"))
+            click.echo(ui.table(
+                [
+                    ui.Column("#", 0.2, 3, "right"),
+                    ui.Column("OPENED", 0.6, 12),
+                    ui.Column("SUBJECT", 1.8, 16),
+                ],
+                [[str(r.number), r.opened_at[:16].replace("T", " "), r.subject]
+                 for r in process.rounds],
+            ))
+
+        if process.active:
+            phase = suggested_phase(process.current_round)
+            click.echo(f"\n  next:  vanguard interview {vacancy_id} --phase {phase}")
+            click.echo(f"         vanguard interviews {vacancy_id} "
+                       '--withdraw "..."')
+        return
+
+    listing = processes.all() if show_all else processes.active()
+    if not listing:
+        click.echo("no active interview processes"
+                   if not show_all else "no interview processes recorded")
+        return
+
+    click.echo(ui.rule(f"INTERVIEWS  ·  {len(listing)}"))
+    rows = []
+    for process in listing:
+        vacancy = store.vacancy(process.vacancy_id)
+        rows.append([
+            process.state.value,
+            str(process.current_round),
+            vacancy["employer"] if vacancy else "",
+            vacancy["title"] if vacancy else "",
+            process.vacancy_id,
+        ])
+    click.echo(ui.table(
+        [
+            ui.Column("STATE", 0.5, 9),
+            ui.Column("RND", 0.2, 3, "right"),
+            ui.Column("EMPLOYER", 1.0, 12),
+            ui.Column("TITLE", 1.6, 14),
+            ui.Column("ID", 0.9, 12, tone=ui.Tone.MUTED, protected=True),
+        ],
+        rows,
+    ))
+    click.echo()
+    click.echo("  vanguard interviews <ID>   for one process in full")
 
 
 # ---------------------------------------------------------------------------
