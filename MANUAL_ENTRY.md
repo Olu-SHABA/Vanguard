@@ -4,7 +4,10 @@
 
 > **Just want the steps?** See **`HOW_TO_ADD_A_JOB.md`** — five steps, one page.
 > Adding many at once: **`HOW_TO_ADD_MANY_JOBS.md`**.
-> This document is the reference behind both.
+> Handling the replies: **`HOW_TO_HANDLE_REPLIES.md`**.
+> Finding CV evidence in your repositories: **`HOW_TO_USE_REPOSITORY_EVIDENCE.md`**.
+>
+> This document is the reference behind the entry guides.
 
 ---
 

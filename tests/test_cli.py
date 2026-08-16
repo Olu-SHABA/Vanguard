@@ -879,6 +879,18 @@ GUIDES = (
 )
 
 
+#: Documents that must name every guide. Derived rather than listed: any
+#: top-level document that already references at least one guide is expected
+#: to reference them all, so adding a fourth reference document brings it
+#: under the guard automatically.
+def _guide_indexes() -> list[str]:
+    return sorted(
+        path.name for path in ROOT.glob("*.md")
+        if path.name not in GUIDES
+        and any(guide in path.read_text(encoding="utf-8") for guide in GUIDES)
+    )
+
+
 @pytest.mark.parametrize("document", ["README.md", "SOP.md", "COMMANDS.md"])
 def test_every_guide_is_reachable(document: str) -> None:
     """The reference, the routine and the front page must each name every
@@ -896,6 +908,15 @@ def test_every_guide_that_exists_is_listed() -> None:
     assert on_disk == set(GUIDES), f"GUIDES is out of step with {on_disk}"
 
 
+def test_any_document_indexing_guides_indexes_them_all() -> None:
+    """Derived, so a fourth reference document is guarded the day it is
+    written. Naming one guide and not the others is how a guide gets lost."""
+    for name in _guide_indexes():
+        text = (ROOT / name).read_text(encoding="utf-8")
+        missing = [guide for guide in GUIDES if guide not in text]
+        assert not missing, f"{name} names some guides but not {missing}"
+
+
 def test_phase_document_matches_what_is_built() -> None:
     """A phase marked as upcoming after it has been built sends the reader to
     the wrong place — and it happened twice before this test existed.
@@ -906,21 +927,31 @@ def test_phase_document_matches_what_is_built() -> None:
     phase = (ROOT / "docs" / "PHASE_2.md").read_text(encoding="utf-8")
     source = ROOT / "src" / "vanguard"
 
-    built = {
-        "A · Foundations": ("archive.py", "mailbox.py", "process.py"),
-        "B · Repository evidence": ("repo.py",),
-        "C · Application channel": ("channel.py",),
-    }
+    # Derived from the document, not from a list here. A hardcoded map is a
+    # list somebody has to remember to maintain — the exact failure these
+    # guards exist to prevent, one level up.
+    #
+    # Each phase heading names its modules in backticks. If every one exists,
+    # the phase is built and must say COMPLETE.
+    import re
 
-    for heading, modules in built.items():
+    headings = re.findall(r"^## ([A-Z] · [^\n]+)$", phase, re.M)
+    assert headings, "PHASE_2.md has no phase headings to check"
+
+    for heading in headings:
+        section = phase.split(f"## {heading}", 1)[1]
+        section = section.split("\n## ", 1)[0]
+
+        modules = set(re.findall(r"`(\w+\.py)`", section))
+        if not modules:
+            continue
         if not all((source / module).is_file() for module in modules):
             continue
-        section = phase.split(heading, 1)
-        assert len(section) == 2, f"{heading} absent from PHASE_2.md"
-        opening = section[1][:160]
-        assert "COMPLETE" in opening, (
-            f"{heading} is built ({', '.join(modules)}) but PHASE_2.md does "
-            "not say so"
+
+        assert "COMPLETE" in heading or "COMPLETE" in section[:200], (
+            f"{heading} names modules that all exist "
+            f"({', '.join(sorted(modules))}) but the section does not say "
+            "COMPLETE"
         )
 
 
@@ -952,8 +983,35 @@ def test_readme_records_no_test_count() -> None:
 
 def test_readme_layout_covers_every_working_directory() -> None:
     """A directory the system creates and the README does not mention is one
-    the operator will find by accident."""
+    the operator will find by accident.
+
+    Derived from `.gitignore` and from what is on disk, not from a list here.
+    A new working directory is caught without anyone remembering to add it.
+    """
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    for directory in ("adverts/", "Pipeline_Archive/", "logs/", "out/",
-                      "docs/", "config/", "data/", "render/"):
-        assert directory in readme, f"README.md does not mention {directory}"
+
+    # Directories the SYSTEM creates and the operator will encounter. Tool
+    # caches and editor folders are neither, so they are excluded by shape:
+    # anything beginning with a dot, and anything a tool is known to make.
+    _TOOL_ARTEFACTS = {
+        "__pycache__", "htmlcov", "ENV", "env", "venv", "build", "dist",
+        "node_modules", "scratch", "models", "site-packages",
+    }
+    ignored = {
+        name for line in (ROOT / ".gitignore").read_text(
+            encoding="utf-8").splitlines()
+        if (name := line.strip().rstrip("/"))
+        and line.strip().endswith("/")
+        and not line.startswith("#")
+        and not name.startswith((".", "*"))
+        and name not in _TOOL_ARTEFACTS
+    }
+    tracked = {
+        path.name for path in ROOT.iterdir()
+        if path.is_dir() and path.name in {"config", "data", "render", "docs",
+                                           "src", "tests"}
+    }
+
+    missing = [name for name in sorted(ignored | tracked)
+               if name not in readme and name not in {"src", "tests"}]
+    assert not missing, f"README.md does not mention {missing}"
