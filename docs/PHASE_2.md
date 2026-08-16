@@ -457,16 +457,29 @@ on a terminal state and on nothing else.
 
 Agreed A → B → C.
 
-## A · Foundations — closes existing gaps
+## A · Foundations — **COMPLETE, 12 August 2026**
 
-| | Effort |
+| | State |
 |---|---|
-| `/Pipeline_Archive/` on dispatch | 1 day |
-| Mailbox polling — IMAP or Gmail | 2 days |
-| Interview record, multi-round | 2 days |
+| `/Pipeline_Archive/` on dispatch | **Done.** `archive.py`. Directive §5 amended to match: written at dispatch, one subfolder per vacancy |
+| Mailbox polling — IMAP or Gmail | **Done.** `mailbox.py`. Both providers, since several CVs carry different addresses. Monitored address derived from the CV in use |
+| Interview record, multi-round | **Done.** `process.py`. Opens on the first PROGRESS, closes only on OFFER, DECLINE or withdrawal |
 
-**Why first:** all three complete something already designed. Low risk, clear
-specification, and the archive is a directive requirement currently unmet.
+**Also built, out of sequence:** batch advert ingestion (`adverts.py`). Moved
+ahead of A.3 because at the intended 75 vacancies/day the ingest path is the
+bottleneck, while the interview path is weeks away.
+
+**Defects surfaced by building A:**
+
+| | |
+|---|---|
+| B-36 | A LinkedIn advert correlated to an open application |
+| B-37 | Gmail Primary is not an IMAP folder — genuine replies fell outside the fetch window |
+| B-38 | `X-GM-RAW` sent as a quoted string; the poll returned nothing |
+| B-39 | ATS acknowledgements failed to correlate — the sender is never the employer |
+| B-41 | Coverage distribution included unmeasured scores, polluting P-01 |
+| B-42 | Vacancy ids truncated in the queue, so rows could not be acted on |
+| B-43 | No `OFFER` state at all. A job offer classified as AMBIGUOUS |
 
 ## B · Repository evidence loop
 

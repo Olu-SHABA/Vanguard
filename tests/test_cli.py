@@ -855,3 +855,11 @@ def test_growth_guidance_is_in_both_documents() -> None:
 
     assert "what-grows" in commands, "the contents table must link to it"
     assert "stats --storage" in sop, "the monthly checklist must include it"
+
+
+def test_operational_docs_cover_the_response_loop() -> None:
+    """COMMANDS is the reference; the SOP is what gets followed. A command
+    missing from the SOP is a command nobody runs."""
+    sop = (ROOT / "SOP.md").read_text(encoding="utf-8")
+    for command in ("vanguard poll", "vanguard interviews", "vanguard adverts"):
+        assert command in sop, f"{command} absent from SOP.md"

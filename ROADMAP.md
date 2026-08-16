@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | Modules | 8,111 lines, 25 files |
-| Tests | 4,893 lines, 19 files — **631 passing, 0 failed** |
+| Tests | **912 passing, 0 failed** |
 | Documentation | 1,255 lines, 4 files |
 | Register | 54 items, 8 open |
 | Verified | With and without credentials configured |
@@ -94,7 +94,11 @@ the operator's ratchet ruling. Both thresholds live in config.
 
 ## Not built
 
-**N-06** mailbox polling · **N-01** NHS Jobs · **N-02** Find a Job
+**N-01** NHS Jobs · **N-02** Find a Job — both blocked on external access.
+
+**Built since this document was written:** N-06 mailbox polling, N-07 archive,
+N-08 batch ingestion, N-09 multi-round interview tracking. Phase 2 A is
+complete; see `docs/PHASE_2.md`.
 
 ## Cosmetic
 

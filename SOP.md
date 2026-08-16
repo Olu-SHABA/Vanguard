@@ -246,6 +246,15 @@ learned. That is a table entry, not a reason to ignore the score.
 LinkedIn, Adzuna, or anywhere you browse. Per-board detail in
 **`MANUAL_ENTRY.md`**.
 
+**Several at once** — see `HOW_TO_ADD_MANY_JOBS.md`:
+
+```
+[ ] save every advert into adverts\
+[ ] vanguard adverts register --template     writes a CSV to fill in
+[ ] vanguard adverts register --from-csv adverts\to_register.csv
+[ ] vanguard adverts ingest --move-to done\
+```
+
 ```
 [ ] copy the WHOLE advert, including the requirements section
 [ ] vanguard paste --file advert.txt --employer "..." --url "..."
@@ -258,22 +267,43 @@ requirements, and the score is marked `not measured`.
 ## When a recruiter replies
 
 ```
-[ ] save the message body to a file
-[ ] vanguard mail --file reply.txt --sender "..." --subject "..."
-[ ] read the classification
+[ ] vanguard poll --dry-run          see what is there, record nothing
+[ ] vanguard poll                    correlate, classify, archive
+[ ] vanguard interviews              anything progressing?
 ```
+
+`poll` reads the mailbox directly. `vanguard mail --file` remains for a
+message saved by hand — a forward, or something the search did not reach.
 
 Then, by classification:
 
 | | Do |
 |---|---|
-| `PROGRESS` | `vanguard interview <id> --phase 1` |
+| `PROGRESS` | A round opens. `vanguard interviews <id>` names the phase to rehearse |
+| `OFFER` | The process closes. Nothing further to do here |
 | `DECLINE` | `vanguard feedback <id> --name "..." --contact "..."` then send it yourself |
 | `QUERY` | Answer it. Nothing automated |
 | `ACK` | Nothing to do. Receipt only |
-| `ADMIN` | Logistics. Handle outside the system |
+| `ADMIN` | Logistics. Attaches to the current round |
 | `AMBIGUOUS` | No marker fired. Read it yourself |
-| `UNCORRELATED` | The system could not match it to an application. Check manually |
+| `UNCORRELATED` | Not matched to an application. Check manually |
+
+## Working an interview
+
+```
+[ ] vanguard interviews                    active processes
+[ ] vanguard interviews <id>               rounds, messages, next phase
+[ ] vanguard interview <id> --phase N      rehearse before the round
+```
+
+A process opens on the first PROGRESS and closes **only** on OFFER, DECLINE or
+your own withdrawal:
+
+```
+[ ] vanguard interviews <id> --withdraw "accepted another role"
+```
+
+Silence never closes one. Employers go quiet between rounds and return.
 
 ## Clearing a FLAGGED record
 
@@ -307,6 +337,7 @@ the alias table against an advert you already know well.
 ```
 [ ] vanguard stats                     coverage distribution, recurring gaps
 [ ] vanguard diagnose                  parse rate, unrecognised headings
+[ ] vanguard interviews                anything waiting on you
 [ ] vanguard dormant                   applications gone quiet
 [ ] vanguard logs                      any errors during the week
 ```

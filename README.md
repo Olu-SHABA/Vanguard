@@ -121,6 +121,10 @@ vanguard override <id> --why "..."  # apply despite an unreachable ceiling
 vanguard dispatch <id>              # record a submission YOU made
 vanguard stats                      # coverage distribution, recurring gaps
 vanguard diagnose                   # why adverts refuse; unrecognised headings
+vanguard adverts ingest             # batch-ingest a folder of pasted adverts
+vanguard poll                       # read the mailbox, correlate, classify
+vanguard interviews                 # interview processes, all rounds
+vanguard archive                    # what was actually submitted
 vanguard score --advert advert.txt  # standalone, no database
 
 vanguard mail --file reply.txt      # correlate + classify one message
