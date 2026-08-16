@@ -273,7 +273,8 @@ def test_the_clone_is_removed_afterwards(tmp_path: Path) -> None:
     with cloned(remote) as directory:
         assert directory.is_dir()
         recorded = directory
-    assert not recorded.exists()
+    assert not recorded.exists(), "the clone must not survive the scan"
+    assert not recorded.parent.exists(), "nor the directory holding it"
 
 
 def test_the_clone_is_removed_even_on_failure(tmp_path: Path) -> None:
@@ -283,7 +284,8 @@ def test_the_clone_is_removed_even_on_failure(tmp_path: Path) -> None:
         with cloned(remote) as directory:
             recorded = directory
             raise ValueError("something went wrong downstream")
-    assert recorded is not None and not recorded.exists()
+    assert recorded is not None
+    assert not recorded.exists(), "a downstream failure must still clean up"
 
 
 def test_an_unreachable_remote_raises_clearly(tmp_path: Path) -> None:
@@ -300,3 +302,48 @@ def test_a_remote_name_comes_from_the_url(tmp_path: Path) -> None:
 
 def test_a_local_path_still_works(repo: Path) -> None:
     assert scan_target(str(repo)).sufficient_evidence
+
+
+@pytest.mark.parametrize(
+    "target, expected",
+    [
+        ("https://github.com/Olu-SHABA/Vanguard", "Vanguard"),
+        ("github.com/you/reporting-engine", "reporting-engine"),
+        ("git@github.com:you/Vanguard.git", "Vanguard"),
+        ("file:///tmp/remote.git", "remote"),
+        ("file://C:/Users/USER/Temp/remote.git", "remote"),
+        ("https://gitlab.com/x/y/", "y"),
+    ],
+)
+def test_repository_name_parses_every_url_form(target: str, expected: str) -> None:
+    """`file://C:/path/remote.git` splits on backslashes on Windows and
+    forward slashes elsewhere. An unnamed repository cannot be cited."""
+    from vanguard.repo import _repository_name
+
+    assert _repository_name(target) == expected
+
+
+def test_read_only_git_objects_are_still_removed(tmp_path: Path) -> None:
+    """Git marks files under .git/objects read-only. On Windows that makes
+    them undeletable, and `ignore_errors=True` swallowed the failure — so
+    every scan left a copy of the operator's code in the temporary directory,
+    permanently and silently.
+    """
+    import stat
+
+    from vanguard.repo import _remove_tree
+
+    directory = tmp_path / "clone"
+    (directory / ".git" / "objects").mkdir(parents=True)
+    locked = directory / ".git" / "objects" / "abc123"
+    locked.write_text("object data\n")
+    locked.chmod(stat.S_IREAD)
+
+    _remove_tree(directory)
+    assert not directory.exists()
+
+
+def test_removing_an_absent_directory_is_safe(tmp_path: Path) -> None:
+    from vanguard.repo import _remove_tree
+
+    _remove_tree(tmp_path / "nothere")

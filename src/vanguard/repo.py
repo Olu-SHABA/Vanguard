@@ -116,7 +116,6 @@ def cloned(url: str, *, shallow: bool = False, timeout: int = 300):
     credential helper, an SSH key, or a token already in the URL. Vanguard
     never asks for them and never stores them.
     """
-    import shutil
     import tempfile
 
     target = normalise_remote(url)
@@ -141,7 +140,56 @@ def cloned(url: str, *, shallow: bool = False, timeout: int = 300):
     except FileNotFoundError as exc:
         raise CloneError("git is not installed or not on PATH") from exc
     finally:
-        shutil.rmtree(directory, ignore_errors=True)
+        _remove_tree(directory)
+
+
+def _remove_tree(directory: Path) -> None:
+    """Delete a clone, working around Windows read-only git objects.
+
+    Git marks files under `.git/objects` read-only. On Windows that makes
+    them undeletable, and `ignore_errors=True` swallows the failure — so
+    every scan would leave a copy of the operator's code in the temporary
+    directory, permanently and silently.
+
+    The error handler clears the read-only bit and retries.
+    """
+    import shutil
+    import stat
+
+    def _make_writable(func, path, _exc):
+        try:
+            Path(path).chmod(stat.S_IWRITE)
+            func(path)
+        except OSError:
+            pass
+
+    try:
+        # `onexc` from 3.12; `onerror` before it.
+        shutil.rmtree(directory, onexc=_make_writable)
+    except TypeError:
+        shutil.rmtree(directory, onerror=_make_writable)
+    except OSError:
+        pass
+
+    if directory.exists():
+        # Report rather than leave it silently. A clone left behind is the
+        # operator's source code sitting in a temporary directory.
+        import warnings
+
+        warnings.warn(f"could not remove clone at {directory}", stacklevel=2)
+
+
+def _repository_name(target: str) -> str:
+    """The repository name from a URL, whatever the separator.
+
+    `file://C:/path/to/remote.git` splits on backslashes on Windows and
+    forward slashes elsewhere, so both are handled.
+    """
+    text = normalise_remote(target).rstrip("/\\")
+    text = text.split("://", 1)[-1]
+    leaf = re.split(r"[/\\]", text)[-1]
+    leaf = leaf.rsplit(":", 1)[-1] if ":" in leaf and not leaf[1:2] == ":" else leaf
+    return leaf[:-4] if leaf.endswith(".git") else leaf or "repository"
 
 
 def scan_target(target: str, *, shallow: bool = False) -> RepositoryScan:
@@ -153,8 +201,7 @@ def scan_target(target: str, *, shallow: bool = False) -> RepositoryScan:
     if not is_remote(target):
         return scan_repository(target)
 
-    name = normalise_remote(target).rstrip("/").rsplit("/", 1)[-1]
-    name = name[:-4] if name.endswith(".git") else name
+    name = _repository_name(target)
 
     with cloned(target, shallow=shallow) as directory:
         return scan_repository(directory, name=name)
