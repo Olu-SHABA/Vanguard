@@ -434,6 +434,12 @@ The command asks, of each proposal:
 
 **If you hesitate, it is not a Type 1 gap.** It stays unmet.
 
+> **A worked example.** Run against the Vanguard repository itself, this
+> proposes a bullet for `pytest` — 25 test files, genuine evidence. It should
+> be rejected: the assistant wrote those tests, not the operator. The evidence
+> is real and the claim would not be. That is the confirmation step doing its
+> job, not the scanner failing.
+
 Nothing is written to the CV. You edit `data/canonical_cv.md` by hand, then
 re-score.
 
