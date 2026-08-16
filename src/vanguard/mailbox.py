@@ -98,6 +98,8 @@ class MailboxConfig:
     since_days: int = 30
     mark_seen: bool = False
     label: str = ""                   # which CV this address belongs to
+    category: str = "primary"         # gmail tab: primary | all
+    search: str = ""                  # extra Gmail search terms
 
     @property
     def configured(self) -> bool:
@@ -126,6 +128,8 @@ class MailboxConfig:
         username = get("USER") or address
         host = get("HOST") or _default_host(username)
         return cls(
+            category=(get("CATEGORY", "primary") or "primary").lower(),
+            search=get("SEARCH"),
             address=address or username,
             provider=(get("PROVIDER") or provider).lower(),
             host=host,
@@ -169,9 +173,14 @@ class MailProvider(ABC):
         self.config = config
 
     @abstractmethod
-    def fetch(self, *, since: datetime | None = None,
-              limit: int = 100) -> list[Message]:
-        """Messages received since `since`. Never sends, replies or deletes."""
+    def fetch(self, *, since: datetime | None = None, limit: int = 100,
+              extra_terms: Sequence[str] = ()) -> list[Message]:
+        """Messages received since `since`. Never sends, replies or deletes.
+
+        `extra_terms` narrows the search where the provider supports it —
+        searching for known employers and references is more reliable than
+        reading the most recent N and correlating afterwards.
+        """
 
     @abstractmethod
     def health_check(self) -> tuple[bool, str]:
@@ -221,15 +230,47 @@ class ImapProvider(MailProvider):
         self._connection = connection
         return connection
 
+    def _gmail_query(self, since: datetime) -> str | None:
+        """Gmail search terms, or None when this is not a Gmail mailbox.
+
+        Gmail's Primary / Promotions / Social tabs are NOT IMAP folders —
+        `INBOX` returns all of them. A recent-N fetch is therefore dominated
+        by promotional mail, and a genuine employer reply can fall outside
+        the window entirely. Gmail exposes the tabs to IMAP through
+        `X-GM-RAW`, which accepts its own search syntax.
+        """
+        if "gmail" not in (self.config.host or "").lower():
+            return None
+
+        terms = [f"after:{since.strftime('%Y/%m/%d')}"]
+        if self.config.category and self.config.category != "all":
+            terms.append(f"category:{self.config.category}")
+        if self.config.search:
+            terms.append(self.config.search)
+        return " ".join(terms)
+
     def fetch(self, *, since: datetime | None = None,
-              limit: int = 100) -> list[Message]:
+              limit: int = 100, extra_terms: Sequence[str] = ()) -> list[Message]:
         connection = self._connect()
         since = since or self.default_since()
 
         try:
             connection.select(self.config.folder, readonly=not self.config.mark_seen)
-            criterion = f'(SINCE "{since.strftime("%d-%b-%Y")}")'
-            status, data = connection.search(None, criterion)
+
+            gmail_query = self._gmail_query(since)
+            if gmail_query:
+                if extra_terms:
+                    gmail_query = f"{gmail_query} {{{' '.join(extra_terms)}}}"
+                status, data = connection.search(None, "X-GM-RAW", f'"{gmail_query}"')
+                if status != "OK":
+                    # Not every Gmail-hosted account accepts X-GM-RAW. Fall
+                    # back rather than returning nothing.
+                    status, data = connection.search(
+                        None, f'(SINCE "{since.strftime("%d-%b-%Y")}")')
+            else:
+                criterion = f'(SINCE "{since.strftime("%d-%b-%Y")}")'
+                status, data = connection.search(None, criterion)
+
             if status != "OK":
                 raise MailboxError(f"search failed on {self.config.folder}")
 
@@ -318,13 +359,21 @@ class GmailProvider(MailProvider):
             raise MailboxError(f"gmail authentication failed: {exc}") from exc
         return self._service
 
-    def fetch(self, *, since: datetime | None = None,
-              limit: int = 100) -> list[Message]:
+    def fetch(self, *, since: datetime | None = None, limit: int = 100,
+              extra_terms: Sequence[str] = ()) -> list[Message]:
         import base64
 
         service = self._build()
         since = since or self.default_since()
-        query = f"after:{since.strftime('%Y/%m/%d')}"
+
+        terms = [f"after:{since.strftime('%Y/%m/%d')}"]
+        if self.config.category and self.config.category != "all":
+            terms.append(f"category:{self.config.category}")
+        if self.config.search:
+            terms.append(self.config.search)
+        if extra_terms:
+            terms.append("{" + " ".join(extra_terms) + "}")
+        query = " ".join(terms)
 
         try:
             listing = service.users().messages().list(

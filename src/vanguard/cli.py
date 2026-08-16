@@ -230,6 +230,30 @@ def _score_and_queue(vacancy, store, queue, canonical, alias_table, embedder, na
     return status.value
 
 
+def _open_applications(store) -> list:
+    """Applications that could receive a reply — submitted or awaiting it.
+
+    The employer domain is derived from the vacancy URL where the vacancy
+    lives on the employer's own site, which is what makes sender-domain
+    correlation work without configuring anything.
+    """
+    from vanguard.mail import Application, domain_of
+
+    out = []
+    for row in store.list_queue(limit=500):
+        if row["status"] not in ("DISPATCHED", "APPROVED"):
+            continue
+        vacancy = store.vacancy(row["vacancy_id"])
+        out.append(Application(
+            vacancy_id=row["vacancy_id"],
+            employer=row["employer"],
+            title=row["title"],
+            reference=(vacancy["reference"] if vacancy else "") or "",
+            employer_domain=domain_of(vacancy["url"] if vacancy else ""),
+        ))
+    return out
+
+
 def registry_gate(boards_path: str = "") -> str:
     """The gate in force, for display. Never fails a render."""
     try:
@@ -1084,11 +1108,15 @@ def archive_cmd(vacancy_id, root, limit) -> None:
 @click.option("--verbose", is_flag=True, help="Show sender addresses and full subjects.")
 @click.option("--show-uncorrelated", is_flag=True,
               help="List messages that matched no application.")
+@click.option("--category", default="", help="Gmail tab: primary (default) or all.")
+@click.option("--broad", is_flag=True,
+              help="Read everything in the window instead of searching for known "
+                   "employers and references.")
 @click.option("--cv", default=DEFAULTS["cv"])
 @click.option("--db", default=DEFAULTS["db"])
 @click.option("--archive-root", default=str(ARCHIVE_ROOT))
 def poll_cmd(provider, since_days, limit, dry_run, verbose, show_uncorrelated,
-             cv, db, archive_root) -> None:
+             category, broad, cv, db, archive_root) -> None:
     """Read the mailbox, correlate replies to applications, classify them.
 
     Read-only. Never sends, never replies, never deletes.
@@ -1109,6 +1137,8 @@ def poll_cmd(provider, since_days, limit, dry_run, verbose, show_uncorrelated,
         config.provider = provider
     if since_days:
         config.since_days = since_days
+    if category:
+        config.category = category.lower()
 
     click.echo(ui.rule(f"MAILBOX  ·  {config.address or '(no address in CV)'}  ·  "
                        f"{config.provider}"))
@@ -1128,8 +1158,31 @@ def poll_cmd(provider, since_days, limit, dry_run, verbose, show_uncorrelated,
 
     click.echo(f"  {ui.badge('CONNECTED', ui.Tone.GOOD)}  {detail}")
 
+    # Applications first: a targeted search is far more reliable than reading
+    # the most recent N and correlating afterwards. Gmail's Primary tab is not
+    # an IMAP folder, so INBOX returns promotions and social too — a genuine
+    # reply can sit outside a recent-N window entirely.
+    applications = _open_applications(store)
+
+    extra_terms: list[str] = []
+    if not broad:
+        for app in applications:
+            if app.reference:
+                extra_terms.append(f'"{app.reference}"')
+            employer = app.employer.split(",")[0].strip()
+            if len(employer) > 3:
+                extra_terms.append(f'"{employer}"')
+        extra_terms = list(dict.fromkeys(extra_terms))[:20]
+
+    if extra_terms:
+        click.echo(f"  searching for {len(applications)} employer(s) and "
+                   f"reference(s) in category:{config.category}")
+    else:
+        click.echo(f"  reading category:{config.category}, "
+                   f"last {config.since_days} days")
+
     try:
-        messages = mailbox.fetch(limit=limit)
+        messages = mailbox.fetch(limit=limit, extra_terms=extra_terms)
     except MailboxError as exc:
         raise click.ClickException(str(exc)) from exc
 
@@ -1147,6 +1200,7 @@ def poll_cmd(provider, since_days, limit, dry_run, verbose, show_uncorrelated,
             vacancy_id=row["vacancy_id"], employer=row["employer"],
             title=row["title"],
             reference=(vacancy["reference"] if vacancy else "") or "",
+            url=(vacancy["url"] if vacancy else "") or "",
         ))
 
     click.echo(f"\n  {len(messages)} message(s), {len(applications)} open "
@@ -1237,6 +1291,7 @@ def mail_cmd(path, sender, subject, db) -> None:
         apps.append(Application(
             vacancy_id=r["vacancy_id"], employer=r["employer"], title=r["title"],
             reference=(row["reference"] if row else "") or "",
+            url=(row["url"] if row else "") or "",
         ))
 
     result = correlate(message, apps)

@@ -401,11 +401,33 @@ vanguard poll --provider gmail
 | `--dry-run` | Classify and report; record nothing |
 | `--verbose` | Show sender addresses alongside subjects |
 | `--show-uncorrelated` | List messages that matched no application |
+| `--category` | Gmail tab: `primary` (default) or `all` |
+| `--broad` | Read everything in the window instead of searching for known employers and references |
 | `--cv` | The CV whose contact address is monitored |
 | `--archive-root` | Where correspondence is filed |
 
 **Read-only.** Never sends, replies or deletes. The mailbox is opened read-only
 unless `VANGUARD_MAIL_MARK_SEEN` is set.
+
+### Gmail tabs are not IMAP folders
+
+Primary, Promotions and Social are a display layer. IMAP sees one `INBOX`
+containing all of them, so reading "the most recent 100" fills with promotional
+mail and **a genuine employer reply can fall outside the window entirely**.
+
+Two things address it:
+
+**Category.** `category:primary` is applied by default via Gmail's `X-GM-RAW`
+search, restricting to the tab where employer replies land. `--category all`
+reads everything.
+
+**Targeted search.** Rather than reading the most recent N and correlating
+afterwards, the poll searches for the employers and references of your open
+applications. A reply from three weeks ago is found regardless of how much
+promotional mail arrived since. `--broad` disables this.
+
+Neither applies to non-Gmail providers, which fall back to a plain `SINCE`
+search.
 
 **The address follows the CV.** An employer replies to whatever address the CV
 gave them, so it is derived from `canonical_cv.md` rather than configured

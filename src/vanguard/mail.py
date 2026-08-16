@@ -48,9 +48,14 @@ __all__ = [
     "Message",
     "Classification",
     "correlate",
+    "is_broadcast",
+    "domain_of",
     "classify",
     "dormant_sweep",
     "DECLINE_MARKERS",
+    "is_broadcast",
+    "domain_of",
+    "domain_of",
     "PROGRESS_MARKERS",
     "ACK_MARKERS",
 ]
@@ -149,6 +154,59 @@ def _matches(text_low: str, markers: Iterable[str]) -> list[str]:
     return [m for m in markers if _phrase(text_low, m)]
 
 
+# ---------------------------------------------------------------------------
+# Broadcast senders — never a reply to an application
+#
+# Observed 12 Aug 2026: `jobs-noreply@linkedin.com` advertising a Beatport
+# vacancy was correlated to an open Beatport application, because the subject
+# contained the employer name and a job title. It was an advert, not a reply.
+#
+# A broadcast is filtered BEFORE correlation. Attributing an advert to an
+# application would file it in that application's archive and, if the wording
+# happened to match, classify it as a decline.
+# ---------------------------------------------------------------------------
+
+#: Local parts that mark a mass mailing. `no-reply` alone is NOT here: many
+#: employers send genuine application acknowledgements from a no-reply
+#: address, and an automated receipt is still a reply.
+_BROADCAST_LOCAL = (
+    "jobs-noreply", "jobalerts-noreply", "notifications-noreply",
+    "updates-noreply", "invitations", "donotreply", "do-not-reply",
+    "newsletter", "jobalert", "marketing", "promotions",
+)
+
+_BROADCAST_DOMAIN = (
+    "jobalert.indeed.com", "match.indeed.com", "jobs.cwjobs.co.uk",
+    "jobs.totaljobsmail.com", "e.travelodge.co.uk", "builtin.com",
+)
+
+#: Subject phrases that mark an advert. Nobody writes these in a reply.
+_ADVERT_SUBJECT = (
+    "apply now", "new jobs", "jobs in", "job matches", "job alert",
+    "jobs matching", "recommended for you", "jobs for you", "new job",
+    "recently posted", "you appeared in", "want to connect",
+)
+
+
+def is_broadcast(message: Message) -> bool:
+    """A mass mailing, not a reply to an application.
+
+    Checked before correlation. A job board advertising a vacancy at an
+    employer is not that employer writing back.
+    """
+    sender = (message.sender or "").lower()
+    local = sender.split("@", 1)[0]
+    domain = sender.rsplit("@", 1)[-1] if "@" in sender else ""
+
+    if any(marker in local for marker in _BROADCAST_LOCAL):
+        return True
+    if any(domain.endswith(known) for known in _BROADCAST_DOMAIN):
+        return True
+
+    subject = (message.subject or "").lower()
+    return any(phrase in subject for phrase in _ADVERT_SUBJECT)
+
+
 # --- models ----------------------------------------------------------------
 
 @dataclass
@@ -179,6 +237,7 @@ class Application:
     title: str
     reference: str = ""
     employer_domain: str = ""
+    url: str = ""
     submitted: datetime | None = None
 
 
@@ -204,9 +263,9 @@ class CorrelationResult:
     @property
     def correlated(self) -> bool:
         return self.application is not None
-
-
-# --- correlation -----------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Correlation
+# ---------------------------------------------------------------------------
 
 _WS = re.compile(r"\s+")
 _PUNCT = re.compile(r"[^\w\s]")
@@ -214,6 +273,76 @@ _PUNCT = re.compile(r"[^\w\s]")
 
 def _norm(text: str) -> str:
     return _WS.sub(" ", _PUNCT.sub(" ", (text or "").lower())).strip()
+
+
+#: Words too common in employer names to identify anyone.
+_COMMON_EMPLOYER_WORDS = frozenset({
+    "group", "limited", "holdings", "services", "solutions", "technology",
+    "technologies", "consulting", "consultancy", "international", "global",
+    "systems", "partners", "associates", "company", "corporation",
+})
+
+#: Domains that broker vacancies rather than employ. A message from one names
+#: an employer without being from that employer.
+_JOB_BOARD_DOMAINS = (
+    "linkedin.com", "indeed.com", "reed.co.uk", "totaljobs.com",
+    "totaljobsmail.com", "cwjobs.co.uk", "cv-library.co.uk", "monster.co.uk",
+    "adzuna.co.uk", "glassdoor.com", "jobsite.co.uk", "builtin.com",
+)
+
+
+def domain_of(url: str) -> str:
+    """The employer's domain from a vacancy URL, or empty for a job board.
+
+    A vacancy hosted on the employer's own careers site tells us the domain
+    their replies will come from. A vacancy on a job board tells us nothing —
+    the board is not the employer.
+    """
+    if not url:
+        return ""
+    match = re.match(r"https?://([^/:?#]+)", url.strip(), re.I)
+    if not match:
+        return ""
+    host = match.group(1).lower().removeprefix("www.")
+    return "" if _sender_is_a_job_board(host) else host
+
+
+def _sender_is_a_job_board(domain: str) -> bool:
+    """True when the sender brokers vacancies rather than employs.
+
+    Stops the fuzzy stage reading "LinkedIn writing about Beatport" as
+    "Beatport writing to you".
+    """
+    domain = (domain or "").lower()
+    return any(domain == known or domain.endswith("." + known)
+               for known in _JOB_BOARD_DOMAINS)
+
+
+def _sender_plausible(app: Application, domain: str) -> bool:
+    """Could this sender be the employer, or someone acting for them?
+
+    A subject naming an employer proves nothing about who sent it. Requiring
+    some overlap between the sender domain and the employer name stops a job
+    board's advert being read as the employer's reply.
+    """
+    if not domain:
+        return False
+    if app.employer_domain and domain.endswith(app.employer_domain.lower()):
+        return True
+    # Recruiters mail on an employer's behalf, so an exact match is too
+    # strict. A shared distinctive token is enough.
+    employer_tokens = {t for t in _norm(app.employer).split()
+                       if len(t) > 3 and t not in _COMMON_EMPLOYER_WORDS}
+    domain_text = domain.replace(".", " ").replace("-", " ")
+    return any(token in domain_text for token in employer_tokens)
+
+
+#: Words too common in employer names to identify anyone.
+_COMMON_EMPLOYER_WORDS = frozenset({
+    "group", "limited", "holdings", "services", "solutions", "technology",
+    "technologies", "consulting", "consultancy", "international", "global",
+    "systems", "partners", "associates", "company", "corporation",
+})
 
 
 def correlate(
@@ -225,28 +354,61 @@ def correlate(
     classification outcome — an uncorrelated message is queued for review, not
     guessed at.
     """
+    # A broadcast is never a reply. Filtered first: a job board advertising a
+    # vacancy at an employer must not be attributed to an application at that
+    # employer.
+    if is_broadcast(message):
+        return CorrelationResult(None, Correlation.NONE)
+
     text_low = message.text.lower()
 
     # 1. Application reference or vacancy id — highest confidence.
+    #
+    #    A reference is specific enough to survive the broadcast check: an
+    #    applicant-tracking system commonly replies from a no-reply address,
+    #    and that is correspondence.
     for app in applications:
         for token in (app.reference, app.vacancy_id.split(":")[-1]):
             if token and len(token) >= 4 and token.lower() in text_low:
                 return CorrelationResult(app, Correlation.REFERENCE)
 
     # 2. Sender domain against the employer domain on the vacancy record.
+    #
+    #    The domain is taken from the application where set, and otherwise
+    #    derived from the vacancy URL. A named recruiter writing from the
+    #    employer's own domain is the commonest shape of a real reply, and
+    #    without this it reaches stage 3 — which needs the employer name in
+    #    the subject, something a recruiter would never write.
+    #    Also survives the broadcast check: `no-reply@mail.justice.gov.uk` is
+    #    an employer's ATS, not a mass mailing. The DOMAIN carries the signal
+    #    here, and it is the employer's own.
     domain = message.sender_domain
-    if domain:
+    if domain and not _sender_is_a_job_board(domain):
         for app in applications:
-            emp_domain = (app.employer_domain or "").lower().strip()
+            emp_domain = (app.employer_domain or domain_of(app.url)).lower().strip()
             if emp_domain and (domain == emp_domain or domain.endswith("." + emp_domain)):
                 return CorrelationResult(app, Correlation.SENDER_DOMAIN)
 
     # 3. Employer name AND job title in the subject. Both, not either —
     #    "Data Engineer" alone would match every open data application.
+    #
+    #    Only when the sender is plausibly the employer. A job board's advert
+    #    naming an employer and a title is not correspondence from that
+    #    employer, and this stage cannot tell the difference on subject alone.
+    #    Broadcasts are excluded HERE rather than earlier. Stages 1 and 2 rest
+    #    on a reference or the employer's own domain, both specific enough to
+    #    be trusted from a no-reply address. Stage 3 rests only on words in a
+    #    subject line, which every job advert also contains.
+    if _sender_is_a_job_board(domain) or is_broadcast(message):
+        return CorrelationResult(None, Correlation.NONE)
+
     subject = _norm(message.subject)
     for app in applications:
         employer, title = _norm(app.employer), _norm(app.title)
-        if employer and title and employer in subject and title in subject:
+        if not (employer and title):
+            continue
+        if (employer in subject and title in subject
+                and _sender_plausible(app, domain)):
             return CorrelationResult(app, Correlation.FUZZY)
 
     return CorrelationResult(None, Correlation.NONE)

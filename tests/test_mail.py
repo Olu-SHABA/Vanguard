@@ -124,11 +124,19 @@ def test_subdomain_matches_employer_domain(apps) -> None:
 
 
 def test_fuzzy_needs_both_employer_and_title(apps) -> None:
-    """Title alone would match every open application in the same field."""
+    """Title alone would match every open application in the same field.
+
+    Amended 12 Aug 2026: employer AND title is necessary but no longer
+    sufficient. The sender must also plausibly be the employer — a subject
+    naming an employer proves nothing about who sent it, which is how a
+    LinkedIn advert was attributed to a Beatport application.
+    """
     assert not correlate(msg("Update", subject="Data Scientist role",
                              sender="x@nowhere.com"), apps).correlated
+    assert not correlate(msg("Update", subject="Acme Analytics - Data Scientist",
+                             sender="x@nowhere.com"), apps).correlated
     assert correlate(msg("Update", subject="Acme Analytics - Data Scientist",
-                         sender="x@nowhere.com"), apps).correlated
+                         sender="hiring@acme.com"), apps).correlated
 
 
 def test_uncorrelated_is_not_a_classification(apps) -> None:
@@ -188,3 +196,219 @@ def test_unsubmitted_applications_are_skipped() -> None:
 def test_dormant_is_not_decline() -> None:
     """A derived state. Silence is an absence of information."""
     assert not hasattr(State, "DORMANT")
+
+
+# ---------------------------------------------------------------------------
+# Broadcasts are not correspondence
+#
+# Observed 12 Aug 2026: 300 messages polled, 297 uncorrelated and all
+# broadcasts. The three that DID correlate were LinkedIn job adverts —
+# jobs-noreply@linkedin.com, "Olumide, apply now to 'Senior…'" — matched to a
+# Beatport application because the subject carried the employer name and a
+# job title.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "sender, subject",
+    [
+        ("jobs-noreply@linkedin.com", "Olumide, apply now to 'Senior Data Scientist'"),
+        ("jobalerts-noreply@linkedin.com", "Data Scientist - Python (Remote) at Hired"),
+        ("donotreply@jobalert.indeed.com", "network engineer in Glasgow"),
+        ("donotreply@match.indeed.com", "Network Operations Centre Director"),
+        ("info@jobs.totaljobsmail.com", '6 new "Network Engineer" jobs in Glasgow'),
+        ("info@jobs.cwjobs.co.uk", '7 new "Network Operations Engineer" jobs'),
+        ("notifications-noreply@linkedin.com", "You appeared in 3 searches this week"),
+        ("invitations@linkedin.com", "I want to connect"),
+        ("newsletter@update.just-eat.co.uk", "Your 50% discount's waiting"),
+    ],
+)
+def test_observed_broadcasts_are_recognised(sender: str, subject: str) -> None:
+    """Every sender here came from a real poll of the operator's inbox."""
+    from vanguard.mail import is_broadcast
+
+    assert is_broadcast(msg("body text", subject=subject, sender=sender))
+
+
+def test_broadcast_never_correlates(apps) -> None:
+    """An advert is not correspondence. Filing one against an application
+    would put it in that application's archive, and with the wrong wording
+    could classify it as a decision."""
+    result = correlate(
+        msg("Great opportunities for you.",
+            subject="Olumide, apply now to 'Senior Data Engineer' at Ministry of Justice",
+            sender="jobs-noreply@linkedin.com"),
+        apps,
+    )
+    assert not result.correlated
+
+
+def test_a_reference_inside_a_broadcast_does_not_correlate(apps) -> None:
+    """Superseded 12 Aug 2026. This previously asserted that a reference
+    number survives the broadcast check.
+
+    It does not, and should not. A job board digest can quote a reference in
+    a list of vacancies without being a reply — the reference proves the
+    vacancy is mentioned, not that the employer wrote. A genuine reply
+    carrying a reference comes from the employer or their agency, and
+    correlates at stage 1 as before.
+    """
+    from vanguard.mail import is_broadcast
+
+    digest = msg("Regarding vacancy 19568 and others.",
+                 sender="jobs-noreply@linkedin.com", subject="New jobs for you")
+    assert is_broadcast(digest)
+    assert not correlate(digest, apps).correlated
+
+    genuine = msg("Regarding vacancy 19568.", sender="someone@agency.com",
+                  subject="Your application")
+    assert correlate(genuine, apps).method is Correlation.REFERENCE
+
+
+def test_job_board_domain_cannot_match_fuzzily(apps) -> None:
+    result = correlate(
+        msg("body", subject="Ministry of Justice Senior Data Engineer",
+            sender="someone@linkedin.com"),
+        apps,
+    )
+    assert not result.correlated
+
+
+# --- genuine replies must still get through -------------------------------
+
+def test_named_recruiter_at_the_employer_domain_correlates() -> None:
+    """The commonest shape of a real reply. It previously reached stage 3,
+    which needs the employer name in the subject — something a recruiter
+    would never write."""
+    from vanguard.mail import Application
+
+    apps = [Application("reed:1", "Beatport", "Senior Data Scientist",
+                        reference="19568",
+                        url="https://careers.beatport.com/jobs/123")]
+    result = correlate(
+        msg("We would like to invite you to interview.",
+            subject="Senior Data Scientist - next steps",
+            sender="sarah.chen@careers.beatport.com"),
+        apps,
+    )
+    assert result.correlated and result.method is Correlation.SENDER_DOMAIN
+
+
+def test_reference_still_correlates_from_any_sender(apps) -> None:
+    result = correlate(
+        msg("Regarding your application.", subject="Vacancy 19568",
+            sender="recruitment@justice.gov.uk"),
+        apps,
+    )
+    assert result.correlated and result.method is Correlation.REFERENCE
+
+
+def test_board_url_yields_no_employer_domain() -> None:
+    """A vacancy URL on reed.co.uk says nothing about which domain the
+    employer will reply from."""
+    from vanguard.mail import domain_of
+
+    assert domain_of("https://www.reed.co.uk/jobs/x/57092035") == ""
+    assert domain_of("https://careers.beatport.com/jobs/123") == "careers.beatport.com"
+
+
+def test_ordinary_personal_mail_is_not_a_broadcast() -> None:
+    from vanguard.mail import is_broadcast
+
+    assert not is_broadcast(msg("Are you free Thursday?", subject="Coffee",
+                                sender="friend@example.com"))
+
+
+# ---------------------------------------------------------------------------
+# Broadcasts are never replies
+#
+# Observed on the first live poll, 12 Aug 2026: `jobs-noreply@linkedin.com`
+# advertising a Beatport vacancy correlated to an open Beatport application,
+# because the subject carried the employer name and a job title. It was an
+# advert. Attributing it would have filed a job advert in that application's
+# archive, and — had the wording matched — classified it as a decline.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "sender, subject",
+    [
+        ("jobs-noreply@linkedin.com", "Olumide, apply now to 'Senior Data Scientist'"),
+        ("jobalerts-noreply@linkedin.com", "Data Scientist - Python (Remote) at Hired"),
+        ("donotreply@jobalert.indeed.com", "network engineer in Glasgow: Lead Engineer"),
+        ("donotreply@match.indeed.com", "Network Operations Centre Director"),
+        ("info@jobs.cwjobs.co.uk", '7 new "Network Operations Engineer" jobs'),
+        ("info@jobs.totaljobsmail.com", '6 new "Network Engineer" jobs in Glasgow'),
+        ("notifications-noreply@linkedin.com", "You appeared in 3 searches this week"),
+        ("invitations@linkedin.com", "I want to connect"),
+        ("newsletter@update.just-eat.co.uk", "Your 50% discount's waiting"),
+    ],
+)
+def test_observed_broadcast_senders_are_rejected(sender: str, subject: str) -> None:
+    from vanguard.mail import is_broadcast
+
+    assert is_broadcast(msg("body", subject=subject, sender=sender))
+
+
+@pytest.mark.parametrize(
+    "sender",
+    ["careers@beatport.com", "recruit@justice.gov.uk", "sarah.chen@acme.co.uk",
+     "hr@company.com", "hiring@agency.co.uk"],
+)
+def test_real_senders_are_not_broadcasts(sender: str) -> None:
+    from vanguard.mail import is_broadcast
+
+    assert not is_broadcast(msg("Thank you for your application.",
+                                subject="Your application", sender=sender))
+
+
+def test_advert_is_not_correlated_to_an_application() -> None:
+    """The defect exactly as observed."""
+    apps = [Application("reed:1", "Beatport", "Senior Data Scientist",
+                        reference="19568", employer_domain="beatport.com")]
+    advert = msg("Apply now.", sender="jobs-noreply@linkedin.com",
+                 subject="Olumide, apply now to 'Senior Data Scientist' at Beatport")
+    assert not correlate(advert, apps).correlated
+
+
+def test_real_reply_still_correlates_by_domain() -> None:
+    apps = [Application("reed:1", "Beatport", "Senior Data Scientist",
+                        reference="19568", employer_domain="beatport.com")]
+    reply = msg("Thank you for your application.", sender="careers@beatport.com",
+                subject="Your application")
+    assert correlate(reply, apps).method is Correlation.SENDER_DOMAIN
+
+
+def test_real_reply_still_correlates_by_reference() -> None:
+    """Reference beats everything, even from an unknown sender."""
+    apps = [Application("reed:1", "Beatport", "Senior Data Scientist",
+                        reference="19568", employer_domain="beatport.com")]
+    reply = msg("Regarding vacancy 19568.", sender="someone@agency.com",
+                subject="Update")
+    assert correlate(reply, apps).method is Correlation.REFERENCE
+
+
+# --- fuzzy matching now requires a plausible sender -----------------------
+
+def test_fuzzy_requires_the_sender_to_plausibly_be_the_employer() -> None:
+    """A subject naming an employer proves nothing about who sent it."""
+    apps = [Application("reed:1", "Beatport", "Senior Data Scientist")]
+    from_elsewhere = msg("See this role.", sender="hello@somewhere-else.com",
+                         subject="Beatport Senior Data Scientist")
+    assert not correlate(from_elsewhere, apps).correlated
+
+
+def test_recruiter_acting_for_the_employer_still_matches() -> None:
+    """An exact domain match is too strict — recruiters mail on behalf."""
+    apps = [Application("reed:1", "Beatport", "Senior Data Scientist")]
+    recruiter = msg("About your application.", sender="hiring@beatport-talent.com",
+                    subject="Beatport Senior Data Scientist")
+    assert correlate(recruiter, apps).method is Correlation.FUZZY
+
+
+def test_broadcast_check_precedes_correlation() -> None:
+    """Filtered before any matching, so a broadcast cannot reach even the
+    reference stage by coincidence."""
+    apps = [Application("reed:1", "Beatport", "Senior Data Scientist",
+                        reference="19568")]
+    advert = msg("Vacancy 19568 and others.", sender="jobs-noreply@linkedin.com",
+                 subject="New jobs for you")
+    assert not correlate(advert, apps).correlated
