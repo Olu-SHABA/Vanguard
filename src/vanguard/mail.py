@@ -401,6 +401,29 @@ def domain_of(url: str) -> str:
     return "" if _sender_is_a_job_board(host) else host
 
 
+def _domain_resembles_employer(domain: str, employer: str) -> bool:
+    """Does this sender domain plausibly belong to this employer?
+
+    Compares distinctive tokens, so `sanderson.com` matches "Sanderson" and
+    `mail.justice.gov.uk` matches "Ministry of Justice". Words too common to
+    identify anyone are excluded, so `services.com` does not match every
+    employer with "Services" in its name.
+
+    A token must be at least four characters. Shorter ones collide too often
+    — "AI" or "IBM" would match domains belonging to neither.
+    """
+    if not domain or not employer:
+        return False
+
+    tokens = {t for t in _norm(employer).split()
+              if len(t) >= 4 and t not in _COMMON_EMPLOYER_WORDS}
+    if not tokens:
+        return False
+
+    host = domain.lower().rsplit(".", 2)[0].replace("-", "").replace(".", "")
+    return any(token in host for token in tokens)
+
+
 def _sender_is_a_job_board(domain: str) -> bool:
     """True when the sender brokers vacancies rather than employs.
 
@@ -481,6 +504,18 @@ def correlate(
         for app in applications:
             emp_domain = (app.employer_domain or domain_of(app.url)).lower().strip()
             if emp_domain and (domain == emp_domain or domain.endswith("." + emp_domain)):
+                return CorrelationResult(app, Correlation.SENDER_DOMAIN)
+
+        # No configured domain — which is the norm, because a vacancy sourced
+        # from a job board yields none. `domain_of()` correctly returns empty
+        # for reed.co.uk: Reed is not the employer.
+        #
+        # So compare the sender domain against the employer NAME. Without
+        # this, `hr@sanderson.com` did not correlate to an application at
+        # Sanderson, and since most vacancies come from boards, most genuine
+        # employer replies failed to correlate at all.
+        for app in applications:
+            if _domain_resembles_employer(domain, app.employer):
                 return CorrelationResult(app, Correlation.SENDER_DOMAIN)
 
     # 3. An applicant-tracking system writing on the employer's behalf.

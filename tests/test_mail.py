@@ -397,11 +397,20 @@ def test_fuzzy_requires_the_sender_to_plausibly_be_the_employer() -> None:
 
 
 def test_recruiter_acting_for_the_employer_still_matches() -> None:
-    """An exact domain match is too strict — recruiters mail on behalf."""
+    """An exact domain match is too strict — recruiters mail on behalf.
+
+    Amended 12 Aug 2026: this now correlates at stage 2 rather than stage 4.
+    The domain `beatport-talent.com` carries the employer name, and B-44 made
+    stage 2 compare against the name when no domain is configured. Matching
+    earlier on a stronger signal is an improvement, so the test asserts the
+    outcome rather than which stage produced it.
+    """
     apps = [Application("reed:1", "Beatport", "Senior Data Scientist")]
     recruiter = msg("About your application.", sender="hiring@beatport-talent.com",
                     subject="Beatport Senior Data Scientist")
-    assert correlate(recruiter, apps).method is Correlation.FUZZY
+    result = correlate(recruiter, apps)
+    assert result.correlated
+    assert result.application.vacancy_id == "reed:1"
 
 
 def test_broadcast_check_precedes_correlation() -> None:
@@ -548,3 +557,82 @@ def test_decline_still_outranks_offer_language() -> None:
         "We have made an offer of employment to another candidate, so you "
         "have not been successful on this occasion."))
     assert result.state is State.DECLINE
+
+
+# ---------------------------------------------------------------------------
+# Sender domain against the employer NAME
+#
+# Found 12 Aug 2026 while testing the interview loop. `hr@sanderson.com` did
+# not correlate to an application at Sanderson, because employer_domain is
+# derived from the vacancy URL and a Reed URL correctly yields none — Reed is
+# not the employer. Since most vacancies come from boards, most genuine
+# employer replies failed to correlate at all.
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def board_sourced() -> list[Application]:
+    """The normal case: vacancies found on a job board, so no employer domain."""
+    from vanguard.mail import domain_of
+
+    return [
+        Application("reed:1", "Sanderson", "Machine Learning Engineer",
+                    employer_domain=domain_of("https://www.reed.co.uk/jobs/x/1")),
+        Application("reed:2", "Ministry of Justice", "Senior Data Engineer"),
+    ]
+
+
+def test_a_board_url_yields_no_employer_domain() -> None:
+    from vanguard.mail import domain_of
+
+    assert domain_of("https://www.reed.co.uk/jobs/x/1") == ""
+    assert domain_of("https://careers.sanderson.com/jobs/1") == "careers.sanderson.com"
+
+
+@pytest.mark.parametrize(
+    "sender, employer",
+    [
+        ("hr@sanderson.com", "Sanderson"),
+        ("careers@sanderson.com", "Sanderson"),
+        ("no-reply@mail.justice.gov.uk", "Ministry of Justice"),
+    ],
+)
+def test_employer_reply_correlates_without_a_configured_domain(
+    board_sourced, sender: str, employer: str
+) -> None:
+    result = correlate(msg("We would like to invite you to interview.",
+                           subject="Interview invitation", sender=sender),
+                       board_sourced)
+    assert result.method is Correlation.SENDER_DOMAIN
+    assert result.application.employer == employer
+
+
+@pytest.mark.parametrize(
+    "sender",
+    ["hr@totallyunrelated.com", "jobs-noreply@linkedin.com", "hr@services.com"],
+)
+def test_unrelated_senders_still_do_not_correlate(board_sourced, sender: str) -> None:
+    """Words too common to identify anyone must not match every employer."""
+    assert not correlate(
+        msg("We would like to invite you to interview.",
+            subject="Interview invitation", sender=sender),
+        board_sourced,
+    ).correlated
+
+
+def test_short_tokens_do_not_match() -> None:
+    """Three characters collide too often — 'AI' or 'IBM' would match domains
+    belonging to neither."""
+    from vanguard.mail import _domain_resembles_employer
+
+    assert not _domain_resembles_employer("aig.com", "AI Group")
+    assert _domain_resembles_employer("sanderson.com", "Sanderson")
+
+
+def test_a_configured_domain_still_wins() -> None:
+    """Where the vacancy lives on the employer's own site, that is the
+    stronger signal and is checked first."""
+    apps = [Application("x:1", "Acme", "Role",
+                        employer_domain="careers.acme.co.uk")]
+    result = correlate(msg("Body.", subject="Update",
+                           sender="hr@careers.acme.co.uk"), apps)
+    assert result.method is Correlation.SENDER_DOMAIN
