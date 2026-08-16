@@ -57,6 +57,7 @@ Pipeline_Archive/
 logs/
 archive.db
 pasted/
+adverts/
 *.anon.md
 
 # ---------------------------------------------------------------------------

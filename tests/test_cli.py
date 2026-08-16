@@ -745,3 +745,91 @@ def test_poll_reports_which_strategy_it_used(runner: CliRunner, tmp_path: Path) 
                                "--cv", str(ROOT / "data" / "canonical_cv.md")]).output
     assert "MAILBOX" in out
     assert "UNREACHABLE" in out or "TARGETED" in out or "WINDOW" in out
+
+
+# ---------------------------------------------------------------------------
+# Batch ingestion — the bottleneck at 70 adverts a day
+# ---------------------------------------------------------------------------
+
+def _advert_folder(tmp_path: Path, count: int = 3) -> Path:
+    directory = tmp_path / "adverts"
+    directory.mkdir()
+    source = (ROOT / "tests" / "fixtures" / "moj_senior_data_engineer.txt"
+              ).read_text(encoding="utf-8")
+    for i in range(count):
+        (directory / f"job{i}.txt").write_text(source, encoding="utf-8")
+    return directory
+
+
+@pytest.mark.parametrize("command", ["add", "list", "check", "ingest", "register"])
+def test_adverts_subcommand_exists(runner: CliRunner, command: str) -> None:
+    assert runner.invoke(main, ["adverts", command, "--help"]).exit_code == 0
+
+
+def test_unregistered_files_are_not_ingested(runner: CliRunner, tmp_path: Path) -> None:
+    directory = _advert_folder(tmp_path)
+    out = runner.invoke(main, ["adverts", "ingest", "--dir", str(directory),
+                               "--db", str(tmp_path / "v.db"), "--no-model",
+                               "--boards", str(ROOT / "config" / "boards.yaml"),
+                               "--cv", str(ROOT / "data" / "canonical_cv.md"),
+                               "--aliases", str(ROOT / "config" / "alias_table.yaml")]
+                        ).output
+    assert "3 skipped" in out or "nothing to ingest" in out
+
+
+def test_registered_files_are_ingested(runner: CliRunner, tmp_path: Path) -> None:
+    directory = _advert_folder(tmp_path)
+    for i in range(3):
+        runner.invoke(main, ["adverts", "add", f"job{i}.txt", "--dir", str(directory),
+                             "--employer", f"Employer {i}",
+                             "--url", f"https://example.com/{i}"])
+
+    out = runner.invoke(main, ["adverts", "ingest", "--dir", str(directory),
+                               "--db", str(tmp_path / "v.db"), "--no-model",
+                               "--boards", str(ROOT / "config" / "boards.yaml"),
+                               "--cv", str(ROOT / "data" / "canonical_cv.md"),
+                               "--aliases", str(ROOT / "config" / "alias_table.yaml")]
+                        ).output
+    assert "3 valid" in out
+    from vanguard.store import Store
+    assert len(Store(tmp_path / "v.db").list_queue(limit=50)) == 3
+
+
+def test_template_lists_unregistered_files(runner: CliRunner, tmp_path: Path) -> None:
+    directory = _advert_folder(tmp_path, count=5)
+    runner.invoke(main, ["adverts", "register", "--template", "--dir", str(directory)])
+    csv_path = directory / "to_register.csv"
+    assert csv_path.is_file()
+    assert csv_path.read_text(encoding="utf-8").count("job") == 5
+
+
+def test_bulk_register_reports_rejected_rows(runner: CliRunner, tmp_path: Path) -> None:
+    """One bad row must not stop the rest registering."""
+    directory = _advert_folder(tmp_path, count=3)
+    csv_path = directory / "reg.csv"
+    csv_path.write_text(
+        "filename,employer,url,board\n"
+        "job0.txt,Acme,https://example.com/0,linkedin\n"
+        "job1.txt,,https://example.com/1,linkedin\n"
+        "job2.txt,Beta,not-a-url,linkedin\n",
+        encoding="utf-8")
+
+    out = runner.invoke(main, ["adverts", "register", "--from-csv", str(csv_path),
+                               "--dir", str(directory)]).output
+    assert "REGISTERED 1" in out
+    assert "2 rejected" in out
+
+
+def test_ingest_dry_run_scores_nothing(runner: CliRunner, tmp_path: Path) -> None:
+    directory = _advert_folder(tmp_path, count=2)
+    for i in range(2):
+        runner.invoke(main, ["adverts", "add", f"job{i}.txt", "--dir", str(directory),
+                             "--employer", f"E{i}", "--url", f"https://example.com/{i}"])
+
+    runner.invoke(main, ["adverts", "ingest", "--dir", str(directory), "--dry-run",
+                         "--db", str(tmp_path / "v.db"), "--no-model",
+                         "--boards", str(ROOT / "config" / "boards.yaml")])
+    from vanguard.store import Store
+    store = Store(tmp_path / "v.db")
+    store.initialise()
+    assert store.count_vacancies() == 0

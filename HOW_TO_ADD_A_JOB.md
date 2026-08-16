@@ -120,4 +120,43 @@ vanguard dispatch <id>
 
 ---
 
+# ADDING MANY AT ONCE
+
+Five jobs a day is fine one at a time. Fifty is not.
+
+**1.** Save every advert into the `adverts` folder, one file each.
+
+**2.** Build a list of them:
+
+```powershell
+vanguard adverts register --template
+```
+
+That writes `adverts\to_register.csv` with a row per file.
+
+**3.** Open it in Excel or Notepad and fill in the employer and url columns.
+
+**4.** Register them all:
+
+```powershell
+vanguard adverts register --from-csv adverts\to_register.csv
+```
+
+**5.** Score and queue the lot:
+
+```powershell
+vanguard adverts ingest
+```
+
+Anything without an employer and url is skipped and named. One bad advert
+never stops the rest.
+
+To keep the folder tidy, move files out as they are ingested:
+
+```powershell
+vanguard adverts ingest --move-to done\
+```
+
+---
+
 *For per-board detail and configuration, see `MANUAL_ENTRY.md`.*

@@ -12,7 +12,7 @@ what.
 | Group | Commands |
 |---|---|
 | [Setup and health](#setup-and-health) | `boards` |
-| [Getting vacancies in](#getting-vacancies-in) | `run` · `paste` |
+| [Getting vacancies in](#getting-vacancies-in) | `run` · `paste` · `adverts` |
 | [Looking at results](#looking-at-results) | `review` · `score` · `stats` · `diagnose` |
 | [Deciding](#deciding) | `approve` · `reject` · `resolve` · `override` · `dispatch` |
 | [Responses](#responses) | `poll` · `mail` · `dormant` · `feedback` · `interview` |
@@ -186,6 +186,80 @@ paste produces the same problem as an unhydrated fetch.
 ---
 
 # Looking at results
+
+## `vanguard adverts`
+
+A watched folder of pasted adverts, ingested in one pass.
+
+```bash
+vanguard adverts list                                   # what is there
+vanguard adverts register --template                    # CSV of unregistered files
+vanguard adverts register --from-csv adverts\to_register.csv
+vanguard adverts add job.txt --employer "Acme" --url "https://..."
+vanguard adverts check                                  # rule breaches
+vanguard adverts check --fix                            # drop dead entries
+vanguard adverts ingest                                 # score and queue them all
+vanguard adverts ingest --dry-run --move-to done\
+```
+
+**Why it exists.** At seventy adverts a day, `vanguard paste` one file at a
+time is the bottleneck. This registers provenance once, then ingests the lot.
+
+### What makes an entry valid
+
+Four conditions. Fail any one and the file is skipped.
+
+| | |
+|---|---|
+| **Filename** | The primary key. Plain name, no path separators, no Windows-unsafe characters, a text suffix. `.txt.txt` is rejected — Notepad appends an extension when the save type is not All Files |
+| **Employer** | Required. Placeholders (`unknown`, `n/a`, `tbc`) are refused: if the employer is unknown, the advert should not be in the folder |
+| **URL** | Required, a real `http(s)` address. Without it the advert cannot be found again from the record |
+| **The file** | Must exist and be non-empty |
+
+```yaml
+# adverts/manifest.yaml
+acme-ml-engineer.txt:
+  employer: Acme Analytics
+  url: https://www.linkedin.com/jobs/view/1234567890/
+  added_at: 2026-08-12T10:00:00+00:00
+  board: linkedin
+```
+
+Employer and URL live in the manifest, not in the advert text — you should not
+have to edit a pasted advert to record where it came from.
+
+### What is enforced, and what is not
+
+**Nothing can prevent a file being dragged into the folder.** No such hook
+exists without a filesystem driver, and that does not belong in this project.
+
+What *is* enforced: a file with no valid entry is **never ingested**. It is
+reported and skipped. The folder may be polluted; the pipeline will not act on
+it.
+
+### Lifetime
+
+An entry is valid only while its file exists. `check --fix` drops entries whose
+file has gone. It **never deletes an advert** — removing your data because a
+record is missing would be the wrong failure.
+
+### Options
+
+| Command | Option | Effect |
+|---|---|---|
+| `add` | `--employer`, `--url` | Both required |
+| | `--board`, `--note` | Attribution and free text |
+| `register` | `--template` | Write a CSV of unregistered files to fill in |
+| | `--from-csv` | Register many at once. Bad rows are reported, not fatal |
+| `check` | `--fix` | Drop entries whose file has gone |
+| `ingest` | `--dry-run` | Report what would be ingested |
+| | `--move-to` | Move files elsewhere once ingested |
+| all | `--dir` | Folder location. Default `adverts` |
+
+One bad advert never aborts the batch — the error is logged and the run
+continues.
+
+---
 
 ## `vanguard review`
 

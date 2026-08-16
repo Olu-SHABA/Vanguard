@@ -142,6 +142,8 @@ def _status(label: str, width: int = 12) -> str:
     return ui.badge(label, STATUS_TONE.get(label, ui.Tone.PLAIN), width=width)
 
 
+ADVERTS_DIR = Path("adverts")
+
 DEFAULTS = {
     "cv": "data/canonical_cv.md",
     "aliases": "config/alias_table.yaml",
@@ -1310,6 +1312,289 @@ def poll_cmd(provider, since_days, limit, dry_run, verbose, show_uncorrelated,
     if dry_run:
         click.echo("\n  dry run — nothing recorded")
     click.echo("\n  read-only: nothing was sent, replied to or deleted")
+
+
+# ---------------------------------------------------------------------------
+# Advert folder — batch ingestion
+# ---------------------------------------------------------------------------
+
+@main.group("adverts")
+def adverts_group() -> None:
+    """A watched folder of pasted adverts, and their provenance.
+
+    At volume, ingesting one file at a time is the bottleneck. This registers
+    adverts with their employer and URL, then ingests every valid one in a
+    single pass.
+
+    Nothing here can prevent a file being dragged into the folder — no such
+    hook exists without a filesystem driver. What it enforces is that a file
+    with no valid manifest entry is NEVER ingested. The folder may be
+    polluted; the pipeline will not act on it.
+    """
+
+
+@adverts_group.command("add")
+@click.argument("filename")
+@click.option("--employer", required=True, help="Required. Parsing it from prose is unreliable.")
+@click.option("--url", required=True, help="Required. Without it the advert cannot be found again.")
+@click.option("--board", default="linkedin", help="Registry id to attribute it to.")
+@click.option("--note", default="")
+@click.option("--dir", "directory", default=str(ADVERTS_DIR))
+def adverts_add(filename, employer, url, board, note, directory) -> None:
+    """Register one advert already in the folder."""
+    from vanguard.adverts import AdvertManifest, ValidationError
+
+    try:
+        entry = AdvertManifest(Path(directory)).add(
+            filename, employer, url, board=board, note=note)
+    except ValidationError as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(f"  {ui.badge('REGISTERED', ui.Tone.GOOD)} {entry.filename} "
+               f"-> {entry.employer}")
+
+
+@adverts_group.command("list")
+@click.option("--dir", "directory", default=str(ADVERTS_DIR))
+def adverts_list(directory) -> None:
+    """Everything in the folder, registered or not."""
+    from vanguard.adverts import AdvertManifest
+
+    manifest = AdvertManifest(Path(directory))
+    entries = manifest.load()
+    files = manifest.advert_files()
+
+    if not files:
+        click.echo(f"  no adverts in {directory}")
+        return
+
+    click.echo(ui.rule(f"ADVERTS  ·  {len(files)} file(s), "
+                       f"{len(entries)} registered"))
+    rows = []
+    for path in files:
+        entry = entries.get(path.name)
+        rows.append([
+            "registered" if entry else "UNREGISTERED",
+            path.name,
+            entry.employer if entry else "—",
+            entry.url if entry else "—",
+        ])
+    click.echo(ui.table(
+        [
+            ui.Column("STATE", 0.5, 12),
+            ui.Column("FILE", 1.0, 14),
+            ui.Column("EMPLOYER", 0.9, 12),
+            ui.Column("URL", 1.2, 14, tone=ui.Tone.MUTED),
+        ],
+        rows,
+    ))
+
+    unregistered = [p for p in files if p.name not in entries]
+    if unregistered:
+        click.echo(f"\n  {ui.badge(f'{len(unregistered)} will not be ingested', ui.Tone.WARN)}"
+                   " — register with `vanguard adverts add`")
+
+
+@adverts_group.command("register")
+@click.option("--from-csv", "csv_path", type=click.Path(exists=True),
+              help="filename,employer,url[,board] per line.")
+@click.option("--dir", "directory", default=str(ADVERTS_DIR))
+@click.option("--template", is_flag=True,
+              help="Write a CSV listing unregistered files, ready to fill in.")
+def adverts_register(csv_path, directory, template) -> None:
+    """Register many adverts at once from a CSV.
+
+    At seventy adverts a day, `adverts add` one at a time is the bottleneck
+    this command exists to remove.
+
+    `--template` writes a CSV of every unregistered file with blank employer
+    and url columns. Fill it in, then pass it back with `--from-csv`.
+    """
+    import csv as csv_module
+
+    from vanguard.adverts import AdvertManifest, ValidationError
+
+    manifest = AdvertManifest(Path(directory))
+
+    if template:
+        entries = manifest.load()
+        unregistered = [p.name for p in manifest.advert_files()
+                        if p.name not in entries]
+        if not unregistered:
+            click.echo("  everything in the folder is registered")
+            return
+        out = Path(directory) / "to_register.csv"
+        with out.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv_module.writer(handle)
+            writer.writerow(["filename", "employer", "url", "board"])
+            for name in unregistered:
+                writer.writerow([name, "", "", "linkedin"])
+        click.echo(f"  wrote {out} with {len(unregistered)} row(s)")
+        click.echo("  fill in employer and url, then: "
+                   "vanguard adverts register --from-csv " + str(out))
+        return
+
+    if not csv_path:
+        raise click.ClickException("pass --from-csv, or --template to create one")
+
+    registered, failed = 0, []
+    with Path(csv_path).open(newline="", encoding="utf-8") as handle:
+        for row in csv_module.DictReader(handle):
+            filename = (row.get("filename") or "").strip()
+            if not filename:
+                continue
+            try:
+                manifest.add(
+                    filename,
+                    (row.get("employer") or "").strip(),
+                    (row.get("url") or "").strip(),
+                    board=(row.get("board") or "linkedin").strip() or "linkedin",
+                )
+                registered += 1
+            except ValidationError as exc:
+                failed.append((filename, str(exc)))
+
+    click.echo(f"  {ui.badge('REGISTERED', ui.Tone.GOOD)} {registered}")
+    if failed:
+        width = _terminal_width()
+        click.echo(f"\n  {ui.badge(f'{len(failed)} rejected', ui.Tone.WARN)}")
+        for filename, reason in failed:
+            click.echo(f"      {_clip(filename, 28):<30} {_clip(reason, width - 40)}")
+
+
+@adverts_group.command("check")
+@click.option("--dir", "directory", default=str(ADVERTS_DIR))
+@click.option("--fix", is_flag=True, help="Drop entries whose file has gone.")
+def adverts_check(directory, fix) -> None:
+    """Every rule breach in the folder.
+
+    `--fix` removes manifest entries for files that no longer exist. It never
+    deletes an advert: removing the operator's data because a record is
+    missing would be the wrong failure.
+    """
+    from vanguard.adverts import AdvertManifest
+
+    manifest = AdvertManifest(Path(directory))
+
+    if fix:
+        removed, violations = manifest.reconcile()
+        if removed:
+            click.echo(f"  dropped {len(removed)} entr(ies) whose file has gone:")
+            for name in removed:
+                click.echo(f"      {name}")
+        click.echo("  no advert file was deleted")
+    else:
+        violations = manifest.check()
+
+    if not violations:
+        click.echo(f"  {ui.badge('OK', ui.Tone.GOOD)} no violations")
+        return
+
+    width = _terminal_width()
+    click.echo(ui.rule(f"VIOLATIONS  ·  {len(violations)}"))
+    for violation in violations:
+        click.echo(f"  {ui.badge(violation.rule.upper(), ui.Tone.WARN)} "
+                   f"{_clip(violation.subject, width - 24)}")
+        for line in _wrap(violation.detail, width - 8):
+            click.echo(f"      {line}")
+
+
+@adverts_group.command("ingest")
+@click.option("--dir", "directory", default=str(ADVERTS_DIR))
+@click.option("--move-to", default="", help="Move ingested files here afterwards.")
+@click.option("--dry-run", is_flag=True, help="Report what would be ingested.")
+@click.option("--boards", default=DEFAULTS["boards"])
+@click.option("--cv", default=DEFAULTS["cv"])
+@click.option("--aliases", default=DEFAULTS["aliases"])
+@click.option("--db", default=DEFAULTS["db"])
+@click.option("--no-model", is_flag=True)
+def adverts_ingest(directory, move_to, dry_run, boards, cv, aliases, db,
+                   no_model) -> None:
+    """Score and queue every valid advert in the folder.
+
+    Anything without a valid manifest entry is SKIPPED and reported. One bad
+    advert never aborts the batch.
+    """
+    from vanguard.adverts import AdvertManifest
+    from vanguard.adapters.manual import ManualEntryAdapter
+
+    from vanguard.logs import RunLog
+
+    store, queue = _ctx(db)
+    manifest = AdvertManifest(Path(directory))
+    registry = load_registry(boards)
+    log_config = _logging(boards)
+
+    ingestible = list(manifest.ingestible())
+    skipped = [p.name for p in manifest.advert_files()
+               if p.name not in {path.name for path, _ in ingestible}]
+
+    click.echo(ui.rule(f"INGEST  ·  {len(ingestible)} valid, {len(skipped)} skipped"))
+    for name in skipped:
+        click.echo(f"  {ui.badge('SKIPPED', ui.Tone.WARN)} {name} — no valid entry")
+
+    if not ingestible:
+        click.echo("\n  nothing to ingest. `vanguard adverts add` to register")
+        return
+
+    if dry_run:
+        for path, entry in ingestible:
+            click.echo(f"  would ingest {path.name} -> {entry.employer}")
+        click.echo("\n  dry run — nothing scored")
+        return
+
+    canonical = load_cv(cv)
+    alias_table = load_aliases(aliases)
+    embedder, embedder_name = _embedder(not no_model)
+    gate = registry.coverage_gate
+
+    click.echo(f"\n  scoring {len(ingestible)} advert(s) [{embedder_name}] "
+               f"gate {gate:.2f}\n")
+
+    with RunLog("adverts ingest", db_path=Path(db), config=log_config) as run_log:
+        outcomes: dict[str, int] = {}
+        moved = 0
+
+        for path, entry in ingestible:
+            try:
+                board_entry = registry.get(entry.board)
+            except KeyError:
+                board_entry = registry.get("linkedin")
+
+            try:
+                vacancy = ManualEntryAdapter(board_entry).submit(
+                    path.read_text(encoding="utf-8"),
+                    url=entry.url, employer=entry.employer)
+                status = _score_and_queue(
+                    vacancy, store, queue, canonical, alias_table,
+                    embedder, embedder_name, gate=gate)
+                outcomes[status] = outcomes.get(status, 0) + 1
+            except Exception as exc:
+                # One bad advert must not abort a batch of seventy.
+                run_log.error(str(exc), source="adverts", detail=path.name)
+                click.echo(f"  {ui.badge('ERROR', ui.Tone.BAD)} {path.name}: {exc}",
+                           err=True)
+                continue
+
+            if move_to:
+                destination = Path(move_to)
+                try:
+                    destination.mkdir(parents=True, exist_ok=True)
+                    path.replace(destination / path.name)
+                    manifest.remove(path.name)
+                    moved += 1
+                except OSError:
+                    pass
+
+        run_log.count(scored=sum(outcomes.values()), skipped=len(skipped))
+
+    click.echo()
+    click.echo(ui.rule("RESULT"))
+    for label in ("PENDING", "FLAGGED", "UNREACHABLE"):
+        if outcomes.get(label):
+            click.echo(f"  {_status(label)}  {outcomes[label]}")
+    if move_to and moved:
+        click.echo(f"\n  moved {moved} file(s) to {move_to}")
+    click.echo("\n  vanguard review   to work through them")
 
 
 # ---------------------------------------------------------------------------
