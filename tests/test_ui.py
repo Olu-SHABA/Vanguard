@@ -220,3 +220,30 @@ def test_plain_implies_ascii(monkeypatch) -> None:
     monkeypatch.setitem(os.environ, "VANGUARD_PLAIN", "1")
     theme = Theme.detect()
     assert not theme.unicode and not theme.decorated and not theme.colour
+
+
+def test_protected_columns_are_never_truncated() -> None:
+    """A truncated identifier cannot be pasted into the next command, which
+    makes the row useless. Observed as `linkedin:a4a582bc5…` in the queue."""
+    ui.set_theme(Theme(colour=False, unicode=False, decorated=False, width=70))
+    output = ui.table(
+        [
+            Column("EMPLOYER", 1.0, 8),
+            Column("TITLE", 2.0, 10),
+            Column("ID", 0.9, 12, protected=True),
+        ],
+        [["A very long employer name", "An extremely long job title here",
+          "linkedin:a4a582bc5f1e9d3b"]],
+    )
+    assert "linkedin:a4a582bc5f1e9d3b" in output
+    assert "..." not in output.split()[-1]
+
+
+def test_flexible_columns_absorb_the_shrinking() -> None:
+    ui.set_theme(Theme(colour=False, unicode=False, decorated=False, width=60))
+    output = ui.table(
+        [Column("TITLE", 2.0, 10), Column("ID", 0.9, 12, protected=True)],
+        [["An extremely long job title that will not fit", "reed:57092035"]],
+    )
+    assert "reed:57092035" in output
+    assert "..." in output

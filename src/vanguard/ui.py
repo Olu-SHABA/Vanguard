@@ -295,13 +295,19 @@ def wrap(text: str, width: int) -> list[str]:
 
 @dataclass
 class Column:
-    """One table column. `weight` distributes leftover width proportionally."""
+    """One table column. `weight` distributes leftover width proportionally.
+
+    `protected` columns are never truncated. An identifier that has been cut
+    short cannot be copied into the next command, which makes the row useless
+    — the whole point of showing it is that it can be acted on.
+    """
 
     header: str
     weight: float = 1.0
     minimum: int = 6
     align: str = "left"
     tone: Tone = Tone.PLAIN
+    protected: bool = False
 
 
 def table(
@@ -331,12 +337,22 @@ def table(
     if sum(natural) <= available:
         widths = natural
     else:
-        total_weight = sum(c.weight for c in columns) or 1
-        widths = []
-        spare = available - sum(c.minimum for c in columns)
-        for col, want in zip(columns, natural):
+        # Protected columns take their full width first. A clipped identifier
+        # cannot be pasted into the next command, so shrinking it defeats the
+        # purpose of printing the row at all.
+        protected_width = sum(want for col, want in zip(columns, natural)
+                              if col.protected)
+        flexible = [(i, col, want) for i, (col, want)
+                    in enumerate(zip(columns, natural)) if not col.protected]
+
+        remaining = available - protected_width
+        total_weight = sum(col.weight for _, col, _ in flexible) or 1
+        spare = remaining - sum(col.minimum for _, col, _ in flexible)
+
+        widths = list(natural)
+        for index, col, want in flexible:
             share = int(max(0, spare) * (col.weight / total_weight))
-            widths.append(max(col.minimum, min(want, col.minimum + share)))
+            widths[index] = max(col.minimum, min(want, col.minimum + share))
 
     lines = []
     header = indent + "  ".join(

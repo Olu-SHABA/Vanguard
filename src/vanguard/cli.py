@@ -728,7 +728,7 @@ def review(vacancy_id, status, db, boards_path) -> None:
             ui.Column("RANK", 0.3, 5, "right"),
             ui.Column("EMPLOYER", 1.1, 12),
             ui.Column("TITLE", 2.0, 16),
-            ui.Column("ID", 0.9, 12, tone=ui.Tone.MUTED),
+            ui.Column("ID", 0.9, 12, tone=ui.Tone.MUTED, protected=True),
         ],
         body,
     ))
@@ -910,21 +910,40 @@ def stats(db, storage) -> None:
     rows = store.coverage_distribution()
 
     click.echo(f"queue: {queue.summary()}")
-    click.echo(f"vacancies: {store.count_vacancies()}   scored: {len(rows)}")
+    click.echo(f"vacancies: {store.count_vacancies()}   reliably scored: {len(rows)}")
+
+    unmeasured = store.unmeasured_count()
 
     if rows:
-        values = sorted(r["coverage"] for r in rows)
+        values = sorted(r["coverage"] for r in rows if r["coverage"] is not None)
         mid = values[len(values) // 2]
         click.echo(
-            f"\ncoverage  min {values[0]:.3f}  median {mid:.3f}  max {values[-1]:.3f}"
+            f"\ncoverage ({len(values)} reliable)  min {values[0]:.3f}  "
+            f"median {mid:.3f}  max {values[-1]:.3f}"
         )
-        at_gate = sum(1 for v in values if v >= 0.94)
-        click.echo(f"at or above 0.94: {at_gate}/{len(values)}")
-        if len(values) < 30:
-            click.echo(
-                f"({30 - len(values)} more logged applications before the 0.94 "
-                "threshold can be revisited against evidence — OUTSTANDING P-01)"
-            )
+        try:
+            gate = float(registry_gate())
+        except ValueError:
+            gate = 0.60
+        at_gate = sum(1 for v in values if v >= gate)
+        click.echo(f"at or above the {gate:.2f} gate: {at_gate}/{len(values)}")
+    else:
+        click.echo("\nno reliable scores yet")
+
+    if unmeasured:
+        # Excluded deliberately. A score from fewer than six requirements is
+        # 0.000 or 1.000 depending on whether the one extracted term matched,
+        # and neither measures fit. Including them made the median 0.000
+        # across 553 vacancies and put 65 records above 0.94, none a real
+        # match — and that distribution is the input to gate recalibration.
+        click.echo(f"{unmeasured} not measured — excluded from the "
+                   "distribution (see `vanguard diagnose`)")
+
+    if len(rows) < 30:
+        click.echo(
+            f"({30 - len(rows)} more reliable scores before the gate can be "
+            "revisited against evidence — OUTSTANDING P-01)"
+        )
 
     if storage:
         footprint = store.storage_footprint()

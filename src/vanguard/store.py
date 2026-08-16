@@ -477,24 +477,60 @@ class Store:
                 (vacancy_id,),
             ).fetchall()
 
-    def coverage_distribution(self, latest_only: bool = True) -> list[sqlite3.Row]:
+    def coverage_distribution(self, latest_only: bool = True,
+                              reliable_only: bool = True) -> list[sqlite3.Row]:
         """Logged coverage values. The input to threshold recalibration.
+
+        `reliable_only` excludes scores computed from fewer than
+        MIN_TERMS_FOR_CONFIDENCE requirements, or from partial advert text.
+        Those are recorded as 0.000 or 1.000 depending on whether the single
+        extracted term happened to match — neither figure measures fit.
+
+        Including them made the median 0.000 across 553 vacancies and put 65
+        records at or above 0.94, none of which was a genuine match.
+        Recalibrating the gate on that distribution would set it from
+        unmeasured scores.
 
         `latest_only` counts each vacancy once. Passing False returns the full
         history, which mixes scores produced by different extraction logic.
         """
+        from vanguard.coverage import MIN_TERMS_FOR_CONFIDENCE
+
         if not latest_only:
             return self._all_scores()
+
+        reliability = ""
+        if reliable_only:
+            reliability = (f" AND s.terms_total >= {int(MIN_TERMS_FOR_CONFIDENCE)}"
+                           " AND COALESCE(v.partial, 0) = 0")
+
         with self.connect() as conn:
             return conn.execute(
-                """SELECT s.vacancy_id, s.coverage, s.ceiling, s.rank_score,
-                          s.embedder, s.computed_at
-                     FROM scores s
-                    WHERE s.computed_at = (
-                          SELECT MAX(computed_at) FROM scores s2
-                           WHERE s2.vacancy_id = s.vacancy_id)
-                    ORDER BY s.computed_at"""
+                f"""SELECT s.vacancy_id, s.coverage, s.ceiling, s.rank_score,
+                           s.embedder, s.computed_at, s.terms_total
+                      FROM scores s
+                      JOIN vacancies v ON v.id = s.vacancy_id
+                     WHERE s.computed_at = (
+                           SELECT MAX(computed_at) FROM scores s2
+                            WHERE s2.vacancy_id = s.vacancy_id){reliability}
+                     ORDER BY s.computed_at"""
             ).fetchall()
+
+    def unmeasured_count(self) -> int:
+        """Vacancies whose latest score was not measurable."""
+        from vanguard.coverage import MIN_TERMS_FOR_CONFIDENCE
+
+        with self.connect() as conn:
+            row = conn.execute(
+                f"""SELECT COUNT(*) FROM scores s
+                      JOIN vacancies v ON v.id = s.vacancy_id
+                     WHERE s.computed_at = (
+                           SELECT MAX(computed_at) FROM scores s2
+                            WHERE s2.vacancy_id = s.vacancy_id)
+                       AND (s.terms_total < {int(MIN_TERMS_FOR_CONFIDENCE)}
+                            OR COALESCE(v.partial, 0) = 1)"""
+            ).fetchone()
+        return row[0] if row else 0
 
     def _all_scores(self) -> list[sqlite3.Row]:
         with self.connect() as conn:

@@ -156,13 +156,58 @@ def test_unmet_term_frequency_aggregates(store: Store) -> None:
 
 
 def test_coverage_distribution_is_ordered(store: Store) -> None:
+    """Amended 12 Aug 2026: the advert must yield enough requirements to be
+    measurable, since the distribution now excludes unmeasured scores."""
     cv = load_cv(ROOT / "data" / "canonical_cv.md")
     aliases = load_aliases(ROOT / "config" / "alias_table.yaml")
-    report = compute_coverage(extract("Essential\n- strong Python skills required"), cv, aliases)
+    report = compute_coverage(extract(MEASURABLE_ADVERT), cv, aliases)
     for i in range(3):
         store.upsert_vacancy(vac(f"b:{i}", title=f"Role {i}"))
         store.record_score(f"b:{i}", report)
     assert len(store.coverage_distribution()) == 3
+
+
+def test_unmeasured_scores_are_excluded_from_the_distribution(store: Store) -> None:
+    """A score from one requirement is 0.000 or 1.000 depending on whether
+    that term matched. Neither measures fit, and the distribution is the
+    input to gate recalibration."""
+    cv = load_cv(ROOT / "data" / "canonical_cv.md")
+    aliases = load_aliases(ROOT / "config" / "alias_table.yaml")
+
+    thin = compute_coverage(extract("Essential\n- Python"), cv, aliases)
+    full = compute_coverage(extract(MEASURABLE_ADVERT), cv, aliases)
+
+    store.upsert_vacancy(vac("b:thin"))
+    store.record_score("b:thin", thin)
+    store.upsert_vacancy(vac("b:full"))
+    store.record_score("b:full", full)
+
+    ids = {r["vacancy_id"] for r in store.coverage_distribution()}
+    assert ids == {"b:full"}
+    assert store.unmeasured_count() == 1
+
+
+def test_unreliable_scores_are_still_retained(store: Store) -> None:
+    """Excluded from the distribution, not deleted. `diagnose` needs them."""
+    cv = load_cv(ROOT / "data" / "canonical_cv.md")
+    aliases = load_aliases(ROOT / "config" / "alias_table.yaml")
+    store.upsert_vacancy(vac("b:thin"))
+    store.record_score("b:thin", compute_coverage(extract("Essential\n- Python"),
+                                                  cv, aliases))
+    assert store.coverage_distribution(reliable_only=False)
+
+
+#: An advert with enough requirements to be measurable — six or more, per
+#: MIN_TERMS_FOR_CONFIDENCE.
+MEASURABLE_ADVERT = """Essential
+- strong Python skills required
+- SQL and relational databases
+- experience with ETL pipelines
+- data visualisation and dashboards
+- machine learning models in production
+- stakeholder communication
+- root cause analysis
+"""
 
 
 # --- audit trail ----------------------------------------------------------

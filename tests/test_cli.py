@@ -214,7 +214,7 @@ def test_review_unknown_id_errors_cleanly(runner: CliRunner, tmp_path: Path) -> 
 def test_stats_reports_recalibration_shortfall(runner: CliRunner, tmp_path: Path) -> None:
     _seed(runner, tmp_path)
     out = runner.invoke(main, ["stats", "--db", str(tmp_path / "v.db")]).output
-    assert "more logged applications" in out and "P-01" in out
+    assert "more reliable scores" in out and "P-01" in out
 
 
 def test_boards_reports_health(runner: CliRunner) -> None:
