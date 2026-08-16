@@ -17,6 +17,7 @@ what.
 | [Deciding](#deciding) | `approve` · `reject` · `resolve` · `override` · `dispatch` |
 | [Responses](#responses) | `poll` · `mail` · `dormant` · `feedback` · `interview` |
 | [Operations](#operations) | `logs` · `archive` |
+| [What grows](#what-grows-and-what-does-not) | Which files accumulate, and when to act |
 
 ---
 

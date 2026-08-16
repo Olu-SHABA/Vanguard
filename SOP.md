@@ -326,11 +326,34 @@ return.
 ## Monthly
 
 ```
+[ ] vanguard stats --storage           row counts, database size
 [ ] vanguard logs --archive            move old records aside, gzip old files
 [ ] review boards.yaml                 still the right keywords and location?
 [ ] check OUTSTANDING.md               anything now answerable?
 [ ] re-render the CV if it changed
 ```
+
+### What grows, and what does not
+
+Measured at 75 vacancies in one batch, not estimated. Full detail in
+`COMMANDS.md`.
+
+| File | Grows? | Bounded by |
+|---|---|---|
+| `data/vanguard.db` | **Yes** | Nothing. ~12 KB per vacancy |
+| `Pipeline_Archive/` | **Yes** | Applications submitted, not vacancies scored |
+| `logs/vanguard.log` | No | Rotation — new file each midnight |
+| `archive.db` | Slowly | Only records past retention |
+| `adverts/manifest.yaml` | No | Files currently in the folder |
+| `adverts/to_register.csv` | No | Unregistered files only. Overwritten each time |
+| `out/cv.pdf` | No | Replaced each render |
+
+**Only two grow without bound**, and only one is a database.
+
+**Do not act on size.** SQLite handles multi-gigabyte databases. The first
+symptom is `review` and `stats` becoming slow to run. When that happens, add
+indices or extend `logs --archive` to cover vacancies — and decide on the
+numbers `stats --storage` reports, not on a projection.
 
 ## After changing the CV
 

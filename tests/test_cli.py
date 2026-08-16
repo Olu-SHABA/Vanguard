@@ -840,3 +840,18 @@ def test_ingest_dry_run_scores_nothing(runner: CliRunner, tmp_path: Path) -> Non
     store = Store(tmp_path / "v.db")
     store.initialise()
     assert store.count_vacancies() == 0
+
+
+def test_growth_guidance_is_in_both_documents() -> None:
+    """The reference explains it per command; the SOP needs it to hand during
+    monthly maintenance."""
+    commands = (ROOT / "COMMANDS.md").read_text(encoding="utf-8")
+    sop = (ROOT / "SOP.md").read_text(encoding="utf-8")
+
+    for document in (commands, sop):
+        assert "vanguard.db" in document
+        assert "Pipeline_Archive" in document
+        assert "to_register.csv" in document
+
+    assert "what-grows" in commands, "the contents table must link to it"
+    assert "stats --storage" in sop, "the monthly checklist must include it"
