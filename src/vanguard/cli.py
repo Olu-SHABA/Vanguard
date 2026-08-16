@@ -1920,6 +1920,225 @@ def evidence_cmd(repos, shallow, vacancy, all_gaps, db, cv) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Application channel
+# ---------------------------------------------------------------------------
+
+@main.command("apply")
+@click.argument("vacancy_id")
+@click.option("--db", default=DEFAULTS["db"])
+@click.option("--cv-pdf", default="out/cv.pdf", help="The CV you would submit.")
+def apply_cmd(vacancy_id, db, cv_pdf) -> None:
+    """What this application needs, and where to do it.
+
+    **Vanguard does not apply.** It establishes what kind of application this
+    is, whether you hold an account, and what you will need to hand — then
+    gives you the URL and stops.
+
+    Automated form-filling across arbitrary employer systems is out of scope.
+    Different templates, labels and frameworks make it unreliable, and a form
+    filled wrongly on your behalf is worse than no help at all.
+    """
+    from vanguard.channel import Channel, RegistrationStore, classify_channel
+
+    store, _ = _ctx(db)
+    width = _terminal_width()
+
+    vacancy = store.vacancy(vacancy_id)
+    if vacancy is None:
+        raise click.ClickException(f"no vacancy {vacancy_id!r}")
+    record = store.queue_record(vacancy_id)
+    if record is None:
+        raise click.ClickException(f"no queue record for {vacancy_id}")
+
+    click.echo()
+    click.echo(ui.rule(_clip(f"{vacancy['title']} — {vacancy['employer']}",
+                             width - 8)))
+    click.echo(f"  {_status(record['status'])}")
+
+    if record["status"] not in ("PENDING", "APPROVED"):
+        click.echo(f"\n  this record is {record['status']}, not ready to apply")
+        if record["status"] == "DISPATCHED":
+            click.echo("  already submitted — `vanguard archive` for what was sent")
+        return
+
+    # --- eligibility, before anything else --------------------------------
+    diagnostic = store.diagnostic_for(vacancy_id)
+    if diagnostic:
+        import json as _json
+        try:
+            gates = (_json.loads(diagnostic["heading_kinds"] or "{}")
+                     ).get("__eligibility__") or []
+        except ValueError:
+            gates = []
+        if gates:
+            click.echo()
+            click.echo(ui.rule("ELIGIBILITY  ·  check before spending time"))
+            for gate in gates:
+                click.echo(f"  {ui.badge('GATE', ui.Tone.BAD)}")
+                for line in _wrap(gate, width - 6):
+                    click.echo(f"      {line}")
+
+    # --- channel ----------------------------------------------------------
+    guess = classify_channel(vacancy["url"] or "", vacancy["description"] or "",
+                             board_id=vacancy["board_id"] or "")
+
+    click.echo()
+    click.echo(ui.rule("CHANNEL"))
+    tone = ui.Tone.INFO if guess.certain else ui.Tone.WARN
+    click.echo(f"  {ui.badge(guess.channel.value, tone)}")
+    for line in _wrap(guess.reason, width - 6):
+        click.echo(f"      {line}")
+
+    # --- registration -----------------------------------------------------
+    registrations = RegistrationStore(db)
+    scope = "board" if guess.channel.name.startswith("BOARD") else "employer"
+    key = guess.host or (vacancy["board_id"] or "")
+
+    click.echo()
+    click.echo(ui.rule("ACCOUNT"))
+
+    if not key:
+        click.echo(f"  {ui.badge('UNKNOWN', ui.Tone.WARN)} nothing to check "
+                   "against — no URL and no board")
+    else:
+        existing = registrations.get(scope, key)
+        if existing is None:
+            click.echo(f"  {ui.badge('NOT RECORDED', ui.Tone.WARN)} {key}")
+            if guess.registration_url:
+                click.echo(f"      register at {guess.registration_url}")
+            click.echo(f"\n      once you have an account:")
+            click.echo(f"      vanguard registrations set {scope} {key}")
+            if guess.channel.needs_profile:
+                click.echo(f"      vanguard registrations set {scope} {key} "
+                           "--profile-built")
+        elif not existing.registered:
+            click.echo(f"  {ui.badge('NOT REGISTERED', ui.Tone.BAD)} {key}")
+            if existing.url or guess.registration_url:
+                click.echo(f"      register at "
+                           f"{existing.url or guess.registration_url}")
+        elif guess.channel.needs_profile and not existing.profile_built:
+            click.echo(f"  {ui.badge('PROFILE NEEDED', ui.Tone.WARN)} {key}")
+            click.echo("      this board applies from a built profile, not an "
+                       "uploaded CV")
+        else:
+            click.echo(f"  {ui.badge('READY', ui.Tone.GOOD)} "
+                       f"{key} — {existing.describe()}")
+
+    # --- what to have to hand ---------------------------------------------
+    click.echo()
+    click.echo(ui.rule("PACK"))
+
+    submission = record["submission_type"] or "STANDARD_CV"
+    anonymise = "ANONYMISE" in (record["flags"] or "")
+    cv_path = Path(cv_pdf)
+
+    click.echo(ui.field_list([
+        ("submission", submission),
+        ("CV", f"{cv_path} {'(present)' if cv_path.is_file() else '(NOT RENDERED)'}"),
+        ("profile", "anonymised" if anonymise else "standard"),
+        ("also needed", {
+            "STANDARD_CV": "a cover letter, usually optional",
+            "NARRATIVE_ESSAY": "a written statement of suitability",
+            "SUCCESS_PROFILE": "an anonymised CV and a word-limited statement",
+        }.get(submission, "")),
+    ], indent="  "))
+
+    if not cv_path.is_file():
+        click.echo(f"\n  {ui.badge('NO CV', ui.Tone.BAD)} render it first:")
+        click.echo("      python -c \"from vanguard.render import render; "
+                   "render('data/canonical_cv.md','render/standard.css',"
+                   "'out/cv.pdf')\"")
+
+    recalled = registrations.answers()
+    if recalled:
+        click.echo()
+        click.echo("  answers you have given before:")
+        for question, answer in recalled[:10]:
+            click.echo(f"      {_clip(question, 34):<36} {_clip(answer, width - 46)}")
+
+    # --- and stop ---------------------------------------------------------
+    click.echo()
+    click.echo(ui.rule("APPLY"))
+    if vacancy["url"]:
+        click.echo(f"  {vacancy['url']}")
+    else:
+        click.echo("  no URL recorded for this vacancy")
+    click.echo("\n  Vanguard does not submit. Apply there yourself, then:")
+    click.echo(f"      vanguard dispatch {vacancy_id}")
+
+
+@main.group("registrations")
+def registrations_group() -> None:
+    """Where you hold accounts. Asserted by you, never detected.
+
+    Nothing logs in to check. Detection would need credentials for dozens of
+    portals — a single file that, if leaked, opens every account — and
+    repeated automated logins are the pattern security systems flag.
+    """
+
+
+@registrations_group.command("list")
+@click.option("--db", default=DEFAULTS["db"])
+def registrations_list(db) -> None:
+    """Every board and portal you have recorded."""
+    from vanguard.channel import RegistrationStore
+
+    records = RegistrationStore(db).all()
+    if not records:
+        click.echo("  nothing recorded yet")
+        click.echo("  vanguard registrations set board reed.co.uk")
+        return
+
+    click.echo(ui.rule(f"REGISTRATIONS  ·  {len(records)}"))
+    click.echo(ui.table(
+        [
+            ui.Column("SCOPE", 0.3, 8),
+            ui.Column("KEY", 1.0, 14, protected=True),
+            ui.Column("STATE", 0.7, 12),
+            ui.Column("NOTED", 0.5, 10, tone=ui.Tone.MUTED),
+        ],
+        [[r.scope, r.key, r.describe(), r.noted_at[:10]] for r in records],
+    ))
+
+
+@registrations_group.command("set")
+@click.argument("scope", type=click.Choice(["board", "employer"]))
+@click.argument("key")
+@click.option("--profile-built", is_flag=True, help="A profile is complete there.")
+@click.option("--not-registered", is_flag=True, help="Record that you are NOT.")
+@click.option("--url", default="", help="Where to sign in.")
+@click.option("--note", default="")
+@click.option("--db", default=DEFAULTS["db"])
+def registrations_set(scope, key, profile_built, not_registered, url, note,
+                      db) -> None:
+    """Record whether you hold an account somewhere."""
+    from vanguard.channel import RegistrationStore
+
+    record = RegistrationStore(db).set(
+        scope, key, registered=not not_registered,
+        profile_built=profile_built, url=url, note=note)
+    tone = ui.Tone.GOOD if record.registered else ui.Tone.MUTED
+    click.echo(f"  {ui.badge(record.describe().upper(), tone)} "
+               f"{record.scope}:{record.key}")
+
+
+@registrations_group.command("answer")
+@click.argument("question")
+@click.argument("answer")
+@click.option("--db", default=DEFAULTS["db"])
+def registrations_answer(question, answer, db) -> None:
+    """Record an answer to a question that keeps coming up.
+
+    A recall aid. You still type it into the employer's form — nothing is
+    filled in on your behalf.
+    """
+    from vanguard.channel import RegistrationStore
+
+    RegistrationStore(db).remember_answer(question, answer)
+    click.echo(f"  {ui.badge('RECORDED', ui.Tone.GOOD)} {_clip(question, 50)}")
+
+
+# ---------------------------------------------------------------------------
 # Response loop (Route 5) — classify only. Never sends.
 # ---------------------------------------------------------------------------
 

@@ -20,6 +20,7 @@ what to *do*; that one is what things *are*.
 | `HOW_TO_ADD_MANY_JOBS.md` | Entering fifty at once |
 | `HOW_TO_HANDLE_REPLIES.md` | Replies, interviews and rejections |
 | `HOW_TO_USE_REPOSITORY_EVIDENCE.md` | Finding CV evidence in your repositories |
+| `vanguard apply <id>` | What an application needs, before you start it |
 | `MANUAL_ENTRY.md` | Per-board detail and configuration |
 
 ---
@@ -245,7 +246,8 @@ learned. That is a table entry, not a reason to ignore the score.
 [ ] vanguard review                    if PENDING > 0
 [ ] vanguard review <id>               read the gaps before deciding
 [ ] vanguard approve <id>  |  reject <id> --reason "..."
-[ ] apply, then: vanguard dispatch <id>
+[ ] vanguard apply <id>                what it needs, and where
+[ ] apply there yourself, then: vanguard dispatch <id>
 ```
 
 **Stop and investigate if:**

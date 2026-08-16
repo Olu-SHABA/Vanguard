@@ -909,6 +909,7 @@ def test_phase_document_matches_what_is_built() -> None:
     built = {
         "A · Foundations": ("archive.py", "mailbox.py", "process.py"),
         "B · Repository evidence": ("repo.py",),
+        "C · Application channel": ("channel.py",),
     }
 
     for heading, modules in built.items():

@@ -507,17 +507,21 @@ Only running on Windows caught B-46. The sandbox is Linux, where read-only
 files delete without complaint — so cleanup appeared to work perfectly while
 failing on the machine that matters.
 
-## C · Application channel — brink of autonomous · **NEXT**
+## C · Application channel — **COMPLETE, 12 August 2026**
 
-| | Effort |
+| | State |
 |---|---|
-| Channel classification from URL | 1 day |
-| `registrations` table, both scopes | 1 day |
-| Application pack assembly | 2 days |
-| `answers` recall table | 1 day |
+| Channel classification from URL | **Done.** `channel.py`. Twelve known boards, twenty-six ATS hosts, and advert phrasing that overrides a board URL |
+| `registrations` table, both scopes | **Done.** `vanguard registrations`. Board and employer, asserted never detected |
+| Application pack assembly | **Done.** `vanguard apply`. Eligibility first, then channel, account, pack, URL — and it stops |
+| `answers` recall table | **Done.** Normalised keys, so "What is your notice period?" and "Notice period" are one entry |
 
-**Why last:** largest surface, least certain. **No automated form-filling.**
-The system prepares and informs; the operator applies.
+**No automated form-filling, as specified.** A test asserts `channel.py`
+contains no `requests.post`, no `webbrowser`, no `selenium` and no
+`playwright` — the constraint is enforced in the suite rather than left to
+memory.
+
+**Phase 2 is complete.** A, B and C.
 
 ---
 

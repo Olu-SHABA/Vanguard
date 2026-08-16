@@ -14,7 +14,8 @@ what.
 | [Setup and health](#setup-and-health) | `boards` |
 | [Getting vacancies in](#getting-vacancies-in) | `run` · `paste` · `adverts` |
 | [Looking at results](#looking-at-results) | `review` · `score` · `stats` · `diagnose` · `evidence` |
-| [Deciding](#deciding) | `approve` · `reject` · `resolve` · `override` · `dispatch` |
+| [Deciding](#deciding) | `approve` · `reject` · `resolve` · `override` · `apply` · `dispatch` |
+| [Accounts](#accounts) | `registrations` |
 | [Responses](#responses) | `poll` · `mail` · `dormant` · `feedback` · `interview` · `interviews` |
 | [Operations](#operations) | `logs` · `archive` |
 | [What grows](#what-grows-and-what-does-not) | Which files accumulate, and when to act |
@@ -540,6 +541,54 @@ vanguard override reed:57204511 --why "3 of 4 sift criteria strong; SDLC gap acc
 
 UNREACHABLE is a true finding about the gap between your CV and the role.
 Overriding it is a deliberate, recorded act rather than a click.
+
+## `vanguard apply <id>`
+
+What this application needs, and where to do it.
+
+```bash
+vanguard apply reed:57092035
+vanguard apply reed:57092035 --cv-pdf out\cv_anon.pdf
+```
+
+| Option | Effect |
+|---|---|
+| `--cv-pdf` | The CV you would submit. Default `out/cv.pdf` |
+
+**Vanguard does not apply.** It establishes what kind of application this is,
+whether you hold an account, and what you will need to hand — then gives you
+the URL and stops.
+
+Automated form-filling across arbitrary employer systems is **out of scope and
+stays there**. Different templates, labels and frameworks make it unreliable,
+and a form filled wrongly on your behalf is worse than no help at all.
+
+### What it reports, in order
+
+**Eligibility first.** A role needing clearance you do not hold is not worth
+reading further, whatever the coverage score says.
+
+**Channel** — how this vacancy is applied to:
+
+| Type | Meaning | You need |
+|---|---|---|
+| `BOARD_DIRECT` | Apply on the board, upload a CV | A board account |
+| `BOARD_PROFILE` | The board applies from a built profile | An account **and** a complete profile |
+| `EMPLOYER_ATS` | The link goes to the employer's own system | An account on that portal |
+| `UNKNOWN` | Not classifiable | To decide once; it is remembered |
+
+Advert phrasing overrides the URL. A Reed listing saying *"apply on the
+company website"* is an `EMPLOYER_ATS` application whatever the link looks
+like.
+
+**Account** — whether you are registered, from the `registrations` table.
+
+**Pack** — submission type, whether the CV is rendered, standard or
+anonymised profile, and any answers you have given before.
+
+**The URL, and then it stops.**
+
+---
 
 ## `vanguard dispatch <id>`
 
@@ -1077,3 +1126,55 @@ vanguard stats --storage
 ```
 
 Run it weekly during heavy use. Decide on the numbers, not on a projection.
+
+
+---
+
+# Accounts
+
+## `vanguard registrations`
+
+Where you hold accounts. **Asserted by you, never detected.**
+
+```bash
+vanguard registrations list
+vanguard registrations set board reed.co.uk
+vanguard registrations set board linkedin.com --profile-built
+vanguard registrations set employer careers.acme.com --url "https://..."
+vanguard registrations set board monster.co.uk --not-registered
+vanguard registrations answer "What is your notice period?" "1 month"
+```
+
+| Command | Option | Effect |
+|---|---|---|
+| `set` | `--profile-built` | A profile is complete there, not just an account |
+| | `--not-registered` | Record that you are **not** — it stops the question recurring |
+| | `--url` | Where to sign in |
+| | `--note` | Free text |
+| `answer` | — | Record an answer to a question that keeps coming up |
+
+### Why nothing logs in to check
+
+Detection would need credentials for dozens of employer portals — a single
+file that, if leaked, opens every account you have. Repeated automated logins
+across many portals is also the pattern security systems flag as credential
+stuffing, and most ATS terms prohibit automated access.
+
+You know whether you are registered. It is one question, once per portal.
+
+### Two scopes
+
+**`board`** — a small fixed set: Reed, LinkedIn, Civil Service Jobs.
+
+**`employer`** — unbounded, keyed by hostname, growing with every application
+to a company running its own portal.
+
+### Recurring answers
+
+Notice period, salary expectation, right to work, relocation — the questions
+every form asks. Recorded once and offered back on the next application.
+
+**A recall aid, not a form-filler.** You still type it in.
+
+Rewording is handled: *"What is your notice period?"* and *"Notice period"*
+find the same answer.

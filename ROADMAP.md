@@ -98,8 +98,7 @@ the operator's ratchet ruling. Both thresholds live in config.
 
 **Built since this document was written:** N-06 mailbox polling, N-07 archive,
 N-08 batch ingestion, N-09 multi-round interview tracking, N-10 repository
-evidence loop. **Phase 2 A and B are complete**; C is next. See
-`docs/PHASE_2.md`.
+evidence loop. **Phase 2 is complete** — A, B and C. See `docs/PHASE_2.md`.
 
 ## Cosmetic
 
