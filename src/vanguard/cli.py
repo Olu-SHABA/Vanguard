@@ -1819,6 +1819,91 @@ def interviews_cmd(vacancy_id, show_all, withdraw, db) -> None:
     click.echo("  vanguard interviews <ID>   for one process in full")
 
 
+@main.command("evidence")
+@click.option("--repo", "repos", multiple=True, type=click.Path(exists=True),
+              help="A repository to scan. Repeat for several.")
+@click.option("--vacancy", default="", help="Match against one vacancy's gaps.")
+@click.option("--all-gaps", is_flag=True,
+              help="Match against every recurring unmet requirement instead.")
+@click.option("--db", default=DEFAULTS["db"])
+@click.option("--cv", default=DEFAULTS["cv"])
+def evidence_cmd(repos, vacancy, all_gaps, db, cv) -> None:
+    """Propose CV bullets from work in your own repositories.
+
+    A repository evidences only what was BUILT. It can supply a Type 1 gap —
+    something genuinely done but unstated — and never a Type 3 gap: AWS is not
+    evidenced by a repository that never touched AWS.
+
+    Every proposal needs your confirmation. The scanner can see that a test
+    suite exists; it cannot know whether you wrote it, or whether you could
+    defend it under questioning.
+    """
+    from vanguard.repo import propose_bullets, scan_repository
+
+    store, _ = _ctx(db)
+    width = _terminal_width()
+
+    if not repos:
+        raise click.ClickException(
+            "pass --repo. Own repositories only: attribution has to be certain")
+
+    if vacancy:
+        rows = store.gaps_for(vacancy)
+        unmet = [r["term"] for r in rows if r["outcome"] == "GAP"]
+        heading = f"gaps on {vacancy}"
+    elif all_gaps:
+        unmet = [r["term"] for r in store.unmet_term_frequency(40)]
+        heading = "recurring unmet requirements"
+    else:
+        raise click.ClickException("pass --vacancy <id> or --all-gaps")
+
+    if not unmet:
+        click.echo("no unmet requirements to match against")
+        return
+
+    scans = [scan_repository(path) for path in repos]
+
+    click.echo(ui.rule(f"REPOSITORIES  ·  {len(scans)}"))
+    for scan in scans:
+        click.echo(f"  {scan.summary()}")
+        for item in scan.sufficient_evidence:
+            click.echo(f"      {item.competency:<28} {item.describe()}")
+
+    proposals = propose_bullets(scans, unmet)
+
+    click.echo()
+    click.echo(ui.rule(f"PROPOSALS  ·  {len(proposals)} of {len(unmet)} {heading}"))
+
+    if not proposals:
+        click.echo("  nothing in these repositories evidences the unmet")
+        click.echo("  requirements. That is the honest outcome — a repository")
+        click.echo("  evidences only what was built.")
+        return
+
+    for proposal in proposals:
+        click.echo()
+        click.echo(f"  {ui.badge('TYPE 1?', ui.Tone.WARN)} {proposal.requirement}")
+        click.echo(f"      evidence   {proposal.citation()}")
+        for line in _wrap(proposal.bullet, width - 18):
+            click.echo(f"      draft      {line}")
+
+    click.echo()
+    click.echo(ui.rule("BEFORE YOU ADD ANY OF THESE"))
+    for line in (
+        "Each is a proposal. Ask, of each one:",
+        "",
+        "  Did I build this, or did someone else?",
+        "  Could I answer three follow-up questions on it without inventing?",
+        "  Which system, what period, what actually happened?",
+        "",
+        "If you hesitate, it is not a Type 1 gap. It stays unmet.",
+        "",
+        "Edit data/canonical_cv.md by hand, then re-score:",
+        f"  vanguard review {vacancy or '<id>'}",
+    ):
+        click.echo(f"  {line}")
+
+
 # ---------------------------------------------------------------------------
 # Response loop (Route 5) — classify only. Never sends.
 # ---------------------------------------------------------------------------

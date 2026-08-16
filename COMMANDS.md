@@ -13,7 +13,7 @@ what.
 |---|---|
 | [Setup and health](#setup-and-health) | `boards` |
 | [Getting vacancies in](#getting-vacancies-in) | `run` · `paste` · `adverts` |
-| [Looking at results](#looking-at-results) | `review` · `score` · `stats` · `diagnose` |
+| [Looking at results](#looking-at-results) | `review` · `score` · `stats` · `diagnose` · `evidence` |
 | [Deciding](#deciding) | `approve` · `reject` · `resolve` · `override` · `dispatch` |
 | [Responses](#responses) | `poll` · `mail` · `dormant` · `feedback` · `interview` · `interviews` |
 | [Operations](#operations) | `logs` · `archive` |
@@ -351,6 +351,66 @@ most frequently unmet:
 **The unmet list is the useful part.** A requirement appearing 31 times is a
 standing skills gap, not a scoring artefact. That is career information, not
 software output.
+
+---
+
+## `vanguard evidence`
+
+Propose CV bullets from work in your own repositories.
+
+```bash
+vanguard evidence --repo C:\path\to\project --all-gaps
+vanguard evidence --repo . --repo ..\other --vacancy reed:57092035
+```
+
+| Option | Effect |
+|---|---|
+| `--repo` | A repository to scan. Repeat for several |
+| `--vacancy` | Match against one vacancy's unmet requirements |
+| `--all-gaps` | Match against every recurring unmet requirement |
+
+**A repository evidences only what was built.** It can supply a **Type 1**
+gap — something genuinely done but absent from your CV's wording. It cannot
+supply a **Type 3** gap: AWS is not evidenced by a repository that never
+touched AWS, however thoroughly it is mined.
+
+So this recovers unstated claims, never absent ones. A vacancy at 0.20
+demanding cloud platforms stays at 0.20.
+
+### Own repositories only
+
+Attribution has to be certain. Scoring anyone else's public repository carries
+a coverage bias — public repositories favour open-source contributors and
+permissive employers, while most enterprise work sits behind a firewall.
+
+### What counts as evidence
+
+Not commit counts. A thousand commits may be careful iteration or committing
+every save, and frequency is not competence.
+
+**Artefacts** count: a test suite evidences testing, a Dockerfile evidences
+containerisation, a CI workflow evidences CI. Each had to be built and made to
+work. A single incidental file does not — one Dockerfile among two hundred
+Python files is a detail; twenty test files are a test suite.
+
+Dependency trees are never scanned. Counting `site-packages` would evidence
+competencies nobody demonstrated.
+
+### Every proposal needs your confirmation
+
+The scanner can see that a test suite exists. It cannot know whether you wrote
+it, or whether you could defend it under questioning.
+
+The command asks, of each proposal:
+
+- Did I build this, or did someone else?
+- Could I answer three follow-up questions without inventing anything?
+- Which system, what period, what actually happened?
+
+**If you hesitate, it is not a Type 1 gap.** It stays unmet.
+
+Nothing is written to the CV. You edit `data/canonical_cv.md` by hand, then
+re-score.
 
 ---
 
