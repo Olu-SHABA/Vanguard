@@ -27,6 +27,7 @@ Run `pytest` for the current figure.
 
 Day-to-day operation and troubleshooting: **`SOP.md`**.
 Adding a job by hand, five steps: **`HOW_TO_ADD_A_JOB.md`**.
+Adding many at once: **`HOW_TO_ADD_MANY_JOBS.md`**.
 Per-board detail and configuration: **`MANUAL_ENTRY.md`**.
 Full command reference: **`COMMANDS.md`**.
 Open defects, deferrals and unverified assumptions: **`OUTSTANDING.md`**.

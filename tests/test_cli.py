@@ -669,14 +669,21 @@ def test_manual_entry_guide_names_only_real_boards() -> None:
     assert referenced <= known, f"unknown boards: {referenced - known}"
 
 
-def test_quick_guide_exists() -> None:
-    assert (ROOT / "HOW_TO_ADD_A_JOB.md").is_file()
+@pytest.mark.parametrize("guide", ["HOW_TO_ADD_A_JOB.md", "HOW_TO_ADD_MANY_JOBS.md"])
+def test_quick_guide_exists(guide: str) -> None:
+    assert (ROOT / guide).is_file()
 
 
-def test_quick_guide_is_actually_short() -> None:
-    """It exists because the reference was too long to follow while working."""
-    lines = (ROOT / "HOW_TO_ADD_A_JOB.md").read_text(encoding="utf-8").split("\n")
-    assert len(lines) < 130, "if this grows past a page it has stopped being quick"
+@pytest.mark.parametrize("guide", ["HOW_TO_ADD_A_JOB.md", "HOW_TO_ADD_MANY_JOBS.md"])
+def test_quick_guides_stay_short(guide: str) -> None:
+    """They exist because the reference was too long to follow while working.
+
+    This fired on 12 Aug when a batch section pushed the single-job guide to
+    163 lines. The right answer was to split it, not to raise the limit —
+    raising it would have removed the only thing keeping either guide quick.
+    """
+    lines = (ROOT / guide).read_text(encoding="utf-8").split("\n")
+    assert len(lines) < 130, f"{guide} has stopped being quick"
 
 
 def test_dispatch_archives_the_application(runner: CliRunner, tmp_path: Path) -> None:
