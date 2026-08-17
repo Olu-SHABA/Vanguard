@@ -60,6 +60,35 @@ vanguard adverts ingest --move-to done\
 
 ---
 
+## STEP 6 — Work through what came back
+
+Fifty adverts might produce 15 PENDING, 20 FLAGGED and 15 UNREACHABLE. Do not
+open them one at a time.
+
+**Clear what you will never apply to** — one judgement, one command:
+
+```powershell
+vanguard reject --status UNREACHABLE --dry-run
+vanguard reject --status UNREACHABLE --reason "ceiling below gate" --yes
+```
+
+Dry-run first; it shows exactly what would change.
+
+**Then work the rest in one sitting:**
+
+```powershell
+vanguard session                     # PENDING
+vanguard session --status FLAGGED    # later, when you have time
+```
+
+Each record shows its coverage, ceiling and any eligibility gate, then asks
+`a` approve, `r` reject, `s` skip, `o` show gaps, `q` quit.
+
+Fifteen decisions, one command, no ids typed. `q` stops and leaves everything
+after it untouched.
+
+---
+
 # IF SOMETHING GOES WRONG
 
 **"N skipped — no valid entry"**
@@ -84,7 +113,8 @@ vanguard adverts register --template
 # fill in the CSV
 vanguard adverts register --from-csv adverts\to_register.csv
 vanguard adverts ingest --move-to done\
-vanguard review
+vanguard reject --status UNREACHABLE --reason "ceiling below gate" --yes
+vanguard session
 ```
 
 ---
