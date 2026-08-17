@@ -14,7 +14,7 @@ what.
 | [Setup and health](#setup-and-health) | `boards` |
 | [Getting vacancies in](#getting-vacancies-in) | `run` · `paste` · `adverts` |
 | [Looking at results](#looking-at-results) | `review` · `score` · `stats` · `diagnose` · `evidence` |
-| [Deciding](#deciding) | `approve` · `reject` · `resolve` · `override` · `apply` · `dispatch` |
+| [Deciding](#deciding) | `session` · `approve` · `reject` · `resolve` · `override` · `apply` · `dispatch` |
 | [Accounts](#accounts) | `registrations` |
 | [Responses](#responses) | `poll` · `mail` · `dormant` · `feedback` · `interview` · `interviews` |
 | [Operations](#operations) | `logs` · `archive` |
@@ -509,6 +509,85 @@ UNREACHABLE -> PENDING (override) | REJECTED
 APPROVED    -> DISPATCHED | REJECTED
 REJECTED, DISPATCHED are terminal
 ```
+
+## `vanguard session`
+
+Work through a queue one record at a time, in **one invocation**.
+
+```bash
+vanguard session                              # PENDING
+vanguard session --status FLAGGED
+vanguard session --status PENDING --min-coverage 0.50
+vanguard session --employer Sanderson --limit 10
+```
+
+| Option | Effect |
+|---|---|
+| `--status` | Which state to work through. Default `PENDING` |
+| `--min-coverage` | Only records at or above |
+| `--employer` | Only records matching |
+| `--include-unmeasured` | Include records whose coverage was never measured |
+| `--limit` | Stop after this many |
+
+**Why it exists.** Fifteen PENDING records meant thirty commands and thirty
+copied ids. The decisions cannot be batched — fifteen vacancies is fifteen
+judgements — but the invocations can.
+
+Each record shows its coverage, terms, ceiling, location, salary and any
+eligibility gate. Then:
+
+```
+  a approve   r reject   s skip   o show gaps   q quit
+```
+
+`q` stops immediately and **nothing after that point is touched**.
+
+---
+
+## Bulk operations
+
+`approve` and `reject` accept a filter instead of an id.
+
+```bash
+vanguard reject --status UNREACHABLE --dry-run
+vanguard reject --status UNREACHABLE --reason "ceiling below gate" --yes
+vanguard approve --status PENDING --min-coverage 0.65 --dry-run
+```
+
+| Option | On | Effect |
+|---|---|---|
+| `--status` | both | Every record in this state |
+| `--min-coverage` | `approve` | At or above |
+| `--max-coverage` | `reject` | At or below |
+| `--employer` | both | Matching this employer |
+| `--include-unmeasured` | `reject` | Include never-measured records |
+| `--dry-run` | both | Show what would change |
+| `--yes` | both | Skip the confirmation |
+
+**Every filtered action previews first and asks.** Nothing changes until you
+confirm.
+
+**A filter is required.** Rejecting the entire queue by accident should not be
+one keystroke.
+
+**Unmeasured records are excluded by default.** A coverage of 0.000 or 1.000
+computed from one requirement should not decide a bulk action. `reject` can
+include them explicitly; `approve` cannot.
+
+**One refusal does not stop the rest.** A record in a terminal state is
+reported and skipped; the others still transition.
+
+### Where the line sits
+
+Batching **one decision across many records** — "reject everything
+unreachable" — is one judgement, and doing it fifteen times is typing rather
+than thinking.
+
+Batching **many decisions** is not available, and should not be. Approving is
+where a claim gets made on your behalf. `session` exists so that fifteen
+judgements cost one invocation rather than thirty.
+
+---
 
 ## `vanguard approve <id>`
 

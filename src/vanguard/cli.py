@@ -745,23 +745,104 @@ def review(vacancy_id, status, db, boards_path) -> None:
 
 
 @main.command()
-@click.argument("vacancy_id")
+@click.argument("vacancy_id", required=False)
 @click.option("--note", default="")
+@click.option("--status", default="", help="Approve every record in this state.")
+@click.option("--min-coverage", type=float, default=None,
+              help="Only records at or above this coverage.")
+@click.option("--employer", default="", help="Only records matching this employer.")
+@click.option("--dry-run", is_flag=True, help="Show what would change.")
+@click.option("--yes", is_flag=True, help="Skip the confirmation prompt.")
 @click.option("--db", default=DEFAULTS["db"])
-def approve(vacancy_id, note, db) -> None:
-    """Approve for dispatch. Only APPROVED is dispatch-eligible."""
-    _, queue = _ctx(db)
-    _apply(queue.approve, vacancy_id, note)
+def approve(vacancy_id, note, status, min_coverage, employer, dry_run, yes,
+            db) -> None:
+    """Approve for dispatch. Only APPROVED is dispatch-eligible.
+
+    One id, or a filter. A filtered approve always previews first and asks
+    before acting — approving is where a claim gets made on your behalf, and
+    doing it to fifteen records unseen is not something to make easy.
+
+    Unmeasured scores are excluded from filters. Pass ids individually if you
+    want one anyway.
+    """
+    store, queue = _ctx(db)
+
+    if vacancy_id:
+        _apply(queue.approve, vacancy_id, note)
+        return
+
+    if not (status or min_coverage is not None or employer):
+        raise click.ClickException(
+            "pass a vacancy id, or a filter: --status, --min-coverage, --employer")
+
+    rows = _select(store, status=status or "PENDING", min_coverage=min_coverage,
+                   employer=employer)
+    _preview(rows, "approve")
+    if not rows:
+        return
+
+    if dry_run:
+        click.echo("\n  dry run — nothing changed")
+        return
+
+    if not yes:
+        click.echo()
+        if not click.confirm(f"  approve {len(rows)} record(s)?", default=False):
+            click.echo("  nothing changed")
+            return
+
+    _apply_bulk(queue.approve, rows, note, "approved")
+    click.echo("\n  approved means eligible for dispatch, not submitted")
 
 
 @main.command()
-@click.argument("vacancy_id")
+@click.argument("vacancy_id", required=False)
 @click.option("--reason", default="")
+@click.option("--status", default="", help="Reject every record in this state.")
+@click.option("--max-coverage", type=float, default=None,
+              help="Only records at or below this coverage.")
+@click.option("--employer", default="", help="Only records matching this employer.")
+@click.option("--include-unmeasured", is_flag=True,
+              help="Include records whose coverage was never measured.")
+@click.option("--dry-run", is_flag=True, help="Show what would change.")
+@click.option("--yes", is_flag=True, help="Skip the confirmation prompt.")
 @click.option("--db", default=DEFAULTS["db"])
-def reject(vacancy_id, reason, db) -> None:
-    """Reject and archive."""
-    _, queue = _ctx(db)
-    _apply(queue.reject, vacancy_id, reason)
+def reject(vacancy_id, reason, status, max_coverage, employer,
+           include_unmeasured, dry_run, yes, db) -> None:
+    """Reject and archive. Terminal — the record keeps its reason.
+
+    One id, or a filter. Clearing a backlog of UNREACHABLE records is one
+    judgement applied to many, and doing it one at a time is typing rather
+    than thinking.
+    """
+    store, queue = _ctx(db)
+
+    if vacancy_id:
+        _apply(queue.reject, vacancy_id, reason)
+        return
+
+    if not (status or max_coverage is not None or employer):
+        raise click.ClickException(
+            "pass a vacancy id, or a filter: --status, --max-coverage, --employer")
+
+    rows = _select(store, status=status, max_coverage=max_coverage,
+                   employer=employer, include_unmeasured=include_unmeasured)
+    _preview(rows, "reject")
+    if not rows:
+        return
+
+    if dry_run:
+        click.echo("\n  dry run — nothing changed")
+        return
+
+    if not yes:
+        click.echo()
+        if not click.confirm(f"  reject {len(rows)} record(s)?", default=False):
+            click.echo("  nothing changed")
+            return
+
+    _apply_bulk(queue.reject, rows,
+                reason or f"bulk reject: {status or 'filtered'}", "rejected")
 
 
 @main.command()
@@ -847,6 +928,75 @@ def dispatch(vacancy_id, note, cv_pdf, cover_letter, archive_root,
     if not archived.complete:
         click.echo("  WARNING: no CV archived — pass --cv, or render out/cv.pdf first",
                    err=True)
+
+
+def _select(store, *, status: str = "", min_coverage: float | None = None,
+            max_coverage: float | None = None, employer: str = "",
+            include_unmeasured: bool = False, limit: int = 500) -> list:
+    """Queue records matching a filter, strongest first.
+
+    Unmeasured scores are excluded by default. A record whose coverage was
+    computed from fewer than six requirements is 0.000 or 1.000 depending on
+    whether one term happened to match, and neither figure should decide a
+    bulk action.
+    """
+    from vanguard.coverage import MIN_TERMS_FOR_CONFIDENCE
+
+    rows = store.list_queue(status.upper() if status else None, limit=limit)
+    out = []
+    for row in rows:
+        total = row["terms_total"] or 0
+        unmeasured = total < MIN_TERMS_FOR_CONFIDENCE or bool(row["partial"])
+        if unmeasured and not include_unmeasured:
+            continue
+
+        coverage = row["coverage"]
+        if min_coverage is not None and (coverage or 0) < min_coverage:
+            continue
+        if max_coverage is not None and (coverage or 0) > max_coverage:
+            continue
+        if employer and employer.lower() not in (row["employer"] or "").lower():
+            continue
+        out.append(row)
+    return out
+
+
+def _preview(rows, action: str) -> None:
+    """Show exactly what a bulk operation would change, before it does."""
+    click.echo(ui.rule(f"{action.upper()}  ·  {len(rows)} record(s)"))
+    if not rows:
+        click.echo("  nothing matched the filter")
+        return
+    click.echo(ui.table(
+        [
+            ui.Column("COVERAGE", 0.4, 8, "right"),
+            ui.Column("TERMS", 0.3, 5, "right", tone=ui.Tone.MUTED),
+            ui.Column("EMPLOYER", 1.0, 12),
+            ui.Column("TITLE", 1.8, 16),
+            ui.Column("ID", 0.9, 12, tone=ui.Tone.MUTED, protected=True),
+        ],
+        [[f"{r['coverage'] or 0:.3f}",
+          f"{r['terms_matched']}/{r['terms_total']}",
+          r["employer"], r["title"], r["vacancy_id"]] for r in rows],
+    ))
+
+
+def _apply_bulk(fn, rows, note: str, action: str) -> int:
+    """Transition many records. One failure does not stop the rest."""
+    changed, refused = 0, []
+    for row in rows:
+        try:
+            fn(row["vacancy_id"], note)
+            changed += 1
+        except (IllegalTransition, StoreError, ValueError) as exc:
+            refused.append((row["vacancy_id"], str(exc)))
+
+    click.echo(f"\n  {ui.badge(action.upper(), ui.Tone.GOOD)} {changed} record(s)")
+    if refused:
+        click.echo(f"  {ui.badge(f'{len(refused)} refused', ui.Tone.WARN)}")
+        for vacancy_id, reason in refused[:8]:
+            click.echo(f"      {vacancy_id:<28} {_clip(reason, 44)}")
+    return changed
 
 
 def _apply(fn, vacancy_id: str, arg: str) -> None:
@@ -2136,6 +2286,128 @@ def registrations_answer(question, answer, db) -> None:
 
     RegistrationStore(db).remember_answer(question, answer)
     click.echo(f"  {ui.badge('RECORDED', ui.Tone.GOOD)} {_clip(question, 50)}")
+
+
+@main.command("session")
+@click.option("--status", default="PENDING", help="Which state to work through.")
+@click.option("--min-coverage", type=float, default=None)
+@click.option("--employer", default="")
+@click.option("--include-unmeasured", is_flag=True)
+@click.option("--limit", default=0, help="Stop after this many records.")
+@click.option("--db", default=DEFAULTS["db"])
+@click.option("--boards", "boards_path", default=DEFAULTS["boards"])
+def session_cmd(status, min_coverage, employer, include_unmeasured, limit, db,
+                boards_path) -> None:
+    """Work through a queue one record at a time, in one invocation.
+
+    Fifteen PENDING records currently means thirty commands and thirty copied
+    ids. The decisions cannot be batched — fifteen vacancies is fifteen
+    judgements — but the typing can.
+
+    Shows each record, asks, moves on. Nothing is decided for you.
+    """
+    store, queue = _ctx(db)
+
+    rows = _select(store, status=status, min_coverage=min_coverage,
+                   employer=employer, include_unmeasured=include_unmeasured)
+    if limit:
+        rows = rows[:limit]
+
+    if not rows:
+        click.echo(f"nothing in {status.upper()} matches")
+        return
+
+    click.echo(ui.rule(f"SESSION  ·  {len(rows)} record(s) in {status.upper()}"))
+    click.echo("  a approve   r reject   s skip   o show gaps   q quit\n")
+
+    tally = {"approved": 0, "rejected": 0, "skipped": 0}
+    width = _terminal_width()
+
+    for index, row in enumerate(rows, 1):
+        vacancy = store.vacancy(row["vacancy_id"])
+        click.echo()
+        click.echo(ui.rule(f"{index} of {len(rows)}"))
+        click.echo(f"  {_clip(row['title'], width - 6)}")
+        click.echo(ui.field_list([
+            ("employer", row["employer"]),
+            ("coverage", f"{row['coverage'] or 0:.3f}  "
+                         f"({row['terms_matched']}/{row['terms_total']} terms, "
+                         f"ceiling {row['ceiling'] or 0:.2f})"),
+            ("location", (vacancy["location"] if vacancy else "") or ""),
+            ("salary", (vacancy["salary_band"] if vacancy else "") or ""),
+            ("id", row["vacancy_id"]),
+        ], indent="  "))
+
+        # Eligibility, if any. A gate is worth seeing before deciding.
+        diagnostic = store.diagnostic_for(row["vacancy_id"])
+        if diagnostic:
+            import json as _json
+            try:
+                gates = (_json.loads(diagnostic["heading_kinds"] or "{}")
+                         ).get("__eligibility__") or []
+            except ValueError:
+                gates = []
+            for gate in gates[:2]:
+                click.echo(f"\n  {ui.badge('GATE', ui.Tone.BAD)} "
+                           f"{_clip(gate, width - 14)}")
+
+        while True:
+            choice = click.prompt("\n  [a/r/s/o/q]", default="s",
+                                  show_default=False).strip().lower()[:1]
+
+            if choice == "o":
+                unmet = [g for g in store.gaps_for(row["vacancy_id"])
+                         if g["outcome"] == "GAP"]
+                if not unmet:
+                    click.echo("      nothing unmet")
+                for gap in unmet[:12]:
+                    label = {1: "Type 1", 2: "Type 2", 3: "Type 3"}.get(
+                        gap["gap_type"], "     —")
+                    click.echo(f"      {label}  {_clip(gap['term'], width - 20)}")
+                continue
+
+            if choice == "a":
+                try:
+                    queue.approve(row["vacancy_id"], "")
+                    tally["approved"] += 1
+                    click.echo(f"      {ui.badge('APPROVED', ui.Tone.GOOD)} "
+                               f"vanguard apply {row['vacancy_id']}")
+                except (IllegalTransition, StoreError, ValueError) as exc:
+                    click.echo(f"      refused: {exc}", err=True)
+                break
+
+            if choice == "r":
+                reason = click.prompt("      reason", default="not a fit",
+                                      show_default=True)
+                try:
+                    queue.reject(row["vacancy_id"], reason)
+                    tally["rejected"] += 1
+                    click.echo(f"      {ui.badge('REJECTED', ui.Tone.MUTED)}")
+                except (IllegalTransition, StoreError, ValueError) as exc:
+                    click.echo(f"      refused: {exc}", err=True)
+                break
+
+            if choice == "q":
+                click.echo("\n  stopped. Nothing after this point was touched.")
+                _session_summary(tally, index - 1, len(rows))
+                return
+
+            tally["skipped"] += 1
+            break
+
+    _session_summary(tally, len(rows), len(rows))
+
+
+def _session_summary(tally: dict, seen: int, total: int) -> None:
+    click.echo()
+    click.echo(ui.rule("SESSION END"))
+    click.echo(f"  {seen} of {total} record(s) seen")
+    for label, tone in (("approved", ui.Tone.GOOD), ("rejected", ui.Tone.MUTED),
+                        ("skipped", ui.Tone.WARN)):
+        if tally[label]:
+            click.echo(f"  {ui.badge(label.upper(), tone)}  {tally[label]}")
+    if tally["approved"]:
+        click.echo("\n  vanguard review --status APPROVED   what to apply to")
 
 
 # ---------------------------------------------------------------------------

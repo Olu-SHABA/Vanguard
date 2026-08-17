@@ -244,8 +244,8 @@ learned. That is a table entry, not a reason to ignore the score.
 [ ] vanguard run
 [ ] check the RESULT block — any PENDING?
 [ ] vanguard review                    if PENDING > 0
-[ ] vanguard review <id>               read the gaps before deciding
-[ ] vanguard approve <id>  |  reject <id> --reason "..."
+[ ] vanguard session                   work through them in one invocation
+[ ] vanguard review <id>               or one at a time, if you prefer
 [ ] vanguard apply <id>                what it needs, and where
 [ ] apply there yourself, then: vanguard dispatch <id>
 ```
@@ -321,6 +321,18 @@ your own withdrawal:
 ```
 
 Silence never closes one. Employers go quiet between rounds and return.
+
+## Clearing a backlog
+
+One judgement across many records is a bulk action:
+
+```
+[ ] vanguard reject --status UNREACHABLE --dry-run
+[ ] vanguard reject --status UNREACHABLE --reason "ceiling below gate" --yes
+```
+
+Always dry-run first. A filter is required, and unmeasured records are
+excluded unless you ask for them.
 
 ## Clearing a FLAGGED record
 

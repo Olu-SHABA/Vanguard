@@ -1015,3 +1015,182 @@ def test_readme_layout_covers_every_working_directory() -> None:
     missing = [name for name in sorted(ignored | tracked)
                if name not in readme and name not in {"src", "tests"}]
     assert not missing, f"README.md does not mention {missing}"
+
+
+# ---------------------------------------------------------------------------
+# Bulk operations
+#
+# Fifteen PENDING records meant thirty commands and thirty copied ids. The
+# decisions cannot be batched — fifteen vacancies is fifteen judgements — but
+# the invocations can.
+# ---------------------------------------------------------------------------
+
+def _queue_of(tmp_path: Path, count: int = 12) -> Path:
+    """A queue with a spread of statuses and coverage values."""
+    from vanguard.adapters.base import Vacancy
+    from vanguard.store import Store
+
+    db = tmp_path / "v.db"
+    store = Store(db)
+    store.initialise()
+    advert = (ROOT / "tests" / "fixtures" / "moj_senior_data_engineer.txt"
+              ).read_text(encoding="utf-8")
+
+    for i in range(count):
+        store.upsert_vacancy(Vacancy(
+            id=f"reed:{i}", board_id="reed", employer=f"Employer {i}",
+            title=f"Data Engineer {i}", description=advert))
+        status = "PENDING" if i < 5 else ("FLAGGED" if i < 9 else "UNREACHABLE")
+        store.create_queue_record(f"reed:{i}", status)
+        with store.connect() as conn:
+            conn.execute(
+                "INSERT INTO scores (vacancy_id, coverage, rank_score, ceiling,"
+                " terms_total, terms_matched, soft_hits, embedder, computed_at)"
+                " VALUES (?,?,?,?,?,?,?,?,?)",
+                (f"reed:{i}", 0.30 + i * 0.05, 0.4, 0.85, 20, 6 + i, 0, "test",
+                 f"2026-08-{10 + i % 10:02d}T00:00:00+00:00"))
+    return db
+
+
+def test_a_filter_previews_before_acting(runner: CliRunner, tmp_path: Path) -> None:
+    db = _queue_of(tmp_path)
+    out = runner.invoke(main, ["reject", "--status", "UNREACHABLE",
+                               "--dry-run", "--db", str(db)]).output
+    assert "3 record(s)" in out
+    assert "dry run" in out
+
+    from vanguard.store import Store
+    assert Store(db).counts_by_status().get("REJECTED") is None
+
+
+def test_bulk_reject_transitions_every_match(runner: CliRunner,
+                                             tmp_path: Path) -> None:
+    db = _queue_of(tmp_path)
+    runner.invoke(main, ["reject", "--status", "UNREACHABLE", "--yes",
+                         "--reason", "ceiling below gate", "--db", str(db)])
+
+    from vanguard.store import Store
+    counts = Store(db).counts_by_status()
+    assert counts["REJECTED"] == 3
+    assert "UNREACHABLE" not in counts
+
+
+def test_coverage_filters_select_correctly(runner: CliRunner,
+                                           tmp_path: Path) -> None:
+    db = _queue_of(tmp_path)
+    out = runner.invoke(main, ["approve", "--status", "PENDING",
+                               "--min-coverage", "0.45", "--dry-run",
+                               "--db", str(db)]).output
+    assert "2 record(s)" in out
+
+
+def test_a_bulk_action_needs_a_filter(runner: CliRunner, tmp_path: Path) -> None:
+    """Rejecting the entire queue by accident should not be one keystroke."""
+    db = _queue_of(tmp_path)
+    result = runner.invoke(main, ["reject", "--db", str(db)])
+    assert result.exit_code != 0
+    assert "filter" in result.output
+
+
+def test_declining_the_prompt_changes_nothing(runner: CliRunner,
+                                              tmp_path: Path) -> None:
+    db = _queue_of(tmp_path)
+    out = runner.invoke(main, ["reject", "--status", "UNREACHABLE",
+                               "--db", str(db)], input="n\n").output
+    assert "nothing changed" in out
+
+    from vanguard.store import Store
+    assert Store(db).counts_by_status()["UNREACHABLE"] == 3
+
+
+def test_unmeasured_records_are_excluded_from_filters(runner: CliRunner,
+                                                      tmp_path: Path) -> None:
+    """A coverage of 0.000 or 1.000 from one requirement should not decide a
+    bulk action."""
+    from vanguard.adapters.base import Vacancy
+    from vanguard.store import Store
+
+    db = tmp_path / "v.db"
+    store = Store(db)
+    store.initialise()
+    store.upsert_vacancy(Vacancy(id="reed:thin", board_id="reed", employer="E",
+                                 title="T", description="d"))
+    store.create_queue_record("reed:thin", "FLAGGED")
+    with store.connect() as conn:
+        conn.execute(
+            "INSERT INTO scores (vacancy_id, coverage, rank_score, ceiling,"
+            " terms_total, terms_matched, soft_hits, embedder, computed_at)"
+            " VALUES (?,?,?,?,?,?,?,?,?)",
+            ("reed:thin", 1.0, 0.5, 1.0, 1, 1, 0, "test",
+             "2026-08-16T00:00:00+00:00"))
+
+    out = runner.invoke(main, ["reject", "--status", "FLAGGED", "--dry-run",
+                               "--db", str(db)]).output
+    assert "nothing matched" in out
+
+    included = runner.invoke(main, ["reject", "--status", "FLAGGED",
+                                    "--include-unmeasured", "--dry-run",
+                                    "--db", str(db)]).output
+    assert "1 record(s)" in included
+
+
+def test_one_refusal_does_not_stop_the_rest(runner: CliRunner,
+                                            tmp_path: Path) -> None:
+    """A bulk action across fifteen records must not abort on the first
+    illegal transition."""
+    db = _queue_of(tmp_path)
+    from vanguard.store import Store
+
+    Store(db).set_status("reed:9", "DISPATCHED")   # terminal, cannot reject
+
+    out = runner.invoke(main, ["reject", "--status", "UNREACHABLE", "--yes",
+                               "--db", str(db)]).output
+    assert "2 record(s)" in out
+
+
+# --- session --------------------------------------------------------------
+
+def test_session_walks_every_record(runner: CliRunner, tmp_path: Path) -> None:
+    db = _queue_of(tmp_path)
+    out = runner.invoke(main, ["session", "--status", "PENDING", "--db", str(db)],
+                        input="s\ns\ns\ns\ns\n").output
+    assert "5 record(s)" in out
+    assert "5 of 5" in out
+
+
+def test_session_records_each_decision(runner: CliRunner, tmp_path: Path) -> None:
+    db = _queue_of(tmp_path)
+    runner.invoke(main, ["session", "--status", "PENDING", "--db", str(db)],
+                  input="a\nr\nnot a fit\ns\ns\ns\n")
+
+    from vanguard.store import Store
+    counts = Store(db).counts_by_status()
+    assert counts.get("APPROVED") == 1
+    assert counts.get("REJECTED") == 1
+    assert counts.get("PENDING") == 3
+
+
+def test_quitting_leaves_the_rest_untouched(runner: CliRunner,
+                                            tmp_path: Path) -> None:
+    """Stopping half way must not decide anything after that point."""
+    db = _queue_of(tmp_path)
+    out = runner.invoke(main, ["session", "--status", "PENDING", "--db", str(db)],
+                        input="a\nq\n").output
+    assert "Nothing after this point" in out
+
+    from vanguard.store import Store
+    assert Store(db).counts_by_status().get("PENDING") == 4
+
+
+def test_session_shows_gaps_on_request(runner: CliRunner, tmp_path: Path) -> None:
+    db = _queue_of(tmp_path)
+    out = runner.invoke(main, ["session", "--status", "PENDING", "--db", str(db)],
+                        input="o\ns\nq\n").output
+    assert "Type" in out or "nothing unmet" in out
+
+
+def test_session_on_an_empty_queue(runner: CliRunner, tmp_path: Path) -> None:
+    db = _queue_of(tmp_path)
+    out = runner.invoke(main, ["session", "--status", "APPROVED",
+                               "--db", str(db)]).output
+    assert "nothing in APPROVED" in out

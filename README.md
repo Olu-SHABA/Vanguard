@@ -53,6 +53,7 @@ Open defects, deferrals and unverified assumptions: **`OUTSTANDING.md`**.
 Route to completion: **`ROADMAP.md`**.
 Phase 2 flowchart and specification: **`docs/PHASE_2.md`**.
 What is done and what remains: **`docs/MILESTONE_REPORT.md`**.
+Phase 3 — market positioning, specified not built: **`docs/PHASE_3.md`**.
 
 ## Install
 
@@ -136,6 +137,7 @@ vanguard run                        # autonomous: fetch, score, queue, exit
 vanguard paste --file advert.txt    # Tier 3: hand-feed one vacancy
 vanguard review                     # PENDING, strongest first
 vanguard review <id>                # coverage, itemised gaps, history
+vanguard session                    # work through a queue, one invocation
 vanguard approve <id>
 vanguard reject <id> --reason "..."
 vanguard resolve <id>               # clear a FLAGGED ambiguity
