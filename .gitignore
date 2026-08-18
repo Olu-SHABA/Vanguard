@@ -59,7 +59,6 @@ archive.db
 pasted/
 adverts/
 *.anon.md
-done/
 
 # ---------------------------------------------------------------------------
 # Credentials

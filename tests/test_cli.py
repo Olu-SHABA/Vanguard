@@ -880,15 +880,25 @@ GUIDES = (
 )
 
 
-#: Documents that must name every guide. Derived rather than listed: any
-#: top-level document that already references at least one guide is expected
-#: to reference them all, so adding a fourth reference document brings it
-#: under the guard automatically.
+#: Documents that INDEX the guides, as opposed to mentioning one in passing.
+#:
+#: Derived, so a new reference document is guarded the day it is written. But
+#: "references a guide" was too loose a test: `OUTSTANDING.md` records that a
+#: guide was created, which is not the same as pointing readers at them, and
+#: the guard demanded it list all five.
+#:
+#: An index names SEVERAL guides. One mention is a reference; several is a
+#: table of contents, and a table of contents missing an entry is the failure
+#: worth catching.
+_INDEX_THRESHOLD = 2
+
+
 def _guide_indexes() -> list[str]:
     return sorted(
         path.name for path in ROOT.glob("*.md")
         if path.name not in GUIDES
-        and any(guide in path.read_text(encoding="utf-8") for guide in GUIDES)
+        and sum(guide in (text := path.read_text(encoding="utf-8"))
+                for guide in GUIDES) >= _INDEX_THRESHOLD
     )
 
 
@@ -1320,3 +1330,21 @@ def test_include_unmeasured_reaches_them(runner: CliRunner, tmp_path: Path) -> N
     out = runner.invoke(main, ["session", "--include-unmeasured", "--db", str(db)],
                         input="q\n").output
     assert "3 record(s)" in out
+
+
+def test_a_passing_mention_is_not_an_index() -> None:
+    """`OUTSTANDING.md` records that a guide was created. That is not the same
+    as pointing readers at them, and the guard demanded it list all five.
+
+    An index names several guides; one mention is a reference.
+    """
+    register = (ROOT / "OUTSTANDING.md").read_text(encoding="utf-8")
+    mentions = sum(guide in register for guide in GUIDES)
+    assert mentions < _INDEX_THRESHOLD or "OUTSTANDING.md" not in _guide_indexes()
+
+
+def test_the_real_indexes_are_all_found() -> None:
+    """If this list shrinks, a document has quietly stopped indexing the
+    guides — which is the drift the guard exists to catch."""
+    indexes = set(_guide_indexes())
+    assert {"README.md", "SOP.md", "COMMANDS.md"} <= indexes

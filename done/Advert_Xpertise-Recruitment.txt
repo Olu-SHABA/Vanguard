@@ -1,0 +1,62 @@
+About the job
+
+Principal Advanced Analytics Consultant
+London | Hybrid Working | £70-95,000 + Package (experience dependent)
+ 
+Are you a data scientist who thrives on solving complex problems and turning data into meaningful business outcomes? We're looking for individuals with strong analytical foundations, commercial data science experience and a genuine interest in applying AI and machine learning to real-world challenges.
+ 
+You'll join a rapidly growing team working at the intersection of data science, AI and business strategy, helping organisations make smarter, evidence-based decisions through advanced analytics and innovative technologies.
+Working within a highly respected consulting environment, you'll collaborate with experienced strategists, data scientists and business leaders on high-impact projects spanning multiple industries. This is an opportunity to work on varied challenges, deliver tangible value and accelerate your career in one of the fastest-growing areas of the market.
+
+About the Opportunity
+This team combines data science, AI and strategic problem-solving to help organisations tackle complex business challenges. Delivering rapid insights, prototypes and analytical solutions, they work closely with senior stakeholders to shape decisions that drive measurable outcomes.
+
+Why Join
+
+
+    Work on diverse AI, machine learning and advanced analytics projects across multiple sectors.
+    Build innovative prototypes and solutions that influence high-value business decisions.
+    Join a rapidly growing team with significant investment in AI and emerging technologies.
+    Enjoy flexible hybrid working and limited client-site travel.
+
+
+Responsibilities
+
+
+    Apply data science, machine learning and AI techniques to generate insight and create business value.
+    Develop and maintain analytical models and solutions using Python.
+    Work closely with stakeholders to understand business challenges and define analytical approaches.
+    Present findings and recommendations to both technical and non-technical audiences.
+    Build proof-of-concepts, prototypes and demonstrations to test ideas and create value quickly.
+    Utilise modern AI tools to enhance productivity and accelerate delivery.
+    Contribute to innovation through the adoption of new technologies, methodologies and best practices.
+
+
+Requirements
+
+
+    Degree in a STEM subject or equivalent quantitative discipline.
+    Strong problem-solving, analytical thinking and statistical foundations.
+    Commercial experience delivering data science, machine learning or AI solutions.
+    Strong Python programming skills and experience with common data science libraries.
+    Understanding of modern AI concepts, including large language models and retrieval-based approaches.
+    Excellent communication skills with the ability to explain technical concepts to different audiences.
+    Experience working effectively within multidisciplinary teams.
+
+
+Desirable Experience
+
+
+    Experience developing rapid prototypes or proof-of-concept solutions.
+    Exposure to tools such as GitHub Copilot, Databricks or MLflow.
+    Previous consulting, advisory or client-facing experience.
+    Industry expertise within a specific sector or domain.
+
+
+Location: London
+Working Pattern: Hybrid
+ 
+We welcome applicants from all backgrounds. Our client is an equal opportunities employer.
+ 
+At Xpertise, we keep things human. Your application will always be reviewed by a real person. We do not rely on AI or automated screening tools. Every candidate receives fair, considered attention from our team.
+Right to work in the UK is required for this role.
