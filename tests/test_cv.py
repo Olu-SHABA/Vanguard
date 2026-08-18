@@ -36,7 +36,17 @@ def test_all_roles_parsed(cv) -> None:
 
 
 def test_every_bullet_captured(cv) -> None:
-    assert len(cv.all_bullets()) == 38
+    """Amended 17 Aug 2026: a hardcoded count breaks on every honest CV edit,
+    which makes it noise rather than a guard.
+
+    What matters is that the parser loses nothing — every `- ` line under a
+    section reaches `all_bullets()`.
+    """
+    expected = sum(1 for line in CV_PATH.read_text(encoding="utf-8").splitlines()
+                   if line.startswith("- "))
+
+    assert len(cv.all_bullets()) == expected, (
+        f"parser captured {len(cv.all_bullets())} of {expected} bullets")
 
 
 def test_role_carries_employer_and_dates(cv) -> None:
@@ -52,8 +62,14 @@ def test_source_role_citation_is_complete(cv) -> None:
 
 
 def test_projects_are_separate_from_roles(cv) -> None:
-    assert len(cv.projects()) == 1
-    assert cv.projects()[0].id.startswith("PROJECTS/")
+    """Amended 17 Aug 2026: the CV listed one project while seven
+    repositories existed. Asserting a fixed count meant every honest addition
+    broke the suite, so this asserts the SHAPE — projects are parsed, and
+    parsed as projects rather than as employment."""
+    projects = cv.projects()
+    assert projects, "no projects parsed"
+    assert all(p.id.startswith("PROJECTS/") for p in projects)
+    assert not any(p.id.startswith("PROFESSIONAL EXPERIENCE/") for p in projects)
 
 
 def test_unknown_section_raises(cv) -> None:
