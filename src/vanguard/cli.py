@@ -696,21 +696,6 @@ def review(vacancy_id, status, db, boards_path) -> None:
     if not rows:
         click.echo(f"no records with status {status.upper()}")
         return
-    from vanguard.coverage import MIN_TERMS_FOR_CONFIDENCE
-
-    def _coverage_cell(row) -> tuple[str, str]:
-        """Coverage and its denominator — or a marker when it was not measured.
-
-        A bare `1.000` for a vacancy scored on one requirement reads as the
-        best match in the queue. It means the opposite: nothing was measured.
-        Printing the figure at all was the defect.
-        """
-        total = row["terms_total"] or 0
-        unreliable = total < MIN_TERMS_FOR_CONFIDENCE or bool(row["partial"])
-        if unreliable:
-            return "not measured", f"{total} terms" if total else "no terms"
-        return f"{row['coverage'] or 0:.3f}", f"{row['terms_matched']}/{total}"
-
     click.echo(ui.rule(f"{status.upper()}  ·  {len(rows)} record(s), strongest first"))
 
     body = []
@@ -738,7 +723,7 @@ def review(vacancy_id, status, db, boards_path) -> None:
     if unmeasured:
         click.echo(
             f"  {ui.badge(f'{unmeasured} not measured', ui.Tone.WARN)} — advert had "
-            f"fewer than {MIN_TERMS_FOR_CONFIDENCE} requirements, or partial text. "
+            f"fewer than {_min_terms()} requirements, or partial text. "
             "Run `vanguard diagnose`."
         )
     click.echo("  vanguard review <ID>   for the full record")
@@ -928,6 +913,28 @@ def dispatch(vacancy_id, note, cv_pdf, cover_letter, archive_root,
     if not archived.complete:
         click.echo("  WARNING: no CV archived — pass --cv, or render out/cv.pdf first",
                    err=True)
+
+
+def _min_terms() -> int:
+    """The confidence floor. Imported lazily so the CLI starts without the
+    scoring dependencies installed."""
+    from vanguard.coverage import MIN_TERMS_FOR_CONFIDENCE
+
+    return MIN_TERMS_FOR_CONFIDENCE
+
+
+def _coverage_cell(row) -> tuple[str, str]:
+    """Coverage and its denominator — or a marker when it was not measured.
+
+    A bare `1.000` for a vacancy scored on one requirement reads as the best
+    match in the queue. It means the opposite.
+    """
+    from vanguard.coverage import MIN_TERMS_FOR_CONFIDENCE
+
+    total = row["terms_total"] or 0
+    if total < MIN_TERMS_FOR_CONFIDENCE or bool(row["partial"]):
+        return "not measured", f"{total} terms" if total else "no terms"
+    return f"{row['coverage'] or 0:.3f}", f"{row['terms_matched']}/{total}"
 
 
 def _select(store, *, status: str = "", min_coverage: float | None = None,
@@ -2314,7 +2321,31 @@ def session_cmd(status, min_coverage, employer, include_unmeasured, limit, db,
         rows = rows[:limit]
 
     if not rows:
-        click.echo(f"nothing in {status.upper()} matches")
+        # "nothing matches" reads as "the queue is empty", which is wrong when
+        # records were filtered out. Most FLAGGED records are flagged BECAUSE
+        # they are unmeasured; resolving them sends them to PENDING still
+        # unmeasured, and the default filter then hides them silently.
+        total = len(store.list_queue(status.upper(), limit=500))
+        if not total:
+            click.echo(f"nothing in {status.upper()}")
+            return
+
+        with_unmeasured = len(_select(store, status=status,
+                                      min_coverage=min_coverage,
+                                      employer=employer,
+                                      include_unmeasured=True))
+        click.echo(f"nothing in {status.upper()} matches the filter — but "
+                   f"there are {total} record(s) there")
+        if with_unmeasured:
+            click.echo(f"\n  {ui.badge(f'{with_unmeasured} not measured', ui.Tone.WARN)}"
+                       " — excluded by default, because a coverage")
+            click.echo("  computed from fewer than six requirements does not "
+                       "measure fit.\n")
+            click.echo(f"  vanguard session --status {status.upper()} "
+                       "--include-unmeasured")
+            click.echo("  vanguard diagnose            why they could not be scored")
+        elif min_coverage is not None or employer:
+            click.echo("\n  the coverage or employer filter excluded them all")
         return
 
     click.echo(ui.rule(f"SESSION  ·  {len(rows)} record(s) in {status.upper()}"))
@@ -2408,6 +2439,63 @@ def _session_summary(tally: dict, seen: int, total: int) -> None:
             click.echo(f"  {ui.badge(label.upper(), tone)}  {tally[label]}")
     if tally["approved"]:
         click.echo("\n  vanguard review --status APPROVED   what to apply to")
+
+
+@main.command("todo")
+@click.option("--db", default=DEFAULTS["db"])
+@click.option("--limit", default=40)
+def todo_cmd(db, limit) -> None:
+    """Everything waiting on you, in the order you would act on it.
+
+    APPROVED first — those are decided and waiting to be applied to. PENDING
+    after, as the reviewing still to do. Both in one view, because switching
+    between two commands to answer "what now?" is friction the operator does
+    not need.
+    """
+    store, _ = _ctx(db)
+    width = _terminal_width()
+
+    def _table(rows) -> None:
+        click.echo(ui.table(
+            [
+                ui.Column("COVERAGE", 0.4, 8, "right"),
+                ui.Column("TERMS", 0.3, 5, "right", tone=ui.Tone.MUTED),
+                ui.Column("EMPLOYER", 1.0, 12),
+                ui.Column("TITLE", 1.7, 16),
+                ui.Column("ID", 0.9, 12, tone=ui.Tone.MUTED, protected=True),
+            ],
+            [[_coverage_cell(r)[0], _coverage_cell(r)[1], r["employer"],
+              r["title"], r["vacancy_id"]] for r in rows[:limit]],
+        ))
+
+    approved = store.list_queue("APPROVED", limit=500)
+    pending = store.list_queue("PENDING", limit=500)
+
+    if not approved and not pending:
+        click.echo("nothing waiting. `vanguard run` or `vanguard adverts ingest`")
+        return
+
+    if approved:
+        click.echo(ui.rule(f"APPLY TO THESE  ·  {len(approved)} approved"))
+        _table(approved)
+        click.echo()
+        click.echo("  vanguard apply <ID>       what it needs, and where")
+        click.echo("  vanguard dispatch <ID>    after you have applied")
+
+    if pending:
+        click.echo()
+        click.echo(ui.rule(f"STILL TO REVIEW  ·  {len(pending)} pending"))
+        _table(pending)
+        click.echo()
+        click.echo("  vanguard session          work through them in one go")
+
+    click.echo()
+    counts = store.counts_by_status()
+    other = {k: v for k, v in counts.items()
+             if k in ("FLAGGED", "UNREACHABLE") and v}
+    if other:
+        click.echo("  also queued: " + "   ".join(
+            f"{label} {count}" for label, count in sorted(other.items())))
 
 
 # ---------------------------------------------------------------------------

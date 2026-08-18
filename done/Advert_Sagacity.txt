@@ -1,0 +1,39 @@
+About the job
+
+As a Data Scientist within the Analytics Team, you will contribute to data-driven strategies for our clients. Working closely with the Data & Analytics Manager and senior colleagues, you will deliver data science projects and collaborate with stakeholders across data strategy, sales, account management, delivery and marketing.
+
+You will bring solid technical skills and commercial awareness to deliver data solutions that drive measurable operational performance. This is a hands-on role - ideal for someone who thrives on translating data into actionable insight and producing high-quality outcomes.
+
+Responsibilities
+
+    Deliver data science projects, from problem definition through to actionable insights and presentation of results
+    Develop and apply predictive modelling, supervised and unsupervised machine learning techniques to optimise client operations and business outcomes
+    Build and maintain data pipelines, ensuring data quality, consistency, and integrity across multiple sources and formats
+    Translate complex analyses into clear, commercially relevant recommendations for clients and internal stakeholders
+    Work with client teams to identify analytical opportunities, support marketing strategy, and quantify the impact of data-driven decision-making
+    Support pre-sales and client engagement, helping to demonstrate the value of data insight
+    Follow best practices in data science, reproducible research, and ethical AI
+    Collaborate cross-functionally to enhance the company's products and marketing data solutions
+
+What Success Looks Like in the Role
+
+    Delivery of impactful, high-quality analytics that directly inform and improve client marketing outcomes
+    Building trust and credibility with clients as an analytical consultant
+    Regular iteration on our machine learning methodologies, tools, and frameworks
+    Consistent demonstration of technical excellence and commercial insight in all project deliverables
+    Measurable contribution to the enhancement of Sagacity's data science and analytics product suite
+
+Competencies and Experience
+
+    2+ years' experience in data science, analytics, or statistical modelling, ideally with commercial experience within the Telecoms, Banking or Utilities industries; or within a data-related consultancy
+    Educated to degree level (postgraduate preferred) in a quantitative discipline such as Computer Science, Statistics, Mathematics, Economics, or similar
+    Working knowledge of statistical and machine learning methods (e.g. logistic regression, gradient boosting, random forests, clustering, NLP
+    Proficient in Python and/or R, with strong experience in data quality, model development and feature engineering
+    Strong command of SQL and familiarity with data engineering environments such as Databricks or similar
+    Skilled in data visualisation and storytelling using tools such as Power BI, Tableau, Plotly, or Sigma
+    Demonstrated ability to translate technical findings into strategic recommendations for non-technical audiences
+    Commercially aware, with proven success in applying analytics to solve business problems
+    Strong communicator; able to engage stakeholders and present findings with clarity and confidence
+    Self-motivated, organised, and proactive, with the ability to manage multiple priorities and stakeholders in a fast-paced environment
+    Willing to travel across the UK for client engagements
+    Must have the right to work in the UK and a commitment to ongoing professional development

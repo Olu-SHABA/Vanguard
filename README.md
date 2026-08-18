@@ -45,6 +45,7 @@ commit and nobody notices — run `pytest`.
 Day-to-day operation and troubleshooting: **`SOP.md`**.
 Adding a job by hand, five steps: **`HOW_TO_ADD_A_JOB.md`**.
 Adding many at once: **`HOW_TO_ADD_MANY_JOBS.md`**.
+Applying, after review: **`HOW_TO_APPLY.md`**.
 Handling replies and interviews: **`HOW_TO_HANDLE_REPLIES.md`**.
 Finding CV evidence in your repositories: **`HOW_TO_USE_REPOSITORY_EVIDENCE.md`**.
 Per-board detail and configuration: **`MANUAL_ENTRY.md`**.
@@ -135,6 +136,7 @@ not for real scoring.
 vanguard boards                     # registry health, credential check
 vanguard run                        # autonomous: fetch, score, queue, exit
 vanguard paste --file advert.txt    # Tier 3: hand-feed one vacancy
+vanguard todo                       # everything waiting on you
 vanguard review                     # PENDING, strongest first
 vanguard review <id>                # coverage, itemised gaps, history
 vanguard session                    # work through a queue, one invocation

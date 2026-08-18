@@ -13,7 +13,7 @@ what.
 |---|---|
 | [Setup and health](#setup-and-health) | `boards` |
 | [Getting vacancies in](#getting-vacancies-in) | `run` · `paste` · `adverts` |
-| [Looking at results](#looking-at-results) | `review` · `score` · `stats` · `diagnose` · `evidence` |
+| [Looking at results](#looking-at-results) | `todo` · `review` · `score` · `stats` · `diagnose` · `evidence` |
 | [Deciding](#deciding) | `session` · `approve` · `reject` · `resolve` · `override` · `apply` · `dispatch` |
 | [Accounts](#accounts) | `registrations` |
 | [Responses](#responses) | `poll` · `mail` · `dormant` · `feedback` · `interview` · `interviews` |
@@ -30,6 +30,7 @@ This document is the reference — what each command *is*. For what to *do*:
 |---|---|
 | `HOW_TO_ADD_A_JOB.md` | Entering one vacancy by hand |
 | `HOW_TO_ADD_MANY_JOBS.md` | Entering fifty at once |
+| `HOW_TO_APPLY.md` | Applying, after review |
 | `HOW_TO_HANDLE_REPLIES.md` | Replies, interviews and rejections |
 | `HOW_TO_USE_REPOSITORY_EVIDENCE.md` | Finding CV evidence in your repositories |
 | `SOP.md` | The daily, weekly and monthly routine |
@@ -276,6 +277,40 @@ record is missing would be the wrong failure.
 
 One bad advert never aborts the batch — the error is logged and the run
 continues.
+
+---
+
+## `vanguard todo`
+
+Everything waiting on you, in the order you would act on it.
+
+```bash
+vanguard todo
+vanguard todo --limit 60
+```
+
+```
+APPLY TO THESE  ·  2 approved
+  COVERAGE  TERMS  EMPLOYER    TITLE                      ID
+     0.700  14/20  Sanderson   Machine Learning Engineer  reed:57092035
+     0.650  13/20  Hyperfinity  Data Scientist            reed:57204511
+
+  vanguard apply <ID>       what it needs, and where
+  vanguard dispatch <ID>    after you have applied
+
+STILL TO REVIEW  ·  3 pending
+  ...
+  vanguard session          work through them in one go
+
+  also queued: FLAGGED 18   UNREACHABLE 12
+```
+
+**APPROVED first**, because those are decided and waiting to be applied to.
+**PENDING after**, as the reviewing still to do. FLAGGED and UNREACHABLE are
+counted but not listed — they are not waiting on you today.
+
+Switching between two commands to answer *"what now?"* is friction the
+operator does not need.
 
 ---
 

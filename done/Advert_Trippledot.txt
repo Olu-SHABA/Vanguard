@@ -1,0 +1,72 @@
+About the job
+
+Who are we?
+
+Tripledot Studios is one of the largest independent mobile games companies in the world.
+
+We are a multi-award-winning organisation, with a global 2,500+ strong team across 12 studios.
+
+Our expanded portfolio includes some of the biggest titles in mobile gaming, collectively reaching top chart positions around the world and engaging over 25 million daily active users.
+
+Tripledot’s guiding principle is that when people love what they do, what they do will be loved by others.
+
+We’re building a company we’re proud of. One filled with driven, incredibly smart and detail-orientated people, who LOVE making games.
+
+Our ambition is to be the most successful games company in the world, and we’re just getting started.
+
+The role is working within our studio: Tripledot Games
+
+About Tripledot Games
+
+Tripledot Games is a leading developer and publisher of casual and puzzle games, with a strong presence in London, Warsaw, and Barcelona. The studio is responsible for multiple top 10 titles, including Woodoku, Woodoku Blast, Solitaire, and TripleTile. Our best-in-class data-driven approach spans the entire lifecycle from publishing to machine learning puzzle levels, helping us make fast, smart decisions at every stage of development.
+
+We are also one of the largest IAA operators worldwide. Tripledot Games is a diverse and collaborative studio, home to people from over 36 nationalities. We take pride in our craftsmanship, strong focus on outcomes, and continuous improvement, building high-quality, scalable games that players around the world love.
+
+Role Overview
+
+As a Data Scientist in our Experimentation team, you will help deliver and improve Tripledot’s company-wide experimentation analysis platform. Working closely with Data Engineering, you will define the statistical logic and methodologies behind platform features, build prototypes in Python, and ensure the platform produces accurate, reliable results for product teams across our games portfolio.
+
+Your initial focus will include hands-on quality assurance: running independent analyses, comparing results with platform outputs, investigating discrepancies, and validating features and metrics. This offers the opportunity to develop deep expertise in experimentation and A/B testing across a sophisticated internal platform. As the platform evolves, the role will expand into more advanced statistical and machine learning work that delivers value across the business.
+
+Key Responsibilities
+
+    Define statistical logic, calculation methods, and detailed requirements for experimentation platform features.
+    Prototype statistical methodologies and analyses in Python before implementation.
+    Partner closely with Data Engineers as they develop and improve the experimentation platform.
+    Perform thorough data and feature QA by independently calculating results and comparing them with platform outputs.
+    Investigate discrepancies, identify root causes, and help ensure metrics and analyses are accurate and reliable.
+    Explore opportunities to automate QA processes and improve the efficiency and quality of validation.
+    Build a deep understanding of experimentation methodologies, including A/B testing, monitoring, segmentation, and analysis.
+    Collaborate with BI, Machine Learning, product teams, and other stakeholders to understand requests and shape effective solutions.
+    Contribute to future statistical, algorithmic, and machine learning initiatives as the team’s priorities evolve.
+
+Skills, Knowledge and Expertise
+
+    3-5 years of professional experience as a Data Scientist or in a closely related role
+    Strong Python skills, including the ability to prototype analyses and write clear, reliable scripts.
+    Solid knowledge of statistics and standard statistical methodologies.
+    Practical understanding of experimentation and A/B testing, including how metrics and results should be calculated and validated.
+    Familiarity with machine learning methods and the ability to apply relevant approaches when needed.
+    Excellent attention to detail and a disciplined approach to repetitive or methodical QA work.
+    Strong problem-solving skills, with the initiative to propose creative solutions and process improvements.
+    Clear communication skills and the ability to explain analytical methods, results, and rationale.
+    Experience with experimentation platforms or high-volume digital products, such as gaming, e-commerce, or ride-hailing, would be valuable.
+    Ability to critically evaluate and validate AI-generated code, analyses, or modelling suggestions to ensure correctness and reproducibility.
+    Experience using AI-assisted tools (e.g. code assistants or analytical copilots) to accelerate data exploration, research prototyping, and development workflows while maintaining scientific and statistical rigor.
+    Interest in exploring AI-driven approaches that improve experimentation platforms, developer productivity, or data science research workflows.
+
+Working at Tripledot
+
+    25 days paid holiday in addition to bank holidays to relax and refresh throughout the year
+    Hybrid Working
+    20 days remote working: Work from anywhere in the world, or use the time to cover mandatory office days to WFH, 20 days of the year.
+    Daily Free Lunch: when in the office you get £12 every day to order from JustEat. 
+    Regular company events and rewards: quarterly on-site and off-site events that celebrate cultural events, our achievements and our team spirit. 
+    Employee Assistance Program: Anytime you need it, tap into confidential, caring support with our Employee Assistance Program, always here to lend an ear and a helping hand.
+    Family Forming Support: Receive vital support on your family forming/ fertility journey with our support program [subject to policy]
+    Life Assurance & Group Income Cover: Financial protection for you and your loved ones.
+    Continuous Professional Development: Propel your career with continuous opportunities for professional development.
+    Private Medical Cover & Health Cash Plan: Opt-in (P11d benefit) comprehensive private medical cover with Bupa and cash plan with Medicash.
+    Dental Cover: Opt-in (P11d benefit). 
+    Cycle to Work Scheme: Salary sacrifice bike purchase scheme.
+    Pension Plan: Qualifying earnings or opt-in 4% contributory match schemes offered.

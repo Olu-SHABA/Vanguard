@@ -876,6 +876,7 @@ GUIDES = (
     "HOW_TO_ADD_MANY_JOBS.md",
     "HOW_TO_HANDLE_REPLIES.md",
     "HOW_TO_USE_REPOSITORY_EVIDENCE.md",
+    "HOW_TO_APPLY.md",
 )
 
 
@@ -1194,3 +1195,128 @@ def test_session_on_an_empty_queue(runner: CliRunner, tmp_path: Path) -> None:
     out = runner.invoke(main, ["session", "--status", "APPROVED",
                                "--db", str(db)]).output
     assert "nothing in APPROVED" in out
+
+
+# ---------------------------------------------------------------------------
+# `todo` — everything waiting on you, in one view
+# ---------------------------------------------------------------------------
+
+def _mixed_queue(tmp_path: Path) -> Path:
+    from vanguard.adapters.base import Vacancy
+    from vanguard.store import Store
+
+    db = tmp_path / "v.db"
+    store = Store(db)
+    store.initialise()
+    rows = [("APPROVED", 0.70, 14, 20), ("APPROVED", 0.65, 13, 20),
+            ("PENDING", 0.62, 12, 20), ("PENDING", 1.0, 2, 2),
+            ("FLAGGED", 0.30, 6, 20), ("UNREACHABLE", 0.20, 4, 20)]
+    for i, (status, coverage, matched, total) in enumerate(rows):
+        store.upsert_vacancy(Vacancy(id=f"reed:{i}", board_id="reed",
+                                     employer=f"Employer {i}",
+                                     title=f"Data Engineer {i}", description="d"))
+        store.create_queue_record(f"reed:{i}", "PENDING")
+        if status != "PENDING":
+            store.set_status(f"reed:{i}", status)
+        with store.connect() as conn:
+            conn.execute(
+                "INSERT INTO scores (vacancy_id, coverage, rank_score, ceiling,"
+                " terms_total, terms_matched, soft_hits, embedder, computed_at)"
+                " VALUES (?,?,?,?,?,?,?,?,?)",
+                (f"reed:{i}", coverage, 0.4, 0.85, total, matched, 0, "test",
+                 f"2026-08-{10 + i:02d}T00:00:00+00:00"))
+    return db
+
+
+def test_todo_shows_approved_and_pending_together(runner: CliRunner,
+                                                  tmp_path: Path) -> None:
+    """Switching between two commands to answer "what now?" is friction."""
+    db = _mixed_queue(tmp_path)
+    out = runner.invoke(main, ["todo", "--db", str(db)]).output
+    assert "2 approved" in out and "2 pending" in out
+
+
+def test_todo_puts_approved_first(runner: CliRunner, tmp_path: Path) -> None:
+    """Approved records are decided and waiting to be applied to. Pending is
+    reviewing still to do."""
+    db = _mixed_queue(tmp_path)
+    out = runner.invoke(main, ["todo", "--db", str(db)]).output
+    assert out.index("APPLY TO THESE") < out.index("STILL TO REVIEW")
+
+
+def test_todo_names_the_next_command(runner: CliRunner, tmp_path: Path) -> None:
+    db = _mixed_queue(tmp_path)
+    out = runner.invoke(main, ["todo", "--db", str(db)]).output
+    assert "vanguard apply" in out and "vanguard session" in out
+
+
+def test_todo_counts_the_rest_without_listing_them(runner: CliRunner,
+                                                   tmp_path: Path) -> None:
+    db = _mixed_queue(tmp_path)
+    out = runner.invoke(main, ["todo", "--db", str(db)]).output
+    assert "FLAGGED 1" in out and "UNREACHABLE 1" in out
+
+
+def test_todo_on_an_empty_queue(runner: CliRunner, tmp_path: Path) -> None:
+    out = runner.invoke(main, ["todo", "--db", str(tmp_path / "v.db")]).output
+    assert "nothing waiting" in out
+
+
+def test_todo_marks_unmeasured_records(runner: CliRunner, tmp_path: Path) -> None:
+    db = _mixed_queue(tmp_path)
+    out = runner.invoke(main, ["todo", "--db", str(db)]).output
+    assert "not measured" in out
+
+
+# --- an empty session must explain itself ---------------------------------
+
+def _all_unmeasured(tmp_path: Path) -> Path:
+    """Three PENDING records, all unmeasured — the state after resolving
+    FLAGGED records that were flagged for being unscoreable."""
+    from vanguard.adapters.base import Vacancy
+    from vanguard.store import Store
+
+    db = tmp_path / "v.db"
+    store = Store(db)
+    store.initialise()
+    for i in range(3):
+        store.upsert_vacancy(Vacancy(id=f"reed:{i}", board_id="reed",
+                                     employer=f"E{i}", title=f"Role {i}",
+                                     description="short"))
+        store.create_queue_record(f"reed:{i}", "PENDING")
+        with store.connect() as conn:
+            conn.execute(
+                "INSERT INTO scores (vacancy_id, coverage, rank_score, ceiling,"
+                " terms_total, terms_matched, soft_hits, embedder, computed_at)"
+                " VALUES (?,?,?,?,?,?,?,?,?)",
+                (f"reed:{i}", 1.0, 0.4, 1.0, 2, 2, 0, "test",
+                 f"2026-08-{10 + i:02d}T00:00:00+00:00"))
+    return db
+
+
+def test_empty_session_says_why(runner: CliRunner, tmp_path: Path) -> None:
+    """"nothing matches" reads as "the queue is empty", which is wrong when
+    records were filtered out — and misleading enough that the operator
+    reported it as a defect."""
+    db = _all_unmeasured(tmp_path)
+    out = runner.invoke(main, ["session", "--db", str(db)]).output
+
+    assert "3 record(s) there" in out
+    assert "not measured" in out
+    assert "--include-unmeasured" in out
+
+
+def test_a_genuinely_empty_queue_says_so_plainly(runner: CliRunner,
+                                                 tmp_path: Path) -> None:
+    db = _all_unmeasured(tmp_path)
+    out = runner.invoke(main, ["session", "--status", "APPROVED",
+                               "--db", str(db)]).output
+    assert "nothing in APPROVED" in out
+    assert "not measured" not in out
+
+
+def test_include_unmeasured_reaches_them(runner: CliRunner, tmp_path: Path) -> None:
+    db = _all_unmeasured(tmp_path)
+    out = runner.invoke(main, ["session", "--include-unmeasured", "--db", str(db)],
+                        input="q\n").output
+    assert "3 record(s)" in out
