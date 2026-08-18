@@ -12,7 +12,7 @@ what.
 | Group | Commands |
 |---|---|
 | [Setup and health](#setup-and-health) | `boards` |
-| [Getting vacancies in](#getting-vacancies-in) | `run` · `paste` · `adverts` |
+| [Getting vacancies in](#getting-vacancies-in) | `run` · `paste` · `adverts` · `rescore` |
 | [Looking at results](#looking-at-results) | `todo` · `review` · `score` · `stats` · `diagnose` · `evidence` |
 | [Deciding](#deciding) | `session` · `approve` · `reject` · `resolve` · `override` · `apply` · `dispatch` |
 | [Accounts](#accounts) | `registrations` |
@@ -311,6 +311,53 @@ counted but not listed — they are not waiting on you today.
 
 Switching between two commands to answer *"what now?"* is friction the
 operator does not need.
+
+---
+
+## `vanguard rescore`
+
+Re-score stored vacancies against the current CV.
+
+```bash
+vanguard rescore --all --dry-run
+vanguard rescore --all
+vanguard rescore --board linkedin          # pasted vacancies only
+vanguard rescore --status FLAGGED
+```
+
+| Option | Effect |
+|---|---|
+| `--all` | Every vacancy in the store |
+| `--status` | Only records in this state |
+| `--board` | Only vacancies from this board |
+| `--dry-run` | Report what would be re-scored |
+
+**Why it exists.** `vanguard run` only scores what a board returns today. A
+pasted vacancy — or one a board has since delisted — keeps a score computed
+against an older CV. After editing `canonical_cv.md`, those records are stale
+and nothing else would notice.
+
+**No board is contacted.** The advert text is already stored, so this spends
+no API call and works offline.
+
+**Operator decisions survive.** APPROVED, REJECTED and DISPATCHED records are
+re-scored but keep their status — a CV edit does not undo a decision, and
+rescoring five hundred records must not silently reopen everything already
+applied to.
+
+The report shows what actually changed:
+
+```
+CHANGED  ·  4 of 12
+    WAS    NOW  STATUS                  TITLE
+  0.300  0.520  UNREACHABLE -> FLAGGED  Senior Data Engineer
+  0.300  0.480  DISPATCHED              Data Scientist
+```
+
+The second row improved its coverage and kept its status, which is correct.
+
+**A filter is required.** Re-scoring the whole store silently is not something
+to do by accident.
 
 ---
 

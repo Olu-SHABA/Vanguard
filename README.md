@@ -136,6 +136,7 @@ not for real scoring.
 vanguard boards                     # registry health, credential check
 vanguard run                        # autonomous: fetch, score, queue, exit
 vanguard paste --file advert.txt    # Tier 3: hand-feed one vacancy
+vanguard rescore --all              # re-score stored vacancies after a CV edit
 vanguard todo                       # everything waiting on you
 vanguard review                     # PENDING, strongest first
 vanguard review <id>                # coverage, itemised gaps, history

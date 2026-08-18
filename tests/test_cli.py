@@ -1348,3 +1348,116 @@ def test_the_real_indexes_are_all_found() -> None:
     guides — which is the drift the guard exists to catch."""
     indexes = set(_guide_indexes())
     assert {"README.md", "SOP.md", "COMMANDS.md"} <= indexes
+
+
+# ---------------------------------------------------------------------------
+# `rescore` — stored vacancies against the current CV
+#
+# `vanguard run` only scores what a board returns today, so a pasted vacancy
+# keeps a score computed against an older CV. Adding six projects to the CV
+# left every pasted record stale.
+# ---------------------------------------------------------------------------
+
+def _stale_queue(tmp_path: Path) -> Path:
+    from vanguard.adapters.base import Vacancy
+    from vanguard.store import Store
+
+    db = tmp_path / "v.db"
+    store = Store(db)
+    store.initialise()
+    advert = (ROOT / "tests" / "fixtures" / "moj_senior_data_engineer.txt"
+              ).read_text(encoding="utf-8")
+
+    for i, status in enumerate(["FLAGGED", "UNREACHABLE", "DISPATCHED",
+                                "APPROVED"]):
+        board = "linkedin" if i < 3 else "reed"
+        store.upsert_vacancy(Vacancy(id=f"{board}:{i}", board_id=board,
+                                     employer=f"E{i}", title=f"Role {i}",
+                                     description=advert))
+        store.create_queue_record(f"{board}:{i}", "PENDING")
+        if status != "PENDING":
+            store.set_status(f"{board}:{i}", status)
+        with store.connect() as conn:
+            conn.execute(
+                "INSERT INTO scores (vacancy_id, coverage, rank_score, ceiling,"
+                " terms_total, terms_matched, soft_hits, embedder, computed_at)"
+                " VALUES (?,?,?,?,?,?,?,?,?)",
+                (f"{board}:{i}", 0.30, 0.4, 0.85, 21, 6, 0, "old",
+                 "2026-08-01T00:00:00+00:00"))
+    return db
+
+
+def _rescore(runner: CliRunner, db: Path, *args: str):
+    return runner.invoke(main, ["rescore", *args, "--no-model", "--db", str(db),
+                                "--cv", str(ROOT / "data" / "canonical_cv.md"),
+                                "--aliases", str(ROOT / "config" / "alias_table.yaml"),
+                                "--boards", str(ROOT / "config" / "boards.yaml")])
+
+
+def test_rescore_uses_the_stored_advert(runner: CliRunner, tmp_path: Path) -> None:
+    """No board is contacted and no API call is spent — the advert text is
+    already persisted."""
+    db = _stale_queue(tmp_path)
+    out = _rescore(runner, db, "--all").output
+    assert "4 vacanc(ies)" in out
+
+    from vanguard.store import Store
+    score = Store(db).latest_score("linkedin:0")
+    assert score["coverage"] != 0.30
+
+
+def test_rescore_needs_a_filter(runner: CliRunner, tmp_path: Path) -> None:
+    """Re-scoring the whole store silently is not something to do by
+    accident."""
+    db = _stale_queue(tmp_path)
+    result = _rescore(runner, db)
+    assert result.exit_code != 0
+    assert "--all" in result.output
+
+
+def test_rescore_can_target_pasted_vacancies(runner: CliRunner,
+                                             tmp_path: Path) -> None:
+    db = _stale_queue(tmp_path)
+    out = _rescore(runner, db, "--board", "linkedin", "--dry-run").output
+    assert "3 vacanc(ies)" in out
+    assert "reed:3" not in out
+
+
+def test_operator_decisions_survive_a_rescore(runner: CliRunner,
+                                              tmp_path: Path) -> None:
+    """A CV edit must not undo a decision. Rescoring 500 records should not
+    silently reopen everything already applied to."""
+    db = _stale_queue(tmp_path)
+    _rescore(runner, db, "--all")
+
+    from vanguard.store import Store
+    store = Store(db)
+    assert store.queue_record("linkedin:2")["status"] == "DISPATCHED"
+    assert store.queue_record("reed:3")["status"] == "APPROVED"
+
+
+def test_the_report_names_the_status_actually_written(runner: CliRunner,
+                                                      tmp_path: Path) -> None:
+    """`_score_and_queue` returns what scoring CONCLUDED, not what was
+    written. Reporting that would show "DISPATCHED -> FLAGGED" for a record
+    that never moved — alarming and false."""
+    db = _stale_queue(tmp_path)
+    out = _rescore(runner, db, "--all").output
+    assert "DISPATCHED ->" not in out
+    assert "APPROVED ->" not in out
+
+
+def test_a_dry_run_scores_nothing(runner: CliRunner, tmp_path: Path) -> None:
+    db = _stale_queue(tmp_path)
+    _rescore(runner, db, "--all", "--dry-run")
+
+    from vanguard.store import Store
+    assert Store(db).latest_score("linkedin:0")["coverage"] == 0.30
+
+
+def test_unchanged_records_are_counted_not_listed(runner: CliRunner,
+                                                  tmp_path: Path) -> None:
+    db = _stale_queue(tmp_path)
+    _rescore(runner, db, "--all")
+    out = _rescore(runner, db, "--all").output
+    assert "unchanged" in out

@@ -2498,6 +2498,148 @@ def todo_cmd(db, limit) -> None:
             f"{label} {count}" for label, count in sorted(other.items())))
 
 
+@main.command("rescore")
+@click.option("--status", default="", help="Only records in this state.")
+@click.option("--board", default="", help="Only vacancies from this board.")
+@click.option("--all", "rescore_all", is_flag=True,
+              help="Every vacancy in the store, whatever its state.")
+@click.option("--dry-run", is_flag=True, help="Report what would be re-scored.")
+@click.option("--boards", default=DEFAULTS["boards"])
+@click.option("--cv", default=DEFAULTS["cv"])
+@click.option("--aliases", default=DEFAULTS["aliases"])
+@click.option("--db", default=DEFAULTS["db"])
+@click.option("--no-model", is_flag=True)
+def rescore_cmd(status, board, rescore_all, dry_run, boards, cv, aliases, db,
+                no_model) -> None:
+    """Re-score stored vacancies against the current CV.
+
+    `vanguard run` only scores what a board returns today, so a pasted
+    vacancy — or one a board has since delisted — keeps a score computed
+    against an older CV. This re-scores from the stored advert text, so no
+    board is contacted and no API call is spent.
+
+    Operator decisions survive. APPROVED, REJECTED and DISPATCHED records are
+    re-scored but keep their status: a CV edit does not undo a decision.
+    """
+    from vanguard.adapters.base import Vacancy
+    from vanguard.logs import RunLog
+
+    store, queue = _ctx(db)
+    registry = load_registry(boards)
+    log_config = _logging(boards)
+
+    if not (status or board or rescore_all):
+        raise click.ClickException(
+            "pass --status, --board, or --all. Re-scoring the whole store "
+            "silently is not something to do by accident")
+
+    rows = store.list_queue(status.upper() if status else None, limit=2000)
+    if board:
+        rows = [r for r in rows if (r["board_id"] or "") == board]
+
+    if not rows:
+        click.echo("nothing matched")
+        return
+
+    click.echo(ui.rule(f"RESCORE  ·  {len(rows)} vacanc(ies) against {cv}"))
+
+    if dry_run:
+        click.echo(ui.table(
+            [
+                ui.Column("STATUS", 0.4, 9),
+                ui.Column("WAS", 0.3, 6, "right"),
+                ui.Column("BOARD", 0.3, 8, tone=ui.Tone.MUTED),
+                ui.Column("TITLE", 1.6, 16),
+                ui.Column("ID", 0.9, 12, tone=ui.Tone.MUTED, protected=True),
+            ],
+            [[r["status"], _coverage_cell(r)[0], r["board_id"] or "",
+              r["title"], r["vacancy_id"]] for r in rows[:40]],
+        ))
+        click.echo("\n  dry run — nothing re-scored")
+        return
+
+    canonical = load_cv(cv)
+    alias_table = load_aliases(aliases)
+    embedder, embedder_name = _embedder(not no_model)
+    gate = registry.coverage_gate
+
+    click.echo(f"  [{embedder_name}] gate {gate:.2f}\n")
+
+    moved, unchanged, failed = [], 0, 0
+
+    with RunLog("rescore", db_path=Path(db), config=log_config) as run_log:
+        for row in rows:
+            record = store.vacancy(row["vacancy_id"])
+            if record is None or not (record["description"] or "").strip():
+                failed += 1
+                continue
+
+            before = row["coverage"]
+            was_status = row["status"]
+
+            vacancy = Vacancy(
+                id=record["id"], board_id=record["board_id"],
+                employer=record["employer"], title=record["title"],
+                description=record["description"], url=record["url"] or "",
+                reference=record["reference"] or "",
+                description_is_partial=bool(record["partial"]),
+            )
+
+            try:
+                new_status = _score_and_queue(
+                    vacancy, store, queue, canonical, alias_table,
+                    embedder, embedder_name, gate=gate)
+            except Exception as exc:
+                run_log.error(str(exc), source="rescore",
+                              vacancy_id=row["vacancy_id"])
+                failed += 1
+                continue
+
+            after = store.latest_score(row["vacancy_id"])
+
+            # `_score_and_queue` returns what scoring CONCLUDED, which is not
+            # what was written when the record was operator-set. Read the
+            # record back rather than reporting a transition that did not
+            # happen — an APPROVED vacancy shown as "APPROVED -> FLAGGED"
+            # would be alarming and false.
+            current = store.queue_record(row["vacancy_id"])
+            actual_status = current["status"] if current else new_status
+
+            delta = (after["coverage"] if after else 0) - (before or 0)
+            if abs(delta) > 0.001 or actual_status != was_status:
+                moved.append((row, before, after, was_status, actual_status))
+            else:
+                unchanged += 1
+
+        run_log.count(scored=len(rows) - failed, moved=len(moved))
+
+    click.echo()
+    click.echo(ui.rule(f"CHANGED  ·  {len(moved)} of {len(rows)}"))
+
+    if moved:
+        moved.sort(key=lambda m: ((m[2]["coverage"] if m[2] else 0) - (m[1] or 0)),
+                   reverse=True)
+        click.echo(ui.table(
+            [
+                ui.Column("WAS", 0.3, 6, "right"),
+                ui.Column("NOW", 0.3, 6, "right"),
+                ui.Column("STATUS", 0.6, 12),
+                ui.Column("TITLE", 1.6, 16),
+                ui.Column("ID", 0.9, 12, tone=ui.Tone.MUTED, protected=True),
+            ],
+            [[f"{was or 0:.3f}",
+              f"{after['coverage']:.3f}" if after else "—",
+              (f"{old} -> {new}" if old != new else old),
+              row["title"], row["vacancy_id"]]
+             for row, was, after, old, new in moved[:40]],
+        ))
+
+    click.echo(f"\n  {unchanged} unchanged" + (f", {failed} could not be scored"
+                                               if failed else ""))
+    click.echo("\n  decisions were preserved — a CV edit does not undo one")
+    click.echo("  vanguard todo    what is waiting now")
+
+
 # ---------------------------------------------------------------------------
 # Response loop (Route 5) — classify only. Never sends.
 # ---------------------------------------------------------------------------

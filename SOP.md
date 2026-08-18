@@ -422,6 +422,7 @@ numbers `stats --storage` reports, not on a projection.
 ```
 [ ] edit data/canonical_cv.md
 [ ] pytest                             round-trip test must pass
+[ ] vanguard rescore --all             existing records are scored against the OLD CV
 [ ] python -c "from vanguard.render import render; render('data/canonical_cv.md','render/standard.css','out/cv.pdf')"
 [ ] open out/cv.pdf and look at it
 [ ] python -c "from vanguard.render import render_anonymised; render_anonymised('data/canonical_cv.md','render/anonymised.css','out/cv_anon.pdf')"
