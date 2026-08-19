@@ -23,6 +23,7 @@ application; it does not send one.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import sys
 import textwrap

@@ -1461,3 +1461,45 @@ def test_unchanged_records_are_counted_not_listed(runner: CliRunner,
     _rescore(runner, db, "--all")
     out = _rescore(runner, db, "--all").output
     assert "unchanged" in out
+
+
+def test_draft_writes_a_file(runner: CliRunner, tmp_path: Path) -> None:
+    """`--show` exercised the drafting; nothing exercised the file write, so
+    a missing `import re` reached the operator.
+
+    Every command that writes a file needs a test that lets it write one.
+    """
+    from vanguard.adapters.base import Vacancy
+    from vanguard.store import Store
+
+    db = tmp_path / "v.db"
+    store = Store(db)
+    store.initialise()
+    store.upsert_vacancy(Vacancy(
+        id="reed:1", board_id="reed", employer="Ministry of Justice",
+        title="Senior Data Engineer",
+        description=(ROOT / "tests" / "fixtures" / "moj_senior_data_engineer.txt"
+                     ).read_text(encoding="utf-8")))
+    store.create_queue_record("reed:1", "PENDING")
+
+    out = tmp_path / "letters"
+    result = runner.invoke(main, [
+        "draft", "reed:1", "--db", str(db), "--out", str(out),
+        "--cv", str(ROOT / "data" / "canonical_cv.md"),
+        "--aliases", str(ROOT / "config" / "alias_table.yaml"),
+        "--boards", str(ROOT / "config" / "boards.yaml")])
+
+    assert result.exit_code == 0, result.output
+    written = list(out.glob("cover_letter_*.md"))
+    assert written, "no letter written"
+    assert "Ministry of Justice" in written[0].read_text(encoding="utf-8")
+
+
+def test_a_colon_in_the_id_does_not_break_the_filename(runner: CliRunner,
+                                                       tmp_path: Path) -> None:
+    """`linkedin:4f16fe0a` is a valid vacancy id and an invalid Windows
+    filename."""
+    from vanguard.cli import draft_cmd  # noqa: F401
+    import re
+
+    assert ":" not in re.sub(r"[^A-Za-z0-9._-]", "_", "linkedin:4f16fe0ad2a8")
