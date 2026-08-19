@@ -16,7 +16,7 @@ what.
 | [Looking at results](#looking-at-results) | `todo` · `review` · `score` · `stats` · `diagnose` · `evidence` |
 | [Deciding](#deciding) | `session` · `approve` · `reject` · `resolve` · `override` · `draft` · `apply` · `dispatch` |
 | [Accounts](#accounts) | `registrations` |
-| [Responses](#responses) | `poll` · `mail` · `dormant` · `feedback` · `interview` · `interviews` |
+| [Responses](#responses) | `poll` · `responses` · `mail` · `dormant` · `feedback` · `interview` · `interviews` |
 | [Operations](#operations) | `logs` · `archive` |
 | [What grows](#what-grows-and-what-does-not) | Which files accumulate, and when to act |
 
@@ -1042,6 +1042,38 @@ DORMANT is **derived state, not a classification**. Silence is an absence of
 information, not a rejection. It never triggers a feedback request, because
 employers do go quiet and return.
 
+## `vanguard responses`
+
+Replies that correlated to an application, and what they were.
+
+```bash
+vanguard responses
+vanguard responses --status DECLINE
+vanguard responses --status PROGRESS --limit 10
+```
+
+| Option | Effect |
+|---|---|
+| `--status` | `ACK`, `PROGRESS`, `DECLINE`, `OFFER`, `QUERY`, `ADMIN`, `AMBIGUOUS` |
+| `--limit` | How many to show. Default 40 |
+
+**Why it exists.** Classifications were written to the archive as files and to
+the interview process, but nothing was queryable — you could not ask *"what
+has been rejected?"*, which is exactly what `vanguard feedback` needs to know.
+
+```
+RESPONSES  ·  3
+  STATE     WHEN        EMPLOYER  SUBJECT                 ID
+  DECLINE   2026-08-18  Sagacity  Your application        reed:0
+  ACK       2026-08-18  Beatport  Thank you for applying  reed:1
+  PROGRESS  2026-08-18  Harnham   Interview invitation    reed:2
+```
+
+Records are kept after a terminal state. A rejection followed by an
+administrative message is worth being able to see.
+
+---
+
 ## `vanguard feedback <id>`
 
 Draft a feedback request after a decline.
@@ -1056,9 +1088,18 @@ vanguard feedback reed:57092035 --name "..." --contact "..." --recipient "Sarah 
 | `--name` | Your name, for the signature. Required |
 | `--contact` | Email or link, for the signature. Required |
 | `--recipient` | Addressee. Defaults to "Recruitment Team" |
+| `--force` | Draft anyway, for a rejection that arrived by phone or portal |
 
-Prints a draft. **You review and send it.** Refuses on any state other than
-DECLINE — asking for feedback on a decision nobody made is worse than silence.
+Prints a draft. **You review and send it.**
+
+**Requires a recorded DECLINE.** Asking for feedback on a decision nobody made
+is worse than silence. This was documented from the start and only enforced on
+19 Aug 2026 — the state had been hardcoded, so any vacancy id produced a
+letter.
+
+Find one with `vanguard responses --status DECLINE`. Where the rejection came
+by phone or through a portal there is no classified message, and `--force`
+covers that.
 
 ## `vanguard interviews`
 

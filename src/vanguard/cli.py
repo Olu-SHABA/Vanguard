@@ -1577,6 +1577,12 @@ def poll_cmd(provider, since_days, limit, dry_run, verbose, show_uncorrelated,
             )
             # Attach to the interview process. Opens one on the first
             # PROGRESS; closes it on OFFER or DECLINE. Nothing else ends it.
+            store.record_response(
+                result.application.vacancy_id, outcome.state.value,
+                sender=message.sender, subject=message.subject,
+                received_at=message.received_at.isoformat(timespec="seconds")
+                if message.received_at else "",
+                method=result.method.value)
             process = ProcessStore(db).record(
                 result.application.vacancy_id, outcome.state,
                 subject=message.subject, sender=message.sender)
@@ -2798,6 +2804,45 @@ def draft_cmd(vacancy_id, name, contact, hiring_manager, out_dir, show, boards,
     click.echo(f"\n  vanguard dispatch {vacancy_id} --cover-letter \"{path}\"")
 
 
+@main.command("responses")
+@click.option("--status", default="", help="ACK, PROGRESS, DECLINE, OFFER, QUERY, ADMIN.")
+@click.option("--limit", default=40)
+@click.option("--db", default=DEFAULTS["db"])
+def responses_cmd(status, limit, db) -> None:
+    """Replies that correlated to an application, and what they were.
+
+    Classifications were written to the archive and to the interview process,
+    but nothing was queryable — the operator could not ask "what has been
+    rejected?", which is what `vanguard feedback` needs to know.
+    """
+    store, _ = _ctx(db)
+    rows = store.responses(status, limit=limit)
+
+    if not rows:
+        click.echo(f"no {status.upper() or 'correlated'} responses recorded")
+        click.echo("  vanguard poll    to read the mailbox")
+        return
+
+    click.echo(ui.rule(f"RESPONSES  ·  {len(rows)}"
+                       + (f"  ·  {status.upper()}" if status else "")))
+    click.echo(ui.table(
+        [
+            ui.Column("STATE", 0.4, 9),
+            ui.Column("WHEN", 0.4, 10, tone=ui.Tone.MUTED),
+            ui.Column("EMPLOYER", 0.9, 12),
+            ui.Column("SUBJECT", 1.4, 14),
+            ui.Column("ID", 0.9, 12, tone=ui.Tone.MUTED, protected=True),
+        ],
+        [[r["state"], (r["received_at"] or r["recorded_at"] or "")[:10],
+          r["employer"] or "", r["subject"] or "", r["vacancy_id"]]
+         for r in rows],
+    ))
+
+    if (status or "").upper() == "DECLINE" or any(
+            r["state"] == "DECLINE" for r in rows):
+        click.echo('\n  vanguard feedback <ID> --name "..." --contact "..."')
+
+
 # ---------------------------------------------------------------------------
 # Response loop (Route 5) — classify only. Never sends.
 # ---------------------------------------------------------------------------
@@ -2886,8 +2931,10 @@ def dormant(db, boards) -> None:
 @click.option("--name", required=True, help="Your name, for the signature.")
 @click.option("--contact", required=True)
 @click.option("--recipient", default="Recruitment Team")
+@click.option("--force", is_flag=True,
+              help="Draft anyway — for a rejection that arrived by phone or portal.")
 @click.option("--db", default=DEFAULTS["db"])
-def feedback(vacancy_id, name, contact, recipient, db) -> None:
+def feedback(vacancy_id, name, contact, recipient, force, db) -> None:
     """Draft a Template D feedback request. YOU send it; Vanguard does not."""
     from vanguard.interview import OperatorActionError, draft_feedback_request
     from vanguard.mail import State
@@ -2896,6 +2943,17 @@ def feedback(vacancy_id, name, contact, recipient, db) -> None:
     vacancy = store.vacancy(vacancy_id)
     if vacancy is None:
         raise click.ClickException(f"no vacancy {vacancy_id!r}")
+
+    # The state was hardcoded to DECLINE, so this would draft a rejection
+    # response for a vacancy that had not rejected anything. Sending that
+    # would be worse than not having the command.
+    latest = store.latest_response(vacancy_id)
+    if not force and (latest is None or latest["state"] != "DECLINE"):
+        seen = latest["state"] if latest else "nothing"
+        raise click.ClickException(
+            f"no DECLINE recorded for {vacancy_id} — last was {seen}. "
+            "Run `vanguard poll` first, or `vanguard responses` to see what "
+            "arrived. Use --force if the rejection came by phone or portal.")
 
     try:
         click.echo(draft_feedback_request(

@@ -284,8 +284,12 @@ def test_mail_suggests_template_without_invoking_it(runner: CliRunner, tmp_path:
 
 
 def test_feedback_drafts_only(runner: CliRunner, tmp_path: Path) -> None:
+    """Amended 19 Aug 2026: feedback now requires a recorded DECLINE, so this
+    seeded vacancy needs `--force` — the case of a rejection that arrived by
+    phone rather than by email."""
     vid = _seed(runner, tmp_path)
-    out = runner.invoke(main, ["feedback", vid, "--name", "A", "--contact", "a@b.c",
+    out = runner.invoke(main, ["feedback", vid, "--force", "--name", "A",
+                               "--contact", "a@b.c",
                                "--db", str(tmp_path / "v.db")]).output
     assert "draft only" in out and "Review and send yourself" in out
 
@@ -1610,3 +1614,97 @@ def test_topping_up_writes_no_second_transition(runner: CliRunner,
             "SELECT COUNT(*) FROM transitions WHERE vacancy_id = ?"
             " AND to_state = 'DISPATCHED'", ("linkedin:abc",)).fetchone()[0]
     assert count == 1
+
+
+# ---------------------------------------------------------------------------
+# `responses` — what came back, and what it was
+#
+# Classifications went to the archive as files and to the interview process,
+# but nothing was queryable. The operator could not ask "what has been
+# rejected?", which is what `vanguard feedback` needs to know.
+# ---------------------------------------------------------------------------
+
+def _with_responses(tmp_path: Path) -> Path:
+    from vanguard.adapters.base import Vacancy
+    from vanguard.store import Store
+
+    db = tmp_path / "v.db"
+    store = Store(db)
+    store.initialise()
+    for i, (employer, state) in enumerate([("Sagacity", "DECLINE"),
+                                           ("Beatport", "ACK"),
+                                           ("Harnham", "PROGRESS")]):
+        store.upsert_vacancy(Vacancy(id=f"reed:{i}", board_id="reed",
+                                     employer=employer, title="Data Scientist",
+                                     description="d"))
+        store.create_queue_record(f"reed:{i}", "PENDING")
+        store.set_status(f"reed:{i}", "DISPATCHED")
+        store.record_response(f"reed:{i}", state, sender="hr@x.com",
+                              subject=f"{state} message",
+                              received_at="2026-08-18T09:00:00+00:00",
+                              method="ats")
+    return db
+
+
+def test_responses_lists_what_came_back(runner: CliRunner, tmp_path: Path) -> None:
+    db = _with_responses(tmp_path)
+    out = runner.invoke(main, ["responses", "--db", str(db)]).output
+    assert "DECLINE" in out and "ACK" in out and "PROGRESS" in out
+
+
+def test_responses_can_be_filtered(runner: CliRunner, tmp_path: Path) -> None:
+    """Finding the rejections is the point — `feedback` needs one."""
+    db = _with_responses(tmp_path)
+    out = runner.invoke(main, ["responses", "--status", "DECLINE",
+                               "--db", str(db)]).output
+    assert "Sagacity" in out
+    assert "Beatport" not in out
+
+
+def test_responses_shows_the_id(runner: CliRunner, tmp_path: Path) -> None:
+    """A truncated id cannot be pasted into the next command."""
+    db = _with_responses(tmp_path)
+    out = runner.invoke(main, ["responses", "--db", str(db)]).output
+    assert "reed:0" in out
+
+
+def test_an_empty_response_list_says_what_to_run(runner: CliRunner,
+                                                 tmp_path: Path) -> None:
+    from vanguard.store import Store
+
+    db = tmp_path / "v.db"
+    Store(db).initialise()
+    out = runner.invoke(main, ["responses", "--db", str(db)]).output
+    assert "vanguard poll" in out
+
+
+# --- feedback must not draft for a vacancy that has not rejected you -------
+
+def test_feedback_refuses_without_a_decline(runner: CliRunner,
+                                            tmp_path: Path) -> None:
+    """The state was hardcoded to DECLINE, so this would draft a rejection
+    response for a vacancy that had rejected nothing."""
+    db = _with_responses(tmp_path)
+    result = runner.invoke(main, ["feedback", "reed:1", "--name", "S B",
+                                  "--contact", "x@y.com", "--db", str(db)])
+    assert result.exit_code != 0
+    assert "no DECLINE recorded" in result.output
+
+
+def test_feedback_drafts_after_a_decline(runner: CliRunner, tmp_path: Path) -> None:
+    db = _with_responses(tmp_path)
+    result = runner.invoke(main, ["feedback", "reed:0", "--name", "S B",
+                                  "--contact", "x@y.com", "--db", str(db)])
+    assert result.exit_code == 0, result.output
+    assert "Sagacity" in result.output
+
+
+def test_force_covers_a_rejection_that_never_arrived_by_email(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    """A rejection by phone or through a portal leaves no classified
+    message. Refusing outright would make the command useless for those."""
+    db = _with_responses(tmp_path)
+    result = runner.invoke(main, ["feedback", "reed:1", "--force", "--name",
+                                  "S B", "--contact", "x@y.com", "--db", str(db)])
+    assert result.exit_code == 0, result.output

@@ -81,7 +81,8 @@ vanguard interviews reed:57092035 --withdraw "accepted another role"
 ## STEP 5 — After a rejection
 
 ```powershell
-vanguard feedback reed:57092035 --name "Your Name" --contact "you@example.com"
+vanguard responses --status DECLINE          # find it
+vanguard feedback <id> --name "Your Name" --contact "you@example.com"
 ```
 
 Drafts a short message asking what was missing. **Read it, then send it

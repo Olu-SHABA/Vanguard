@@ -122,6 +122,25 @@ CREATE INDEX IF NOT EXISTS ix_transitions_vacancy ON transitions(vacancy_id);
 -- Parser observations. Not troubleshooting alone: the unrecognised headings
 -- recorded here are the evidence for widening classify_heading(), which is
 -- currently the binding constraint on how many adverts can be scored at all.
+-- One row per classified inbound message.
+--
+-- Added 19 Aug 2026: classifications were written to the archive as files
+-- and to the interview process, but nothing was queryable. The operator
+-- could not ask "what has been rejected?", which is exactly what
+-- `vanguard feedback` needs to know.
+CREATE TABLE IF NOT EXISTS responses (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  vacancy_id  TEXT NOT NULL,
+  state       TEXT NOT NULL,
+  sender      TEXT,
+  subject     TEXT,
+  received_at TIMESTAMP,
+  recorded_at TIMESTAMP NOT NULL,
+  method      TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_responses_vacancy ON responses(vacancy_id);
+CREATE INDEX IF NOT EXISTS ix_responses_state ON responses(state);
+
 CREATE TABLE IF NOT EXISTS diagnostics (
   vacancy_id          TEXT NOT NULL,
   board_id            TEXT,
@@ -408,6 +427,45 @@ class Store:
             "rows": sum(counts.values()),
             "bytes_per_vacancy": (size / vacancies) if vacancies else 0,
         }
+
+    def record_response(self, vacancy_id: str, state: str, *, sender: str = "",
+                        subject: str = "", received_at: str = "",
+                        method: str = "") -> None:
+        """Record that a classified message arrived for an application.
+
+        Kept even after a terminal state: a rejection followed by an
+        administrative message is worth being able to see.
+        """
+        from datetime import datetime, timezone
+
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO responses (vacancy_id, state, sender, subject,"
+                " received_at, recorded_at, method) VALUES (?,?,?,?,?,?,?)",
+                (vacancy_id, state, sender, subject, received_at,
+                 datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                 method),
+            )
+
+    def responses(self, state: str = "", limit: int = 200) -> list[sqlite3.Row]:
+        """Classified messages, most recent first."""
+        query = ("SELECT r.*, v.employer, v.title FROM responses r"
+                 " LEFT JOIN vacancies v ON v.id = r.vacancy_id")
+        params: tuple = ()
+        if state:
+            query += " WHERE r.state = ?"
+            params = (state.upper(),)
+        query += " ORDER BY r.recorded_at DESC LIMIT ?"
+
+        with self.connect() as conn:
+            return conn.execute(query, (*params, limit)).fetchall()
+
+    def latest_response(self, vacancy_id: str) -> sqlite3.Row | None:
+        with self.connect() as conn:
+            return conn.execute(
+                "SELECT * FROM responses WHERE vacancy_id = ?"
+                " ORDER BY recorded_at DESC LIMIT 1", (vacancy_id,)
+            ).fetchone()
 
     def parse_health(self) -> dict[str, int]:
         """How many adverts parse, refuse, or were never HTML.
