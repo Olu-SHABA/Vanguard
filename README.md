@@ -145,6 +145,7 @@ vanguard approve <id>
 vanguard reject <id> --reason "..."
 vanguard resolve <id>               # clear a FLAGGED ambiguity
 vanguard override <id> --why "..."  # apply despite an unreachable ceiling
+vanguard draft <id>                 # cover letter, framed to the vacancy
 vanguard apply <id>                 # what it needs, and where — then stops
 vanguard dispatch <id>              # record a submission YOU made
 vanguard stats                      # coverage distribution, recurring gaps

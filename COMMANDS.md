@@ -14,7 +14,7 @@ what.
 | [Setup and health](#setup-and-health) | `boards` |
 | [Getting vacancies in](#getting-vacancies-in) | `run` · `paste` · `adverts` · `rescore` |
 | [Looking at results](#looking-at-results) | `todo` · `review` · `score` · `stats` · `diagnose` · `evidence` |
-| [Deciding](#deciding) | `session` · `approve` · `reject` · `resolve` · `override` · `apply` · `dispatch` |
+| [Deciding](#deciding) | `session` · `approve` · `reject` · `resolve` · `override` · `draft` · `apply` · `dispatch` |
 | [Accounts](#accounts) | `registrations` |
 | [Responses](#responses) | `poll` · `mail` · `dormant` · `feedback` · `interview` · `interviews` |
 | [Operations](#operations) | `logs` · `archive` |
@@ -702,6 +702,69 @@ vanguard override reed:57204511 --why "3 of 4 sift criteria strong; SDLC gap acc
 
 UNREACHABLE is a true finding about the gap between your CV and the role.
 Overriding it is a deliberate, recorded act rather than a click.
+
+## `vanguard draft <id>`
+
+Draft a cover letter for one vacancy, framed to what it asks for.
+
+```bash
+vanguard draft reed:57092035
+vanguard draft reed:57092035 --show
+vanguard draft reed:57092035 --to "Dr Sarah Chen" --out letters\
+```
+
+| Option | Effect |
+|---|---|
+| `--show` | Print it instead of writing a file |
+| `--to` | Addressee. Default "Hiring Manager" |
+| `--out` | Where to write it. Default `out/` |
+| `--name`, `--contact` | Override the CV header |
+
+### What "framed to the vacancy" means
+
+The opening names **what this role calls for that your CV can evidence** —
+drawn from the matched requirements, in your vocabulary:
+
+> I am applying for the Senior Data Engineer position at Ministry of Justice.
+> The role calls for data visualisation, ETL and Python, and each is something
+> I have built and run rather than studied.
+
+**Not the advert parroted back.** Copying an employer's own responsibility
+text at them reads as exactly what it is.
+
+**Only matched requirements can frame it.** Claiming a role centres on
+something you cannot demonstrate invites the one question you cannot answer.
+Generic terms — "teamwork", "communication" — are excluded: naming them says
+nothing.
+
+### The three bullets
+
+CV lines, chosen by how many of the vacancy's requirements each answers, with
+one bullet per subject — the reporting engine appears twice in the CV, and
+citing both makes one point twice.
+
+Long bullets are shortened to whole leading sentences. The result is a strict
+**subset** of the CV line: the letter may say less than the CV, never more.
+
+### What it refuses
+
+**A term the CV cannot evidence.** Unmet requirements never appear — a cover
+letter is not the place to enumerate what you cannot do.
+
+**A letter it cannot support.** If fewer than three CV bullets answer the
+vacancy, it raises rather than padding to length. That is usually the advert
+failing to parse (`vanguard diagnose`) or the role genuinely not fitting.
+
+### Then
+
+```bash
+vanguard dispatch <id> --cover-letter out\cover_letter_<id>.md
+```
+
+**Read it before you send it.** It is drafted from your CV, not written by
+someone who knows what you meant.
+
+---
 
 ## `vanguard apply <id>`
 

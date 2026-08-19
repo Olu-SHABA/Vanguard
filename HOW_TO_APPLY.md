@@ -57,6 +57,17 @@ For a role wanting an anonymised CV, it says so under **profile**.
 
 ---
 
+## STEP 3b — Draft a cover letter, if one is wanted
+
+```powershell
+vanguard draft reed:57092035
+```
+
+Writes `out\cover_letter_reed_57092035.md`, framed on what that role asks for
+and citing three CV lines. **Read it before you send it.**
+
+---
+
 ## STEP 4 — Apply, on their site
 
 Open the URL. Register if you need to, upload the CV, answer the questions.

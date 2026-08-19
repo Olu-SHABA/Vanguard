@@ -923,6 +923,31 @@ def _min_terms() -> int:
     return MIN_TERMS_FOR_CONFIDENCE
 
 
+def _cv_header(cv_path: str) -> tuple[str, str]:
+    """Applicant name and contact, read from the CV's own header.
+
+    Taken from the document rather than configured separately, so a letter
+    and the CV beside it can never disagree about who sent them.
+    """
+    name, contact = "", ""
+    try:
+        for line in Path(cv_path).read_text(encoding="utf-8").splitlines()[:12]:
+            line = line.strip()
+            if line.startswith("# ") and not name:
+                # CV headers are conventionally upper case; a letter is not.
+                name = line[2:].strip()
+                if name.isupper():
+                    name = name.title()
+            elif "@" in line and not contact:
+                contact = line.strip("*").split("|")[1].strip() if "|" in line \
+                    else line.strip("*").strip()
+                contact = next((part.strip() for part in contact.split("|")
+                                if "@" in part), contact)
+    except OSError:
+        pass
+    return name, contact
+
+
 def _coverage_cell(row) -> tuple[str, str]:
     """Coverage and its denominator — or a marker when it was not measured.
 
@@ -2638,6 +2663,94 @@ def rescore_cmd(status, board, rescore_all, dry_run, boards, cv, aliases, db,
                                                if failed else ""))
     click.echo("\n  decisions were preserved — a CV edit does not undo one")
     click.echo("  vanguard todo    what is waiting now")
+
+
+@main.command("draft")
+@click.argument("vacancy_id")
+@click.option("--name", default="", help="Your name, as it should appear.")
+@click.option("--contact", default="", help="Email or link for the sign-off.")
+@click.option("--to", "hiring_manager", default="Hiring Manager")
+@click.option("--out", "out_dir", default="out", help="Where to write it.")
+@click.option("--show", is_flag=True, help="Print it instead of writing a file.")
+@click.option("--boards", default=DEFAULTS["boards"])
+@click.option("--cv", default=DEFAULTS["cv"])
+@click.option("--aliases", default=DEFAULTS["aliases"])
+@click.option("--db", default=DEFAULTS["db"])
+def draft_cmd(vacancy_id, name, contact, hiring_manager, out_dir, show, boards,
+              cv, aliases, db) -> None:
+    """Draft a cover letter for one vacancy, framed to what it asks for.
+
+    The opening names what this role calls for that your CV can evidence —
+    drawn from the matched requirements, not copied from the advert. The
+    three bullets are CV lines chosen for how many of the vacancy's
+    requirements each answers.
+
+    Nothing appears that the CV does not support. A term the CV cannot
+    evidence is refused rather than written around.
+    """
+    from vanguard.coverage import compute_coverage
+    from vanguard.extract import extract
+    from vanguard.letter import DraftError, draft_cover_letter
+
+    store, _ = _ctx(db)
+    width = _terminal_width()
+
+    record = store.vacancy(vacancy_id)
+    if record is None:
+        raise click.ClickException(f"no vacancy {vacancy_id!r}")
+    if not (record["description"] or "").strip():
+        raise click.ClickException("no advert text stored for this vacancy")
+
+    canonical = load_cv(cv)
+    alias_table = load_aliases(aliases)
+    report = compute_coverage(extract(record["description"]), canonical,
+                              alias_table)
+
+    # Name and contact come from the CV's own header, so the letter and the
+    # CV cannot disagree about who sent them.
+    header = _cv_header(cv)
+    applicant = name or header[0]
+    reach = contact or header[1]
+
+    if not applicant:
+        raise click.ClickException("could not read your name from the CV; pass --name")
+
+    try:
+        letter, plan = draft_cover_letter(
+            report, canonical,
+            job_title=record["title"], company=record["employer"],
+            applicant_name=applicant, contact=reach,
+            hiring_manager=hiring_manager, aliases=alias_table,
+        )
+    except DraftError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    click.echo()
+    click.echo(ui.rule(_clip(f"{record['title']} — {record['employer']}",
+                             width - 8)))
+    for line in plan.explain():
+        click.echo(f"  {_clip(line, width - 6)}")
+
+    if plan.unmet_notable:
+        click.echo(f"\n  {ui.badge('NOT MENTIONED', ui.Tone.MUTED)} "
+                   + _clip(", ".join(plan.unmet_notable), width - 22))
+        click.echo("      unmet requirements are never written into a letter")
+
+    if show:
+        click.echo()
+        click.echo(letter)
+        return
+
+    destination = Path(out_dir)
+    destination.mkdir(parents=True, exist_ok=True)
+    safe = re.sub(r"[^A-Za-z0-9._-]", "_", vacancy_id)
+    path = destination / f"cover_letter_{safe}.md"
+    path.write_text(letter, encoding="utf-8")
+
+    click.echo(f"\n  {ui.badge('WRITTEN', ui.Tone.GOOD)} {path}")
+    click.echo("\n  read it before you send it. It is drafted from your CV,")
+    click.echo("  not written by someone who knows what you meant.")
+    click.echo(f"\n  vanguard dispatch {vacancy_id} --cover-letter {path}")
 
 
 # ---------------------------------------------------------------------------
