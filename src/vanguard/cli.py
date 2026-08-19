@@ -924,6 +924,36 @@ def _min_terms() -> int:
     return MIN_TERMS_FOR_CONFIDENCE
 
 
+def _letter_filename(employer: str, title: str, vacancy_id: str,
+                     directory: Path) -> str:
+    """A filename you can read at a glance.
+
+    `cover_letter_linkedin_4f16fe0ad2a8cdf2.md` is safe and unreadable — with
+    three letters open you would have to read each to know which is which.
+    Employer and title identify it; the vacancy id is appended only when two
+    letters would otherwise collide.
+    """
+    def clean(text: str) -> str:
+        text = re.sub(r"[^A-Za-z0-9 _-]", "", (text or "").strip())
+        return re.sub(r"\s+", "_", text).strip("_")[:48]
+
+    employer_part = clean(employer) or "Employer"
+    title_part = clean(title)
+
+    stem = f"{employer_part}_{title_part}" if title_part else employer_part
+    candidate = f"{stem}.md"
+
+    if not (directory / candidate).exists():
+        return candidate
+
+    # Two vacancies with the same employer and title. Distinguish by the id's
+    # own identifying part — the segment after the board name — rather than a
+    # mid-string slice, which produced names like `din_other999`.
+    tail = vacancy_id.rsplit(":", 1)[-1]
+    tail = re.sub(r"[^A-Za-z0-9._-]", "", tail)[:10] or "2"
+    return f"{stem}_{tail}.md"
+
+
 def _cv_header(cv_path: str) -> tuple[str, str]:
     """Applicant name and contact, read from the CV's own header.
 
@@ -2744,14 +2774,14 @@ def draft_cmd(vacancy_id, name, contact, hiring_manager, out_dir, show, boards,
 
     destination = Path(out_dir)
     destination.mkdir(parents=True, exist_ok=True)
-    safe = re.sub(r"[^A-Za-z0-9._-]", "_", vacancy_id)
-    path = destination / f"cover_letter_{safe}.md"
+    path = destination / _letter_filename(
+        record["employer"], record["title"], vacancy_id, destination)
     path.write_text(letter, encoding="utf-8")
 
     click.echo(f"\n  {ui.badge('WRITTEN', ui.Tone.GOOD)} {path}")
     click.echo("\n  read it before you send it. It is drafted from your CV,")
     click.echo("  not written by someone who knows what you meant.")
-    click.echo(f"\n  vanguard dispatch {vacancy_id} --cover-letter {path}")
+    click.echo(f"\n  vanguard dispatch {vacancy_id} --cover-letter \"{path}\"")
 
 
 # ---------------------------------------------------------------------------

@@ -755,10 +755,20 @@ letter is not the place to enumerate what you cannot do.
 vacancy, it raises rather than padding to length. That is usually the advert
 failing to parse (`vanguard diagnose`) or the role genuinely not fitting.
 
+### Where it goes
+
+`out\Sagacity_Data_Scientist.md` — employer and title, so a folder of letters
+is readable at a glance. Where two vacancies share both, the vacancy id is
+appended.
+
+**`out/`, not `Pipeline_Archive/`.** The archive is written at dispatch. A
+letter drafted for a vacancy you then decide against would otherwise leave a
+folder for an application never sent.
+
 ### Then
 
 ```bash
-vanguard dispatch <id> --cover-letter out\cover_letter_<id>.md
+vanguard dispatch <id> --cover-letter out\Sagacity_Data_Scientist.md
 ```
 
 **Read it before you send it.** It is drafted from your CV, not written by

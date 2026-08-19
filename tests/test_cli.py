@@ -1490,9 +1490,11 @@ def test_draft_writes_a_file(runner: CliRunner, tmp_path: Path) -> None:
         "--boards", str(ROOT / "config" / "boards.yaml")])
 
     assert result.exit_code == 0, result.output
-    written = list(out.glob("cover_letter_*.md"))
+    written = list(out.glob("*.md"))
     assert written, "no letter written"
     assert "Ministry of Justice" in written[0].read_text(encoding="utf-8")
+    assert "Ministry_of_Justice" in written[0].name, (
+        f"filename should identify the vacancy: {written[0].name}")
 
 
 def test_a_colon_in_the_id_does_not_break_the_filename(runner: CliRunner,
@@ -1503,3 +1505,47 @@ def test_a_colon_in_the_id_does_not_break_the_filename(runner: CliRunner,
     import re
 
     assert ":" not in re.sub(r"[^A-Za-z0-9._-]", "_", "linkedin:4f16fe0ad2a8")
+
+
+@pytest.mark.parametrize(
+    "employer, title, expected",
+    [
+        ("Sagacity", "Data Scientist", "Sagacity_Data_Scientist.md"),
+        ("Ministry of Justice", "Senior Data Engineer",
+         "Ministry_of_Justice_Senior_Data_Engineer.md"),
+        ("Acme & Co. Ltd", "ML Engineer (Remote)",
+         "Acme_Co_Ltd_ML_Engineer_Remote.md"),
+        ("", "About the job", "Employer_About_the_job.md"),
+    ],
+)
+def test_letter_filenames_are_readable(tmp_path: Path, employer: str,
+                                       title: str, expected: str) -> None:
+    """`cover_letter_linkedin_4f16fe0ad2a8cdf2.md` is safe and unreadable —
+    with three letters open you would have to read each to know which is
+    which."""
+    from vanguard.cli import _letter_filename
+
+    assert _letter_filename(employer, title, "linkedin:abc", tmp_path) == expected
+
+
+def test_a_colon_never_reaches_the_filename(tmp_path: Path) -> None:
+    """A colon is legal in a vacancy id and illegal in a Windows filename."""
+    from vanguard.cli import _letter_filename
+
+    name = _letter_filename("Acme", "Role", "linkedin:4f16fe0a", tmp_path)
+    assert ":" not in name
+
+
+def test_a_second_letter_for_the_same_role_does_not_overwrite(
+    tmp_path: Path
+) -> None:
+    from vanguard.cli import _letter_filename
+
+    first = _letter_filename("Sagacity", "Data Scientist", "linkedin:aaa111",
+                             tmp_path)
+    (tmp_path / first).write_text("x", encoding="utf-8")
+
+    second = _letter_filename("Sagacity", "Data Scientist", "linkedin:bbb222",
+                              tmp_path)
+    assert second != first
+    assert "bbb222" in second
