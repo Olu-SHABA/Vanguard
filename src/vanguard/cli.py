@@ -874,7 +874,21 @@ def dispatch(vacancy_id, note, cv_pdf, cover_letter, archive_root,
     been taken down.
     """
     store, queue = _ctx(db)
-    _apply(queue.dispatch, vacancy_id, note)
+
+    # Already dispatched? Archive the extra files without a transition.
+    #
+    # DISPATCHED is terminal and rightly so, but that left an operator who
+    # dispatched and then realised the cover letter was not attached with no
+    # way to add it. The transition is what must not repeat; archiving more
+    # evidence of what was sent is never wrong.
+    existing = store.queue_record(vacancy_id)
+    already = existing is not None and existing["status"] == "DISPATCHED"
+
+    if already:
+        click.echo(f"  {ui.badge('ALREADY DISPATCHED', ui.Tone.MUTED)} "
+                   f"{vacancy_id} — adding to the existing archive")
+    else:
+        _apply(queue.dispatch, vacancy_id, note)
 
     if no_archive:
         return

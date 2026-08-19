@@ -1549,3 +1549,64 @@ def test_a_second_letter_for_the_same_role_does_not_overwrite(
                               tmp_path)
     assert second != first
     assert "bbb222" in second
+
+
+def _dispatchable(tmp_path: Path) -> Path:
+    from vanguard.adapters.base import Vacancy
+    from vanguard.store import Store
+
+    db = tmp_path / "v.db"
+    store = Store(db)
+    store.initialise()
+    store.upsert_vacancy(Vacancy(id="linkedin:abc", board_id="linkedin",
+                                 employer="Sagacity", title="Data Scientist",
+                                 description="Requirements\n- Python\n- SQL\n"))
+    store.create_queue_record("linkedin:abc", "PENDING")
+    store.set_status("linkedin:abc", "APPROVED")
+    return db
+
+
+def test_dispatch_can_top_up_an_existing_archive(runner: CliRunner,
+                                                 tmp_path: Path) -> None:
+    """DISPATCHED is terminal, rightly — but that left an operator who
+    dispatched and then realised the cover letter was not attached with no way
+    to add it. The transition must not repeat; archiving more evidence of what
+    was sent is never wrong.
+    """
+    db = _dispatchable(tmp_path)
+    archive = tmp_path / "arch"
+    letter = tmp_path / "letter.md"
+    letter.write_text("Dear Hiring Manager,\n", encoding="utf-8")
+
+    first = runner.invoke(main, ["dispatch", "linkedin:abc", "--db", str(db),
+                                 "--archive-root", str(archive)])
+    assert first.exit_code == 0
+
+    second = runner.invoke(main, ["dispatch", "linkedin:abc", "--db", str(db),
+                                  "--archive-root", str(archive),
+                                  "--cover-letter", str(letter)])
+    assert second.exit_code == 0, second.output
+    assert "ALREADY DISPATCHED" in second.output
+
+    folders = list((archive / "Sagacity").iterdir())
+    assert len(folders) == 1, "a second dispatch must not create a second folder"
+    assert any("Cover_Letter" in p.name for p in folders[0].iterdir())
+
+
+def test_topping_up_writes_no_second_transition(runner: CliRunner,
+                                                tmp_path: Path) -> None:
+    """The audit trail records what happened. Two DISPATCHED entries for one
+    submission would say it was sent twice."""
+    db = _dispatchable(tmp_path)
+    archive = tmp_path / "arch"
+
+    for _ in range(2):
+        runner.invoke(main, ["dispatch", "linkedin:abc", "--db", str(db),
+                             "--archive-root", str(archive)])
+
+    from vanguard.store import Store
+    with Store(db).connect() as conn:
+        count = conn.execute(
+            "SELECT COUNT(*) FROM transitions WHERE vacancy_id = ?"
+            " AND to_state = 'DISPATCHED'", ("linkedin:abc",)).fetchone()[0]
+    assert count == 1
