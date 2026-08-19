@@ -1708,3 +1708,57 @@ def test_force_covers_a_rejection_that_never_arrived_by_email(
     result = runner.invoke(main, ["feedback", "reed:1", "--force", "--name",
                                   "S B", "--contact", "x@y.com", "--db", str(db)])
     assert result.exit_code == 0, result.output
+
+
+def test_a_polled_message_is_recorded(tmp_path: Path) -> None:
+    """The poll path needs credentials, so its tests skip and a wrong field
+    name reached the operator — `message.received_at` instead of `received`,
+    which broke `poll` entirely rather than just the new recording.
+
+    This exercises the recording directly, with a message built the same way
+    poll builds one, so the field names are checked without a mailbox.
+    """
+    from datetime import datetime, timezone
+
+    from vanguard.adapters.base import Vacancy
+    from vanguard.mail import Message, State
+    from vanguard.store import Store
+
+    store = Store(tmp_path / "v.db")
+    store.initialise()
+    store.upsert_vacancy(Vacancy(id="reed:1", board_id="reed", employer="Acme",
+                                 title="Data Scientist", description="d"))
+
+    message = Message("1", "hr@acme.com", "Your application",
+                      "Unfortunately you have not been successful.",
+                      datetime.now(timezone.utc))
+
+    # Exactly the call `poll` makes.
+    store.record_response(
+        "reed:1", State.DECLINE.value,
+        sender=message.sender, subject=message.subject,
+        received_at=message.received.isoformat(timespec="seconds")
+        if message.received else "",
+        method="ats")
+
+    recorded = store.latest_response("reed:1")
+    assert recorded is not None
+    assert recorded["state"] == "DECLINE"
+    assert recorded["received_at"]
+
+
+def test_poll_records_with_the_fields_a_message_has() -> None:
+    """A guard against the specific mistake: reading an attribute off Message
+    that Message does not have."""
+    import inspect
+    import re as _re
+
+    from vanguard.mail import Message
+
+    fields = set(inspect.signature(Message).parameters)
+    source = (ROOT / "src" / "vanguard" / "cli.py").read_text(encoding="utf-8")
+
+    used = set(_re.findall(r"\bmessage\.([a-z_]+)", source))
+    unknown = {name for name in used
+               if name not in fields and not hasattr(Message, name)}
+    assert not unknown, f"cli.py reads {unknown} off Message, which has {fields}"

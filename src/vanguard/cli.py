@@ -1580,8 +1580,8 @@ def poll_cmd(provider, since_days, limit, dry_run, verbose, show_uncorrelated,
             store.record_response(
                 result.application.vacancy_id, outcome.state.value,
                 sender=message.sender, subject=message.subject,
-                received_at=message.received_at.isoformat(timespec="seconds")
-                if message.received_at else "",
+                received_at=message.received.isoformat(timespec="seconds")
+                if message.received else "",
                 method=result.method.value)
             process = ProcessStore(db).record(
                 result.application.vacancy_id, outcome.state,
