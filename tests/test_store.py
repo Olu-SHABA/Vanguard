@@ -500,6 +500,47 @@ def test_the_same_message_records_once(store: Store) -> None:
     assert len(store.responses()) == 1
 
 
+def test_a_changed_message_id_does_not_duplicate(store: Store) -> None:
+    """Keying on the mailbox's id created two schemes — rows written before
+    the id was captured carried a synthetic key, rows after carried the real
+    one, and the same message survived under both.
+
+    The natural key is stable across that change.
+    """
+    for message_id in ("hr@acme.com|Thanks|2026-08-19", "<real@mail>", ""):
+        store.record_response("reed:1", "ACK", sender="hr@acme.com",
+                              subject="Thanks", received_at="2026-08-19",
+                              message_id=message_id)
+    assert len(store.responses()) == 1
+
+
+def test_a_database_with_both_key_schemes_collapses(tmp_path: Path) -> None:
+    """Exactly the operator's database on 19 Aug: some rows keyed
+    synthetically, some by real message id, the same messages under both."""
+    import sqlite3
+
+    db = tmp_path / "v.db"
+    conn = sqlite3.connect(db)
+    conn.executescript(
+        "CREATE TABLE responses (id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        " vacancy_id TEXT NOT NULL, message_id TEXT NOT NULL DEFAULT '',"
+        " state TEXT NOT NULL, sender TEXT, subject TEXT,"
+        " received_at TIMESTAMP, recorded_at TIMESTAMP NOT NULL, method TEXT);")
+    for key in ("hr@x.com|Thanks|2026-08-11", "<real@mail>"):
+        conn.execute(
+            "INSERT INTO responses (vacancy_id, message_id, state, sender,"
+            " subject, received_at, recorded_at, method)"
+            " VALUES (?,?,?,?,?,?,?,?)",
+            ("linkedin:a2d5", key, "ACK", "hr@x.com", "Thanks",
+             "2026-08-11", "2026-08-11", "ats"))
+    conn.commit()
+    conn.close()
+
+    store = Store(db)
+    store.initialise()
+    assert len(store.responses()) == 1
+
+
 def test_recording_reports_whether_it_was_new(store: Store) -> None:
     assert store.record_response("reed:1", "ACK", message_id="<abc@mail>") is True
     assert store.record_response("reed:1", "ACK", message_id="<abc@mail>") is False
@@ -517,8 +558,16 @@ def test_a_message_without_an_id_still_deduplicates(store: Store) -> None:
 
 
 def test_different_messages_are_both_kept(store: Store) -> None:
-    store.record_response("reed:1", "ACK", message_id="<one@mail>")
-    store.record_response("reed:1", "DECLINE", message_id="<two@mail>")
+    """Amended 19 Aug 2026: the key is now the natural identity of a message,
+    so two records need to differ in sender, subject or time — not merely in
+    the mailbox id, which the operator's database showed can vary for the
+    same message."""
+    store.record_response("reed:1", "ACK", sender="hr@acme.com",
+                          subject="Thank you for applying",
+                          received_at="2026-08-11")
+    store.record_response("reed:1", "DECLINE", sender="hr@acme.com",
+                          subject="Update on your application",
+                          received_at="2026-08-19")
     assert len(store.responses()) == 2
 
 

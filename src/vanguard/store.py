@@ -131,6 +131,7 @@ CREATE INDEX IF NOT EXISTS ix_transitions_vacancy ON transitions(vacancy_id);
 CREATE TABLE IF NOT EXISTS responses (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   vacancy_id  TEXT NOT NULL,
+  message_key TEXT NOT NULL DEFAULT '',
   message_id  TEXT NOT NULL DEFAULT '',
   state       TEXT NOT NULL,
   sender      TEXT,
@@ -205,6 +206,7 @@ class Store:
         ("vacancies", "partial", "INTEGER NOT NULL DEFAULT 0"),
         ("vacancies", "closes", "TEXT"),
         ("responses", "message_id", "TEXT NOT NULL DEFAULT ''"),
+        ("responses", "message_key", "TEXT NOT NULL DEFAULT ''"),
     )
 
     def initialise(self) -> None:
@@ -220,21 +222,35 @@ class Store:
         created while duplicates exist, so they are collapsed first — keeping
         the earliest row, which carries the true `recorded_at`.
         """
+        # The column must exist before it can be keyed on. `_migrate` adds it
+        # to an older database, but this runs on paths where the table was
+        # only just created, so check rather than assume.
         try:
+            columns = {row[1] for row in
+                       conn.execute("PRAGMA table_info(responses)")}
+        except sqlite3.Error:
+            return
+        if "message_key" not in columns:
+            return
+
+        try:
+            # An index on the old key blocks collapsing rows keyed the other
+            # way. Drop it before recomputing.
+            conn.execute("DROP INDEX IF EXISTS ux_responses_message")
+
             conn.execute(
-                """UPDATE responses SET message_id =
-                     COALESCE(sender,'') || '|' || COALESCE(subject,'') || '|'
-                     || COALESCE(received_at,'')
-                   WHERE message_id = '' OR message_id IS NULL"""
+                """UPDATE responses SET message_key =
+                     COALESCE(vacancy_id,'') || '|' || COALESCE(sender,'')
+                     || '|' || COALESCE(subject,'') || '|'
+                     || COALESCE(received_at,'')"""
             )
             conn.execute(
                 """DELETE FROM responses WHERE id NOT IN (
-                     SELECT MIN(id) FROM responses
-                      GROUP BY vacancy_id, message_id)"""
+                     SELECT MIN(id) FROM responses GROUP BY message_key)"""
             )
             conn.execute(
-                "CREATE UNIQUE INDEX IF NOT EXISTS ux_responses_message"
-                " ON responses(vacancy_id, message_id)"
+                "CREATE UNIQUE INDEX IF NOT EXISTS ux_responses_key"
+                " ON responses(message_key)"
             )
         except sqlite3.Error:
             pass
@@ -462,6 +478,11 @@ class Store:
             "bytes_per_vacancy": (size / vacancies) if vacancies else 0,
         }
 
+    @staticmethod
+    def _response_key(vacancy_id: str, sender: str, subject: str,
+                      received_at: str) -> str:
+        return (f"{vacancy_id}|{sender}|{subject}|{received_at}")[:400]
+
     def record_response(self, vacancy_id: str, state: str, *, sender: str = "",
                         subject: str = "", received_at: str = "",
                         method: str = "", message_id: str = "") -> bool:
@@ -472,19 +493,27 @@ class Store:
         """
         from datetime import datetime, timezone
 
-        # Where the mailbox gave no id, fall back to what identifies the
-        # message: who sent it, about what, and when. Two identical
-        # acknowledgements from one employer on one day are one message.
-        key = message_id or f"{sender}|{subject}|{received_at}"[:200]
+        # The key is the NATURAL one — who sent it, about what, and when —
+        # not the mailbox's id.
+        #
+        # Keying on the id created two schemes: rows written before the id
+        # was captured carried a synthetic key, rows written after carried
+        # the real one, and the same message survived under both. The natural
+        # key is stable across that change and across a mailbox that supplies
+        # no id at all.
+        #
+        # `message_id` is still stored, for tracing a record back to the
+        # message it came from.
+        key = self._response_key(vacancy_id, sender, subject, received_at)
 
         with self.connect() as conn:
             cursor = conn.execute(
-                "INSERT OR IGNORE INTO responses (vacancy_id, message_id, state,"
-                " sender, subject, received_at, recorded_at, method)"
-                " VALUES (?,?,?,?,?,?,?,?)",
+                "INSERT OR IGNORE INTO responses (vacancy_id, message_key, state,"
+                " sender, subject, received_at, recorded_at, method, message_id)"
+                " VALUES (?,?,?,?,?,?,?,?,?)",
                 (vacancy_id, key, state, sender, subject, received_at,
                  datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                 method),
+                 method, message_id),
             )
             return cursor.rowcount > 0
 
