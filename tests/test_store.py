@@ -480,3 +480,113 @@ def test_footprint_survives_an_empty_database(tmp_path: Path) -> None:
     empty = Store(tmp_path / "v.db")
     empty.initialise()
     assert empty.storage_footprint()["bytes_per_vacancy"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Responses must not multiply
+#
+# A mailbox is read repeatedly and the same message arrives every time.
+# Polling twice recorded everything twice — the third occurrence of this
+# defect after B-21 (score history multiplied queue rows) and B-32 (every
+# re-enqueue wrote a duplicate transition).
+# ---------------------------------------------------------------------------
+
+def test_the_same_message_records_once(store: Store) -> None:
+    for _ in range(3):
+        store.record_response("reed:1", "ACK", sender="hr@acme.com",
+                              subject="Thank you for applying",
+                              received_at="2026-08-19T09:00:00+00:00",
+                              message_id="<abc@mail>")
+    assert len(store.responses()) == 1
+
+
+def test_recording_reports_whether_it_was_new(store: Store) -> None:
+    assert store.record_response("reed:1", "ACK", message_id="<abc@mail>") is True
+    assert store.record_response("reed:1", "ACK", message_id="<abc@mail>") is False
+
+
+def test_a_message_without_an_id_still_deduplicates(store: Store) -> None:
+    """Not every mailbox supplies one. Sender, subject and time identify the
+    message well enough — two identical acknowledgements from one employer on
+    one day are one message."""
+    for _ in range(3):
+        store.record_response("reed:1", "ACK", sender="hr@acme.com",
+                              subject="Thank you for applying",
+                              received_at="2026-08-19T09:00:00+00:00")
+    assert len(store.responses()) == 1
+
+
+def test_different_messages_are_both_kept(store: Store) -> None:
+    store.record_response("reed:1", "ACK", message_id="<one@mail>")
+    store.record_response("reed:1", "DECLINE", message_id="<two@mail>")
+    assert len(store.responses()) == 2
+
+
+def test_the_same_message_to_two_applications_is_two_records(store: Store) -> None:
+    """A recruiter mailing about two roles is two responses, not one."""
+    store.record_response("reed:1", "ACK", message_id="<abc@mail>")
+    store.record_response("reed:2", "ACK", message_id="<abc@mail>")
+    assert len(store.responses()) == 2
+
+
+def test_an_existing_database_with_duplicates_is_collapsed(tmp_path: Path) -> None:
+    """The operator polled twice before this fix and has eight rows where
+    four belong. The unique index cannot be created while they exist."""
+    import sqlite3
+
+    db = tmp_path / "v.db"
+    conn = sqlite3.connect(db)
+    conn.executescript(
+        "CREATE TABLE responses (id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        " vacancy_id TEXT NOT NULL, state TEXT NOT NULL, sender TEXT,"
+        " subject TEXT, received_at TIMESTAMP, recorded_at TIMESTAMP NOT NULL,"
+        " method TEXT);")
+    for _ in range(2):
+        for employer in ("Beatport", "Sardine", "HSBC", "WPP-Media"):
+            conn.execute(
+                "INSERT INTO responses (vacancy_id, state, sender, subject,"
+                " received_at, recorded_at, method) VALUES (?,?,?,?,?,?,?)",
+                (f"linkedin:{employer}", "ACK", "hr@x.com",
+                 f"Thank you for applying at {employer}",
+                 "2026-08-19T09:00:00+00:00", "2026-08-19T10:00:00+00:00",
+                 "ats"))
+    conn.commit()
+    conn.close()
+
+    store = Store(db)
+    store.initialise()
+    assert len(store.responses()) == 4
+
+    # And a further poll adds nothing.
+    store.record_response("linkedin:Beatport", "ACK", sender="hr@x.com",
+                          subject="Thank you for applying at Beatport",
+                          received_at="2026-08-19T09:00:00+00:00")
+    assert len(store.responses()) == 4
+
+
+def test_the_earliest_row_survives_collapsing(tmp_path: Path) -> None:
+    """`recorded_at` should say when the reply was first seen, not when it was
+    last re-read."""
+    import sqlite3
+
+    db = tmp_path / "v.db"
+    conn = sqlite3.connect(db)
+    conn.executescript(
+        "CREATE TABLE responses (id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        " vacancy_id TEXT NOT NULL, state TEXT NOT NULL, sender TEXT,"
+        " subject TEXT, received_at TIMESTAMP, recorded_at TIMESTAMP NOT NULL,"
+        " method TEXT);")
+    for recorded in ("2026-08-11T08:00:00+00:00", "2026-08-19T08:00:00+00:00"):
+        conn.execute(
+            "INSERT INTO responses (vacancy_id, state, sender, subject,"
+            " received_at, recorded_at, method) VALUES (?,?,?,?,?,?,?)",
+            ("reed:1", "ACK", "hr@x.com", "Thanks", "2026-08-11T07:00:00+00:00",
+             recorded, "ats"))
+    conn.commit()
+    conn.close()
+
+    store = Store(db)
+    store.initialise()
+    rows = store.responses()
+    assert len(rows) == 1
+    assert rows[0]["recorded_at"].startswith("2026-08-11")

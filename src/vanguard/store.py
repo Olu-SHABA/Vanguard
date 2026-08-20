@@ -131,6 +131,7 @@ CREATE INDEX IF NOT EXISTS ix_transitions_vacancy ON transitions(vacancy_id);
 CREATE TABLE IF NOT EXISTS responses (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   vacancy_id  TEXT NOT NULL,
+  message_id  TEXT NOT NULL DEFAULT '',
   state       TEXT NOT NULL,
   sender      TEXT,
   subject     TEXT,
@@ -138,6 +139,11 @@ CREATE TABLE IF NOT EXISTS responses (
   recorded_at TIMESTAMP NOT NULL,
   method      TEXT
 );
+
+-- The unique index on (vacancy_id, message_id) is created in
+-- `_deduplicate_responses`, after existing duplicates are collapsed: it
+-- cannot be created while they exist, and a database written before this
+-- change has them.
 CREATE INDEX IF NOT EXISTS ix_responses_vacancy ON responses(vacancy_id);
 CREATE INDEX IF NOT EXISTS ix_responses_state ON responses(state);
 
@@ -198,12 +204,40 @@ class Store:
         ("vacancies", "reference", "TEXT NOT NULL DEFAULT ''"),
         ("vacancies", "partial", "INTEGER NOT NULL DEFAULT 0"),
         ("vacancies", "closes", "TEXT"),
+        ("responses", "message_id", "TEXT NOT NULL DEFAULT ''"),
     )
 
     def initialise(self) -> None:
         with self.connect() as conn:
             conn.executescript(SCHEMA)
             self._migrate(conn)
+            self._deduplicate_responses(conn)
+
+    def _deduplicate_responses(self, conn: sqlite3.Connection) -> None:
+        """Collapse rows recorded before responses were keyed on a message id.
+
+        Polling twice recorded everything twice. The unique index cannot be
+        created while duplicates exist, so they are collapsed first — keeping
+        the earliest row, which carries the true `recorded_at`.
+        """
+        try:
+            conn.execute(
+                """UPDATE responses SET message_id =
+                     COALESCE(sender,'') || '|' || COALESCE(subject,'') || '|'
+                     || COALESCE(received_at,'')
+                   WHERE message_id = '' OR message_id IS NULL"""
+            )
+            conn.execute(
+                """DELETE FROM responses WHERE id NOT IN (
+                     SELECT MIN(id) FROM responses
+                      GROUP BY vacancy_id, message_id)"""
+            )
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS ux_responses_message"
+                " ON responses(vacancy_id, message_id)"
+            )
+        except sqlite3.Error:
+            pass
 
     def _migrate(self, conn: sqlite3.Connection) -> None:
         """Add columns missing from an older database. Idempotent."""
@@ -430,7 +464,7 @@ class Store:
 
     def record_response(self, vacancy_id: str, state: str, *, sender: str = "",
                         subject: str = "", received_at: str = "",
-                        method: str = "") -> None:
+                        method: str = "", message_id: str = "") -> bool:
         """Record that a classified message arrived for an application.
 
         Kept even after a terminal state: a rejection followed by an
@@ -438,14 +472,21 @@ class Store:
         """
         from datetime import datetime, timezone
 
+        # Where the mailbox gave no id, fall back to what identifies the
+        # message: who sent it, about what, and when. Two identical
+        # acknowledgements from one employer on one day are one message.
+        key = message_id or f"{sender}|{subject}|{received_at}"[:200]
+
         with self.connect() as conn:
-            conn.execute(
-                "INSERT INTO responses (vacancy_id, state, sender, subject,"
-                " received_at, recorded_at, method) VALUES (?,?,?,?,?,?,?)",
-                (vacancy_id, state, sender, subject, received_at,
+            cursor = conn.execute(
+                "INSERT OR IGNORE INTO responses (vacancy_id, message_id, state,"
+                " sender, subject, received_at, recorded_at, method)"
+                " VALUES (?,?,?,?,?,?,?,?)",
+                (vacancy_id, key, state, sender, subject, received_at,
                  datetime.now(timezone.utc).isoformat(timespec="seconds"),
                  method),
             )
+            return cursor.rowcount > 0
 
     def responses(self, state: str = "", limit: int = 200) -> list[sqlite3.Row]:
         """Classified messages, most recent first."""
