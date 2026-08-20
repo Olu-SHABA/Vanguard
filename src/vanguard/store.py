@@ -133,6 +133,7 @@ CREATE TABLE IF NOT EXISTS responses (
   vacancy_id  TEXT NOT NULL,
   message_key TEXT NOT NULL DEFAULT '',
   message_id  TEXT NOT NULL DEFAULT '',
+  tokens      TEXT NOT NULL DEFAULT '',
   state       TEXT NOT NULL,
   sender      TEXT,
   subject     TEXT,
@@ -209,6 +210,7 @@ class Store:
         ("responses", "message_id", "TEXT NOT NULL DEFAULT ''"),
         ("responses", "message_key", "TEXT NOT NULL DEFAULT ''"),
         ("responses", "body", "TEXT NOT NULL DEFAULT ''"),
+        ("responses", "tokens", "TEXT NOT NULL DEFAULT ''"),
     )
 
     def initialise(self) -> None:
@@ -488,7 +490,7 @@ class Store:
     def record_response(self, vacancy_id: str, state: str, *, sender: str = "",
                         subject: str = "", received_at: str = "",
                         method: str = "", message_id: str = "",
-                        body: str = "") -> bool:
+                        body: str = "", tokens: Sequence[str] = ()) -> bool:
         """Record that a classified message arrived for an application.
 
         Kept even after a terminal state: a rejection followed by an
@@ -518,15 +520,38 @@ class Store:
         key = self._response_key(vacancy_id, sender, subject, received_at)
 
         with self.connect() as conn:
+            # Asked before writing, because ON CONFLICT counts an update as a
+            # changed row and `rowcount` then cannot distinguish a new message
+            # from one that merely gained a body.
+            is_new = conn.execute(
+                "SELECT COUNT(*) FROM responses WHERE message_key = ?", (key,)
+            ).fetchone()[0] == 0
+
+            # ON CONFLICT rather than OR IGNORE: a message recorded before
+            # bodies were kept must be able to fill one in on a later poll.
+            # Ignoring the row meant it never could, which defeated the point
+            # of retaining bodies at all for every message already recorded.
+            #
+            # Only a MISSING body is filled. A body already stored is left
+            # alone, so a re-poll cannot overwrite what was first received.
             cursor = conn.execute(
-                "INSERT OR IGNORE INTO responses (vacancy_id, message_key, state,"
+                "INSERT INTO responses (vacancy_id, message_key, state,"
                 " sender, subject, received_at, recorded_at, method, message_id,"
-                " body) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                " body, tokens) VALUES (?,?,?,?,?,?,?,?,?,?,?)"
+                " ON CONFLICT(message_key) DO UPDATE SET"
+                "   body = CASE WHEN responses.body = '' THEN excluded.body"
+                "               ELSE responses.body END,"
+                "   message_id = CASE WHEN responses.message_id = ''"
+                "               THEN excluded.message_id"
+                "               ELSE responses.message_id END,"
+                "   tokens = CASE WHEN responses.tokens = ''"
+                "               THEN excluded.tokens ELSE responses.tokens END",
                 (vacancy_id, key, state, sender, subject, received_at,
                  datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                 method, message_id, (body or "")[:8000]),
+                 method, message_id, (body or "")[:8000],
+                 " ".join(tokens)),
             )
-            return cursor.rowcount > 0
+            return is_new
 
     def responses(self, state: str = "", limit: int = 200) -> list[sqlite3.Row]:
         """Classified messages, most recent first."""
@@ -540,6 +565,34 @@ class Store:
 
         with self.connect() as conn:
             return conn.execute(query, (*params, limit)).fetchall()
+
+    def known_threads(self) -> dict[str, str]:
+        """Message ids and subject roots already correlated, to the vacancy.
+
+        Feeds the thread correlation stage: a reply to any of these belongs
+        to the same application.
+        """
+        import re as _re
+
+        out: dict[str, str] = {}
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT vacancy_id, message_id, subject, tokens FROM responses"
+            ).fetchall()
+
+        for row in rows:
+            if row["message_id"]:
+                out[row["message_id"]] = row["vacancy_id"]
+            # An ATS routing token identifies an application outright. Every
+            # message about it carries the same token, whatever the subject.
+            for token in (row["tokens"] or "").split():
+                out[f"token:{token}"] = row["vacancy_id"]
+            subject = _re.sub(r"^\s*(re|fw|fwd|aw|sv)\s*(\[\d+\])?\s*:\s*",
+                              "", (row["subject"] or "").strip(), flags=_re.I)
+            subject = _re.sub(r"\s+", " ", subject).strip().lower()
+            if len(subject) > 12:
+                out[f"subject:{subject}"] = row["vacancy_id"]
+        return out
 
     def latest_response(self, vacancy_id: str) -> sqlite3.Row | None:
         with self.connect() as conn:

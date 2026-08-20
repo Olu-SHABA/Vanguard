@@ -94,6 +94,7 @@ class State(str, Enum):
 
 
 class Correlation(str, Enum):
+    THREAD = "thread"              # a reply to a message already correlated
     REFERENCE = "reference"        # application reference or vacancy id
     SENDER_DOMAIN = "sender_domain"
     ATS = "ats"                    # applicant-tracking system, on behalf of the employer
@@ -228,6 +229,13 @@ def is_broadcast(message: Message) -> bool:
     Checked before correlation. A job board advertising a vacancy at an
     employer is not that employer writing back.
     """
+    # A subject advertising roles is a broadcast whoever sent it. A small
+    # recruiter mails from `hello@`, not from `jobalerts-noreply@`, and the
+    # sender says nothing — "Two fresh DS leads in Edinburgh" is marketing
+    # from any address.
+    if _looks_like_a_listing(message.subject):
+        return True
+
     # An acknowledgement is never a broadcast, whatever the sender looks
     # like. `jobs-noreply@linkedin.com` sends both adverts and "your
     # application was sent to X" — the subject separates them.
@@ -257,7 +265,97 @@ class Message:
     sender: str
     subject: str
     body: str
-    received: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    #: Defaults to now: `vanguard mail` reads a message from a file, where
+    #: there is no Date header to parse.
+    received: datetime = field(
+        default_factory=lambda: datetime.now(timezone.utc))
+    #: Threading headers. A reply to a message already correlated is almost
+    #: certainly about the same application — the strongest signal available,
+    #: and the one the system was discarding. Humans reply in threads; only
+    #: machines send standalone acknowledgements.
+    in_reply_to: str = ""
+    references: str = ""
+    #: `Reply-To`, which an ATS uses to carry a per-application identifier:
+    #:
+    #:     dc4+job+4e1f51283c7290391212f9eb552404910f3514d0+124894@app.bamboohr.com
+    #:
+    #: `124894` is the vacancy and the hex string the application. Every
+    #: message about that application carries it, whatever the subject says —
+    #: which makes it a stronger link than any phrase list, and one that does
+    #: not depend on how a human worded their reply.
+    reply_to: str = ""
+
+    @property
+    def thread_parents(self) -> tuple[str, ...]:
+        """Every message id this one claims to answer, newest first."""
+        ids: list[str] = []
+        for header in (self.in_reply_to, self.references):
+            ids.extend(re.findall(r"<[^>]+>", header or ""))
+        seen: set[str] = set()
+        out = []
+        for message_id in reversed(ids):
+            if message_id not in seen:
+                seen.add(message_id)
+                out.append(message_id)
+        return tuple(out)
+
+    @property
+    def routing_tokens(self) -> tuple[str, ...]:
+        """Identifiers an ATS embeds in `Reply-To`, and the sender address.
+
+        Vendor-agnostic by shape rather than by pattern. Every ATS puts a
+        per-application identifier in the reply address, and they differ:
+
+            BambooHR    dc4+job+<40 hex>+124894@app.bamboohr.com
+            Lever       <uuid>@hire.lever.co
+            Greenhouse  no-reply+<24 hex>@greenhouse.io
+            Ashby       no-reply+<24 mixed-case>@ashbyhq.com
+            Workday     reply-2847193@myworkdayjobs.com
+
+        Splitting on every separator shredded Lever's UUID into five short
+        pieces, and a hex-only rule missed Ashby's mixed-case tokens
+        entirely. So UUIDs are matched whole before anything is split, and
+        the alphanumeric rule accepts any case at a higher length.
+
+        The bar is what could plausibly identify one application. Common
+        words are excluded outright: `careers`, `noreply` and `bewerbung`
+        are long enough to pass a length test and would match everything.
+        """
+        found: set[str] = set()
+
+        for header in (self.reply_to, self.sender):
+            local = (header or "").split("@", 1)[0]
+            if not local:
+                continue
+
+            # UUIDs first — splitting on `-` would destroy them.
+            for uuid in re.findall(
+                    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-"
+                    r"[0-9a-f]{4}-[0-9a-f]{12}", local, re.I):
+                found.add(uuid.lower())
+
+            candidates = [local] + re.split(r"[+._\-]", local)
+            for part in candidates:
+                part = part.strip()
+                if _is_routing_token(part):
+                    found.add(part.lower())
+
+        return tuple(sorted(found))
+
+    @property
+    def subject_root(self) -> str:
+        """The subject with reply and forward prefixes stripped.
+
+        A human replying often keeps the subject and nothing else the
+        correlator can use.
+        """
+        subject = (self.subject or "").strip()
+        while True:
+            stripped = re.sub(r"^\s*(re|fw|fwd|aw|sv)\s*(\[\d+\])?\s*:\s*",
+                              "", subject, flags=re.I)
+            if stripped == subject:
+                return subject.strip()
+            subject = stripped
 
     @property
     def text(self) -> str:
@@ -379,7 +477,73 @@ _APPLIED_PHRASES = (
     "we have sent your application", "application submitted",
     "confirming your application", "your application to", "your application for",
     "application update", "regarding your application", "you applied",
+    # Added 20 Aug 2026. A Beatport reply reading "Thank you for your interest
+    # in Beatport" matched nothing: the ATS stage requires an applied-phrase,
+    # and this list only knew "applying" and "application". Employers write
+    # "interest" as often, and it is the standard opener for a rejection.
+    "thank you for your interest", "thanks for your interest",
+    "for your interest in", "your recent application",
+    "further to your application", "following your application",
+    "with regard to your application", "about your application",
+    "status of your application", "update on your application",
+    "we reviewed your application", "reviewed your application",
+    "considered your application", "after careful consideration",
 )
+
+
+#: A subject carrying an applied-phrase ALONGSIDE listing language is a
+#: newsletter with an update tacked on, not an acknowledgement.
+#:
+#: Observed 20 Aug 2026: "Two fresh DS leads in Edinburgh + application
+#: update" was exempted from the broadcast filter by "application update",
+#: correlated on the sender domain, classified PROGRESS, and reached round
+#: five of an interview process that never existed.
+_LISTING_MARKERS = (
+    " leads", "fresh ", "new roles", "new jobs", "opportunities",
+    "vacancies", "roles in", "jobs in", "hiring now", "this week",
+    "newsletter", "digest", "round-up", "roundup", "top picks",
+    "recommended for you", "jobs for you",
+)
+
+
+#: Words long enough to pass a length test that identify nothing. Without
+#: these, `careers` and `bewerbung` would correlate every message an employer
+#: ever sent.
+_NOT_A_TOKEN = frozenset({
+    "careers", "carriere", "recruiting", "recruitment", "recruiter",
+    "noreply", "no-reply", "donotreply", "notification", "notifications",
+    "bewerbung", "application", "applications", "candidate", "candidates",
+    "jobalerts", "jobalert", "talent", "hiring", "response", "responses",
+    "postmaster", "mailer-daemon", "customerservice", "support",
+})
+
+
+def _is_routing_token(part: str) -> bool:
+    """Could this identify one application?
+
+    Judged on shape, so a vendor Vanguard has never seen still works.
+    """
+    if not part or part.lower() in _NOT_A_TOKEN:
+        return False
+
+    if part.isdigit():
+        return len(part) >= 5
+
+    if re.fullmatch(r"[0-9a-f]+", part, re.I):
+        return len(part) >= 16
+
+    # Mixed case or mixed alphanumeric. A higher bar, because unlike hex
+    # there is no structure to lean on — and it must contain a digit, or
+    # long ordinary words would qualify.
+    if re.fullmatch(r"[0-9a-z]+", part, re.I):
+        return len(part) >= 20 and any(c.isdigit() for c in part)
+
+    return False
+
+
+def _looks_like_a_listing(subject: str) -> bool:
+    low = (subject or "").lower()
+    return any(marker in low for marker in _LISTING_MARKERS)
 
 
 def looks_like_an_acknowledgement(message: Message) -> bool:
@@ -387,9 +551,15 @@ def looks_like_an_acknowledgement(message: Message) -> bool:
 
     Distinguishes an ATS acknowledgement from a job board advert, both of
     which are third parties naming an employer.
+
+    A subject doing BOTH — advertising roles and mentioning an application —
+    is a newsletter. The exemption exists for genuine acknowledgements, and a
+    marketing mail that happens to contain "application update" is not one.
     """
     subject = (message.subject or "").lower()
-    return any(phrase in subject for phrase in _APPLIED_PHRASES)
+    if not any(phrase in subject for phrase in _APPLIED_PHRASES):
+        return False
+    return not _looks_like_a_listing(subject)
 
 
 def _sender_is_an_ats(domain: str) -> bool:
@@ -506,7 +676,8 @@ _COMMON_EMPLOYER_WORDS = frozenset({
 
 
 def correlate(
-    message: Message, applications: Sequence[Application]
+    message: Message, applications: Sequence[Application], *,
+    known_threads: dict[str, str] | None = None,
 ) -> CorrelationResult:
     """Match a message to an open application. Runs BEFORE classification.
 
@@ -515,6 +686,41 @@ def correlate(
     guessed at.
     """
     pending: CorrelationResult | None = None
+
+    # 0a. A routing token an ATS put in `Reply-To`.
+    #
+    # The strongest link available and the one the header states outright:
+    # `job+<hash>+124894@app.bamboohr.com` identifies an application
+    # exactly, whatever the subject says. Everything below is inference from
+    # wording; this is not.
+    if known_threads:
+        by_id = {app.vacancy_id: app for app in applications}
+        for token in message.routing_tokens:
+            vacancy_id = known_threads.get(f"token:{token}")
+            if vacancy_id and vacancy_id in by_id:
+                return CorrelationResult(by_id[vacancy_id], Correlation.THREAD)
+
+    # 0b. A reply to a message already correlated.
+    #
+    # The strongest signal available, and the one the system was discarding.
+    # Humans reply in threads; only machines send standalone acknowledgements,
+    # so every later stage was tuned for machines and a human's "Re: next
+    # steps" from a personal address matched nothing.
+    #
+    # `known_threads` maps a seen message id — or a seen subject root — to the
+    # vacancy it correlated to.
+    if known_threads:
+        by_id = {app.vacancy_id: app for app in applications}
+        for parent in message.thread_parents:
+            vacancy_id = known_threads.get(parent)
+            if vacancy_id and vacancy_id in by_id:
+                return CorrelationResult(by_id[vacancy_id], Correlation.THREAD)
+
+        root = _norm(message.subject_root)
+        if root and len(root) > 12:
+            vacancy_id = known_threads.get(f"subject:{root}")
+            if vacancy_id and vacancy_id in by_id:
+                return CorrelationResult(by_id[vacancy_id], Correlation.THREAD)
 
     # A broadcast is never a reply. Filtered first: a job board advertising a
     # vacancy at an employer must not be attributed to an application at that

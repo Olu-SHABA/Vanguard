@@ -545,6 +545,12 @@ def parse_message(raw: bytes) -> Message | None:
         subject=str(parsed.get("Subject", "")),
         body=body,
         received=received,
+        # Threading. A reply to a message already correlated is the strongest
+        # signal available, and it costs two headers to keep.
+        in_reply_to=str(parsed.get("In-Reply-To", "")),
+        references=str(parsed.get("References", "")),
+        # Carries a per-application identifier on ATS mail.
+        reply_to=str(parsed.get("Reply-To", "")),
     )
 
 

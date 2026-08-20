@@ -1555,9 +1555,12 @@ def poll_cmd(provider, since_days, limit, dry_run, verbose, show_uncorrelated,
     rows, uncorrelated = [], []
     ambiguous: list = []
     processes: list = []
+    # Messages already correlated, so a reply to one is matched to the same
+    # application without having to re-earn correlation on its own.
+    threads = store.known_threads()
 
     for message in messages:
-        result = correlate(message, applications)
+        result = correlate(message, applications, known_threads=threads)
         if result.ambiguous:
             # Two live applications at one employer, and nothing in the reply
             # to tell them apart. Attaching it to either would put an
@@ -1590,7 +1593,8 @@ def poll_cmd(provider, since_days, limit, dry_run, verbose, show_uncorrelated,
                 received_at=message.received.isoformat(timespec="seconds")
                 if message.received else "",
                 method=result.method.value,
-                message_id=message.message_id, body=message.body)
+                message_id=message.message_id, body=message.body,
+                tokens=message.routing_tokens)
             process = ProcessStore(db).record(
                 result.application.vacancy_id, outcome.state,
                 subject=message.subject, sender=message.sender)
@@ -1640,6 +1644,12 @@ def poll_cmd(provider, since_days, limit, dry_run, verbose, show_uncorrelated,
                 ],
                 [[m.sender, m.subject] for m in uncorrelated[:40]],
             ))
+            if len(uncorrelated) > 40:
+                # Silently showing half a list is how a message goes missing.
+                # A Beatport reply sat in the hidden portion for two days
+                # while the operator looked at the visible forty.
+                click.echo(f"\n      {ui.badge(f'{len(uncorrelated) - 40} more not shown', ui.Tone.WARN)}"
+                           "  --limit to raise the fetch, or search the mailbox")
 
     if processes:
         from vanguard.process import ProcessState, suggested_phase

@@ -243,12 +243,14 @@ learned. That is a table entry, not a reason to ignore the score.
 
 ```
 [ ] vanguard run
-[ ] check the RESULT block — any PENDING?
-[ ] vanguard review                    if PENDING > 0
-[ ] vanguard session                   work through them in one invocation
+[ ] vanguard todo                      everything waiting on you
+[ ] vanguard session                   work through PENDING in one invocation
 [ ] vanguard review <id>               or one at a time, if you prefer
+[ ] vanguard draft <id>                cover letter, if one is wanted
 [ ] vanguard apply <id>                what it needs, and where
 [ ] apply there yourself, then: vanguard dispatch <id>
+[ ] vanguard poll                      replies
+[ ] vanguard responses                 what came back
 ```
 
 **Stop and investigate if:**
@@ -279,6 +281,20 @@ LinkedIn, Adzuna, or anywhere you browse. Per-board detail in
 
 A truncated paste produces the same problem as an unhydrated fetch: too few
 requirements, and the score is marked `not measured`.
+
+## Reading a reply
+
+The classification says what kind of message it was. To read the message
+itself:
+
+```
+[ ] vanguard responses                 everything that came back
+[ ] vanguard responses --status DECLINE
+[ ] vanguard responses <id>            the messages in full
+```
+
+`AMBIGUOUS` means no marker fired and you have to read it yourself — which is
+what `vanguard responses <id>` is for.
 
 ## When a recruiter replies
 
@@ -392,6 +408,7 @@ return.
 [ ] review boards.yaml                 still the right keywords and location?
 [ ] check OUTSTANDING.md               anything now answerable?
 [ ] vanguard evidence --repo <x> --all-gaps    anything unstated recoverable?
+[ ] after any CV edit: vanguard rescore --all   existing scores are stale
 [ ] re-render the CV if it changed
 ```
 

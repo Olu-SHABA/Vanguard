@@ -723,3 +723,317 @@ def test_ambiguous_result_describes_itself(two_at_one_employer) -> None:
     )
     assert "2 applications" in result.describe()
     assert "reed:57092035" in result.describe()
+
+
+# ---------------------------------------------------------------------------
+# Thread correlation
+#
+# Observed 20 Aug 2026: Beatport sent an automated acknowledgement and then a
+# human reply. The first correlated; the second did not.
+#
+# Every stage was tuned for machines — a reference, an employer domain, an
+# applied-phrase, an employer-plus-title subject. A human writing "Re: next
+# steps" from a personal address matched none of them, while replying to a
+# message the system had ALREADY correlated.
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def beatport() -> list[Application]:
+    return [Application("linkedin:a2d5", "Beatport", "Senior Data Scientist")]
+
+
+@pytest.fixture
+def threads() -> dict[str, str]:
+    return {
+        "<ack@bamboohr>": "linkedin:a2d5",
+        "subject:thank you for applying at beatport": "linkedin:a2d5",
+    }
+
+
+def test_a_reply_correlates_by_threading_header(beatport, threads) -> None:
+    reply = msg("Hi Olumide, we would like to talk.", subject="Re: next steps",
+                sender="sarah.jones@gmail.com")
+    reply.in_reply_to = "<ack@bamboohr>"
+
+    result = correlate(reply, beatport, known_threads=threads)
+    assert result.method is Correlation.THREAD
+    assert result.application.vacancy_id == "linkedin:a2d5"
+
+
+def test_a_reply_correlates_by_subject_when_headers_are_absent(beatport,
+                                                               threads) -> None:
+    """Not every client sets In-Reply-To, and a forwarded message loses it."""
+    reply = msg("Body.", subject="Re: Thank you for applying at Beatport",
+                sender="sarah@elsewhere.io")
+    assert correlate(reply, beatport,
+                     known_threads=threads).method is Correlation.THREAD
+
+
+def test_reply_prefixes_are_stripped_however_stacked() -> None:
+    for subject in ("Re: Thanks", "RE: Thanks", "Fwd: Re: Thanks",
+                    "RE[2]: Thanks", "  re : Thanks"):
+        assert msg("b", subject=subject).subject_root == "Thanks"
+
+
+def test_references_are_read_when_in_reply_to_is_missing(beatport,
+                                                         threads) -> None:
+    reply = msg("Body.", subject="Quick question", sender="s@elsewhere.io")
+    reply.references = "<root@x> <ack@bamboohr>"
+    assert correlate(reply, beatport,
+                     known_threads=threads).method is Correlation.THREAD
+
+
+def test_an_unrelated_message_does_not_correlate(beatport, threads) -> None:
+    unrelated = msg("Body.", subject="Quick question", sender="s@elsewhere.io")
+    assert not correlate(unrelated, beatport, known_threads=threads).correlated
+
+
+def test_a_short_subject_cannot_thread(beatport) -> None:
+    """"Re: Hi" must not match on subject alone — too many messages share it."""
+    threads = {"subject:hi": "linkedin:a2d5"}
+    assert not correlate(msg("Body.", subject="Re: Hi", sender="s@x.io"),
+                         beatport, known_threads=threads).correlated
+
+
+def test_threading_is_optional(beatport) -> None:
+    """Callers that pass no threads behave exactly as before."""
+    assert not correlate(msg("Body.", subject="Re: next steps",
+                             sender="s@x.io"), beatport).correlated
+
+
+# --- a newsletter is not an acknowledgement -------------------------------
+
+@pytest.mark.parametrize(
+    "subject, is_ack",
+    [
+        ("Thank you for applying at Beatport", True),
+        ("Your application to Data Scientist at Datatech", True),
+        ("Two fresh DS leads in Edinburgh + application update", False),
+        ("New jobs for you + your application update", False),
+        ("This week's roles + application received", False),
+    ],
+)
+def test_a_newsletter_is_not_an_acknowledgement(subject: str,
+                                                is_ack: bool) -> None:
+    """"Two fresh DS leads in Edinburgh + application update" was exempted
+    from the broadcast filter by "application update", correlated on the
+    sender domain, classified PROGRESS, and reached round five of an
+    interview process that never existed."""
+    from vanguard.mail import looks_like_an_acknowledgement
+
+    assert looks_like_an_acknowledgement(msg("b", subject=subject)) is is_ack
+
+
+def test_a_recruiter_newsletter_stays_a_broadcast() -> None:
+    from vanguard.mail import is_broadcast
+
+    newsletter = msg("Body.", sender="hello@jackandjill.co.uk",
+                     subject="Two fresh DS leads in Edinburgh + application update")
+    assert is_broadcast(newsletter)
+
+
+# ---------------------------------------------------------------------------
+# "Thank you for your interest"
+#
+# Observed 20 Aug 2026. A Beatport reply from a named person read "Thank you
+# for your interest in Beatport" and correlated to nothing: the ATS stage
+# requires an applied-phrase, and the list knew only "applying" and
+# "application". Employers write "interest" as often — and it is the standard
+# opener for a rejection, which is the worst message to lose.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "subject",
+    [
+        "Thank you for your interest in Beatport",
+        "Thanks for your interest in Beatport",
+        "Beatport — update on your application",
+        "Further to your application — Beatport",
+        "We reviewed your application to Beatport",
+        "After careful consideration — Beatport",
+    ],
+)
+def test_an_employer_reply_correlates_however_it_is_worded(subject: str) -> None:
+    apps = [Application("linkedin:a2d5", "Beatport", "Senior Data Scientist")]
+    result = correlate(
+        msg("Body.", subject=subject, sender="notifications@app.bamboohr.com"),
+        apps)
+    assert result.correlated, f"{subject!r} did not correlate"
+
+
+def test_applied_language_alone_is_not_enough() -> None:
+    """The ATS stage needs the employer name too. "Further to your
+    application for Senior Data Scientist" says which ROLE but not which
+    COMPANY, and two employers may advertise the same title."""
+    apps = [Application("linkedin:a2d5", "Beatport", "Senior Data Scientist"),
+            Application("reed:9", "Sagacity", "Senior Data Scientist")]
+    result = correlate(
+        msg("Body.", subject="Further to your application for Senior Data Scientist",
+            sender="notifications@app.bamboohr.com"),
+        apps)
+    assert not result.correlated or result.ambiguous
+
+
+def test_the_exact_message_that_was_missed() -> None:
+    """Rob Eatwell, Beatport, 18 Aug 2026, via BambooHR."""
+    apps = [Application("linkedin:a2d5", "Beatport", "Senior Data Scientist")]
+    result = correlate(
+        msg("Body.", subject="Thank you for your interest in Beatport",
+            sender="notifications@app.bamboohr.com"),
+        apps)
+    assert result.method is Correlation.ATS
+    assert result.application.vacancy_id == "linkedin:a2d5"
+
+
+def test_widening_the_phrases_did_not_let_adverts_through() -> None:
+    """The phrases exist to separate an acknowledgement from an advert.
+    Widening them must not blur that."""
+    apps = [Application("linkedin:a2d5", "Beatport", "Senior Data Scientist")]
+    for subject in ("Data Scientist at Beatport",
+                    "Olumide, apply now to 'Senior Data Scientist at Beatport'",
+                    "Two fresh DS leads in Edinburgh + application update"):
+        assert not correlate(
+            msg("Body.", subject=subject,
+                sender="jobalerts-noreply@linkedin.com"), apps).correlated, subject
+
+
+# ---------------------------------------------------------------------------
+# ATS routing tokens
+#
+# The operator noticed what the headers already state:
+#
+#   Reply-To: dc4+job+4e1f51283c7290391212f9eb552404910f3514d0+124894@app.bamboohr.com
+#
+# `124894` is the vacancy and the hex string the application. Every message
+# about that application carries it, whatever the subject says — which makes
+# it a stronger link than any phrase list, and one that does not depend on
+# how a human worded their reply.
+# ---------------------------------------------------------------------------
+
+BAMBOO_REPLY_TO = ("dc4+job+4e1f51283c7290391212f9eb552404910f3514d0"
+                   "+124894@app.bamboohr.com")
+
+
+def test_routing_tokens_are_extracted() -> None:
+    message = msg("Body.", subject="Anything",
+                  sender="notifications@app.bamboohr.com")
+    message.reply_to = BAMBOO_REPLY_TO
+    assert message.routing_tokens == (
+        "124894", "4e1f51283c7290391212f9eb552404910f3514d0")
+
+
+@pytest.mark.parametrize(
+    "vendor, reply_to, expected",
+    [
+        ("Lever", "4e1f5128-7c72-9039-1212-f9eb55240491@hire.lever.co",
+         "4e1f5128-7c72-9039-1212-f9eb55240491"),
+        ("Greenhouse", "no-reply+7c9f2a1b4e6d8c3a5f7b9e1d@greenhouse.io",
+         "7c9f2a1b4e6d8c3a5f7b9e1d"),
+        ("Ashby", "no-reply+aB3xK9mP2qR7sT4vW8yZ1nC5@ashbyhq.com",
+         "ab3xk9mp2qr7st4vw8yz1nc5"),
+        ("Workday", "reply-2847193@myworkdayjobs.com", "2847193"),
+        ("SmartRecruiters", "apply+job-88213947@smartrecruiters.com", "88213947"),
+        ("Personio", "bewerbung-4f8a2c9e1d7b3a5f@personio.de",
+         "4f8a2c9e1d7b3a5f"),
+    ],
+)
+def test_every_vendor_not_just_bamboohr(vendor: str, reply_to: str,
+                                        expected: str) -> None:
+    """Judged on SHAPE, so a vendor Vanguard has never seen still works.
+
+    Splitting on every separator shredded Lever's UUID into five short
+    pieces, and a hex-only rule missed Ashby's mixed-case tokens entirely.
+    """
+    message = msg("Body.", sender="no-reply@example.com")
+    message.reply_to = reply_to
+    assert expected in message.routing_tokens, f"{vendor} yielded nothing"
+
+
+@pytest.mark.parametrize(
+    "reply_to",
+    [
+        "sarah.jones@beatport.com",
+        "careers@beatport.com",
+        "recruiting@beatport.com",
+        "no-reply@ashbyhq.com",
+        "bewerbung@personio.de",
+        "notifications@app.bamboohr.com",
+    ],
+)
+def test_an_address_identifying_nothing_yields_nothing(reply_to: str) -> None:
+    """`careers` and `bewerbung` are long enough to pass a length test and
+    would correlate every message an employer ever sent."""
+    message = msg("Body.", sender=reply_to)
+    message.reply_to = reply_to
+    assert message.routing_tokens == ()
+
+
+def test_a_uuid_survives_being_split() -> None:
+    """Splitting on `-` turned one identifier into five useless fragments."""
+    message = msg("Body.", sender="x@hire.lever.co")
+    message.reply_to = "4e1f5128-7c72-9039-1212-f9eb55240491@hire.lever.co"
+    assert message.routing_tokens == ("4e1f5128-7c72-9039-1212-f9eb55240491",)
+
+
+def test_a_short_token_is_refused() -> None:
+    """Twelve hex characters could collide across applications."""
+    message = msg("Body.", sender="x@teamtailor.com")
+    message.reply_to = "jobs+a1b2c3d4e5f6@teamtailor.com"
+    assert message.routing_tokens == ()
+
+
+def test_generic_parts_are_not_tokens() -> None:
+    """`dc4` and `job` appear in every BambooHR address and would match
+    everything."""
+    message = msg("Body.", sender="hr@acme.com")
+    message.reply_to = "dc4+job+careers@acme.com"
+    assert message.routing_tokens == ()
+
+
+def test_an_ordinary_address_yields_no_tokens() -> None:
+    message = msg("Body.", sender="sarah.jones@beatport.com")
+    message.reply_to = "sarah.jones@beatport.com"
+    assert message.routing_tokens == ()
+
+
+def test_a_token_correlates_a_subject_that_says_nothing() -> None:
+    """The point. "A quick note from Rob" has no employer, no title and no
+    applied-phrase — every other stage fails, and the header states the
+    answer outright."""
+    apps = [Application("linkedin:a2d5", "Beatport", "Senior Data Scientist")]
+    threads = {"token:124894": "linkedin:a2d5"}
+
+    message = msg("Body.", subject="A quick note from Rob",
+                  sender="notifications@app.bamboohr.com")
+    message.reply_to = BAMBOO_REPLY_TO
+
+    result = correlate(message, apps, known_threads=threads)
+    assert result.method is Correlation.THREAD
+    assert result.application.vacancy_id == "linkedin:a2d5"
+
+
+def test_a_different_application_does_not_match() -> None:
+    apps = [Application("linkedin:a2d5", "Beatport", "Senior Data Scientist")]
+    threads = {"token:124894": "linkedin:a2d5"}
+
+    message = msg("Body.", subject="A quick note",
+                  sender="notifications@app.bamboohr.com")
+    message.reply_to = ("dc4+job+aaaa1111bbbb2222cccc3333dddd4444eeee5555"
+                        "+999111@app.bamboohr.com")
+    assert not correlate(message, apps, known_threads=threads).correlated
+
+
+def test_a_token_outranks_every_other_stage() -> None:
+    """A header that names the application is not inference. Everything below
+    it is."""
+    apps = [Application("linkedin:a2d5", "Beatport", "Senior Data Scientist"),
+            Application("reed:9", "Sagacity", "Data Scientist")]
+    threads = {"token:124894": "linkedin:a2d5"}
+
+    # A subject naming the WRONG employer, with the right token.
+    message = msg("Body.", subject="Thank you for applying at Sagacity",
+                  sender="notifications@app.bamboohr.com")
+    message.reply_to = BAMBOO_REPLY_TO
+
+    result = correlate(message, apps, known_threads=threads)
+    assert result.application.vacancy_id == "linkedin:a2d5"

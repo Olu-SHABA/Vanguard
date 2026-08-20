@@ -1810,7 +1810,9 @@ def test_no_test_module_polls_without_clearing_credentials() -> None:
     source = (ROOT / "tests" / "test_cli.py").read_text(encoding="utf-8")
 
     for block in _re.split(r"\ndef (?=test_)", source):
-        if '"poll"' not in block:
+        # An INVOCATION, not a mention. The word appears in lists of command
+        # names that never run anything.
+        if not _re.search(r'main,\s*\[\s*"poll"', block):
             continue
         assert "VANGUARD_NO_ENV_FILE" in block, (
             f"a test invokes poll without suppressing .env: "
@@ -1869,3 +1871,20 @@ def test_an_old_response_without_a_body_says_so(runner: CliRunner,
 
     out = runner.invoke(main, ["responses", "reed:1", "--db", str(db)]).output
     assert "no body retained" in out
+
+
+def test_the_sop_covers_the_daily_commands() -> None:
+    """COMMANDS.md is the reference; SOP.md is what gets followed. The
+    existing guards check the reference and the README and say nothing about
+    the SOP, so four commands were absent from the one document the operator
+    works from.
+
+    Not every command belongs in a routine — this lists the ones that do.
+    """
+    sop = (ROOT / "SOP.md").read_text(encoding="utf-8")
+    daily = ("run", "todo", "session", "draft", "apply", "dispatch", "poll",
+             "responses", "rescore", "adverts", "evidence", "stats",
+             "diagnose", "logs")
+    missing = [name for name in daily if f"vanguard {name}" not in sop]
+    assert not missing, f"SOP.md does not mention {missing}"
+

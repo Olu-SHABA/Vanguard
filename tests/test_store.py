@@ -667,3 +667,64 @@ def test_a_response_without_a_body_still_records(store: Store) -> None:
     store.record_response("reed:1", "ACK", sender="hr@acme.com",
                           subject="Thanks", received_at="2026-08-19")
     assert store.latest_response("reed:1")["body"] == ""
+
+
+def test_a_later_poll_fills_a_missing_body(store: Store) -> None:
+    """`INSERT OR IGNORE` meant a message recorded before bodies were kept
+    could never fill one in — which defeated the point of retaining bodies at
+    all for every message already recorded."""
+    store.record_response("linkedin:a2d5", "ACK",
+                          sender="notifications@app.bamboohr.com",
+                          subject="Thank you for applying at Beatport",
+                          received_at="2026-08-11T23:28:00+00:00")
+    assert store.latest_response("linkedin:a2d5")["body"] == ""
+
+    store.record_response("linkedin:a2d5", "ACK",
+                          sender="notifications@app.bamboohr.com",
+                          subject="Thank you for applying at Beatport",
+                          received_at="2026-08-11T23:28:00+00:00",
+                          body="We will review your application.")
+
+    assert "review" in store.latest_response("linkedin:a2d5")["body"]
+    assert len(store.responses()) == 1, "backfilling must not duplicate"
+
+
+def test_a_stored_body_is_not_overwritten(store: Store) -> None:
+    """A re-poll must not replace what was first received. Employers do edit
+    and resend, and the first version is the one that was acted on."""
+    for body in ("The original message.", "Something else entirely."):
+        store.record_response("reed:1", "ACK", sender="hr@acme.com",
+                              subject="Thanks", received_at="2026-08-19",
+                              body=body)
+    assert store.latest_response("reed:1")["body"] == "The original message."
+
+
+def test_backfilling_a_message_id_works_the_same_way(store: Store) -> None:
+    store.record_response("reed:1", "ACK", sender="hr@acme.com",
+                          subject="Thanks", received_at="2026-08-19")
+    store.record_response("reed:1", "ACK", sender="hr@acme.com",
+                          subject="Thanks", received_at="2026-08-19",
+                          message_id="<real@mail>")
+    assert store.latest_response("reed:1")["message_id"] == "<real@mail>"
+
+
+def test_tokens_are_served_to_correlation(store: Store) -> None:
+    """A token recorded against one message correlates every later message
+    about the same application."""
+    store.record_response("linkedin:a2d5", "ACK",
+                          sender="notifications@app.bamboohr.com",
+                          subject="Thank you for applying at Beatport",
+                          received_at="2026-08-11",
+                          tokens=("124894", "4e1f5128"))
+
+    threads = store.known_threads()
+    assert threads.get("token:124894") == "linkedin:a2d5"
+    assert threads.get("token:4e1f5128") == "linkedin:a2d5"
+
+
+def test_tokens_backfill_like_bodies(store: Store) -> None:
+    store.record_response("reed:1", "ACK", sender="hr@x.com", subject="Thanks",
+                          received_at="2026-08-19")
+    store.record_response("reed:1", "ACK", sender="hr@x.com", subject="Thanks",
+                          received_at="2026-08-19", tokens=("124894",))
+    assert store.known_threads().get("token:124894") == "reed:1"

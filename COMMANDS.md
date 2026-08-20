@@ -992,6 +992,7 @@ decline to the wrong vacancy.
 
 | Stage | Matches on | Example |
 |---|---|---|
+| `thread` | **An ATS routing token, or a reply to a message already correlated** | `job+…+124894@app.bamboohr.com` |
 | `reference` | The vacancy reference in the text | "Regarding vacancy 19568" |
 | `sender_domain` | Sender domain is the employer's | `careers@beatport.com` |
 | `ats` | Applicant-tracking system, employer named in the subject | `no-reply@ashbyhq.com`, "Thank you for applying to Sardine" |
@@ -1007,6 +1008,59 @@ for you.
 A later stage may still resolve it: the sender domain identifies the employer,
 and the subject may identify which vacancy. Where one job title contains
 another, the longer and more specific one wins.
+
+**A routing token is checked before anything else.** An applicant-tracking
+system puts a per-application identifier in `Reply-To`:
+
+```
+dc4+job+4e1f51283c7290391212f9eb552404910f3514d0+124894@app.bamboohr.com
+```
+
+`124894` is the vacancy and the hex string the application. **Every message
+about that application carries it, whatever the subject says.** A subject
+reading "A quick note from Rob" — no employer, no title, no applied-phrase —
+correlates on the token alone.
+
+This outranks every other stage because it is the only one that is not
+inference. Everything below reads wording and guesses; the header states the
+answer.
+
+**Vendor-agnostic, judged by shape.** Every ATS embeds an identifier and they
+all differ:
+
+| | |
+|---|---|
+| BambooHR | `dc4+job+<40 hex>+124894@app.bamboohr.com` |
+| Lever | `<uuid>@hire.lever.co` |
+| Greenhouse | `no-reply+<24 hex>@greenhouse.io` |
+| Ashby | `no-reply+<24 mixed-case>@ashbyhq.com` |
+| Workday | `reply-2847193@myworkdayjobs.com` |
+
+A token qualifies on shape rather than on a per-vendor pattern, so a system
+Vanguard has never seen still works: a UUID, sixteen or more hex characters,
+five or more digits, or twenty or more mixed alphanumerics containing a digit.
+
+UUIDs are matched whole before anything is split — splitting on `-` turned
+Lever's identifier into five useless fragments.
+
+Words that identify nothing are excluded outright. `careers`, `noreply` and
+`bewerbung` pass any length test and would correlate every message an
+employer ever sent.
+
+**Thread correlation runs next.** Every other stage is tuned for machines —
+a reference, an employer domain, an applied-phrase, an employer-plus-title
+subject. A human writing *"Re: next steps"* from a personal address matches
+none of them, while replying to a message the system has already correlated.
+
+Matched on `In-Reply-To` and `References`, falling back to the subject with
+reply prefixes stripped. A subject under twelve characters cannot thread —
+too many messages share "Re: Hi".
+
+**A newsletter is not an acknowledgement.** A subject that both advertises
+roles and mentions an application is marketing: *"Two fresh DS leads in
+Edinburgh + application update"* was exempted from the broadcast filter by
+"application update", correlated on the sender domain, classified PROGRESS,
+and reached round five of an interview process that never existed.
 
 **The ATS stage requires applied-language.** An acknowledgement and a job
 advert are both third parties naming an employer; the difference is intent,
@@ -1080,8 +1134,12 @@ holds a copy only where the vacancy was dispatched.
 
 Bodies are truncated at 8,000 characters: a reply is a few hundred words, and
 quoted threads and marketing footers add megabytes without adding
-information. Records written before bodies were kept say so rather than
-showing nothing.
+information.
+
+**A message recorded before bodies were kept fills one in on the next
+`vanguard poll`**, provided it is still in the mailbox. A body already stored
+is never overwritten — employers do edit and resend, and the first version is
+the one that was acted on.
 
 Records are kept after a terminal state. A rejection followed by an
 administrative message is worth being able to see.
