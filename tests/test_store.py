@@ -639,3 +639,31 @@ def test_the_earliest_row_survives_collapsing(tmp_path: Path) -> None:
     rows = store.responses()
     assert len(rows) == 1
     assert rows[0]["recorded_at"].startswith("2026-08-11")
+
+
+def test_the_message_body_is_retained(store: Store) -> None:
+    """AMBIGUOUS exists so a human reads the message. The system could say
+    one had arrived without being able to show it — and the archive holds a
+    copy only where the vacancy was dispatched, which most are not."""
+    store.record_response("reed:1", "AMBIGUOUS", sender="hr@acme.com",
+                          subject="Your application", received_at="2026-08-19",
+                          body="We have received your application and will\n"
+                               "be in touch.")
+    row = store.latest_response("reed:1")
+    assert "will" in row["body"]
+
+
+def test_a_long_body_is_truncated(store: Store) -> None:
+    """Quoted threads and marketing footers add megabytes without adding
+    information."""
+    store.record_response("reed:1", "ACK", sender="hr@acme.com",
+                          subject="Thanks", received_at="2026-08-19",
+                          body="x" * 50_000)
+    assert len(store.latest_response("reed:1")["body"]) <= 8000
+
+
+def test_a_response_without_a_body_still_records(store: Store) -> None:
+    """Rows written before bodies were kept must not break anything."""
+    store.record_response("reed:1", "ACK", sender="hr@acme.com",
+                          subject="Thanks", received_at="2026-08-19")
+    assert store.latest_response("reed:1")["body"] == ""

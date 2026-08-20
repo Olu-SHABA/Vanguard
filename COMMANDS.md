@@ -1049,7 +1049,7 @@ Replies that correlated to an application, and what they were.
 ```bash
 vanguard responses
 vanguard responses --status DECLINE
-vanguard responses --status PROGRESS --limit 10
+vanguard responses linkedin:c56f76c4cbf8a346    # read the messages themselves
 ```
 
 | Option | Effect |
@@ -1068,6 +1068,20 @@ RESPONSES  ·  3
   ACK       2026-08-18  Beatport  Thank you for applying  reed:1
   PROGRESS  2026-08-18  Harnham   Interview invitation    reed:2
 ```
+
+### Reading one
+
+Pass a vacancy id and the messages are printed in full — sender, subject,
+classification, and the body.
+
+**`AMBIGUOUS` exists so a human reads the message.** Reporting that one
+arrived without being able to show it left nowhere to go, and the archive
+holds a copy only where the vacancy was dispatched.
+
+Bodies are truncated at 8,000 characters: a reply is a few hundred words, and
+quoted threads and marketing footers add megabytes without adding
+information. Records written before bodies were kept say so rather than
+showing nothing.
 
 Records are kept after a terminal state. A rejection followed by an
 administrative message is worth being able to see.

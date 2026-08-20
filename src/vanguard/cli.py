@@ -1590,7 +1590,7 @@ def poll_cmd(provider, since_days, limit, dry_run, verbose, show_uncorrelated,
                 received_at=message.received.isoformat(timespec="seconds")
                 if message.received else "",
                 method=result.method.value,
-                message_id=message.message_id)
+                message_id=message.message_id, body=message.body)
             process = ProcessStore(db).record(
                 result.application.vacancy_id, outcome.state,
                 subject=message.subject, sender=message.sender)
@@ -2813,10 +2813,11 @@ def draft_cmd(vacancy_id, name, contact, hiring_manager, out_dir, show, boards,
 
 
 @main.command("responses")
+@click.argument("vacancy_id", required=False)
 @click.option("--status", default="", help="ACK, PROGRESS, DECLINE, OFFER, QUERY, ADMIN.")
 @click.option("--limit", default=40)
 @click.option("--db", default=DEFAULTS["db"])
-def responses_cmd(status, limit, db) -> None:
+def responses_cmd(vacancy_id, status, limit, db) -> None:
     """Replies that correlated to an application, and what they were.
 
     Classifications were written to the archive and to the interview process,
@@ -2824,6 +2825,45 @@ def responses_cmd(status, limit, db) -> None:
     rejected?", which is what `vanguard feedback` needs to know.
     """
     store, _ = _ctx(db)
+    width = _terminal_width()
+
+    # One vacancy: show the messages themselves. AMBIGUOUS exists so a human
+    # reads them, and reporting that one arrived without being able to show
+    # it leaves the operator nowhere to go.
+    if vacancy_id:
+        messages = [r for r in store.responses(limit=500)
+                    if r["vacancy_id"] == vacancy_id]
+        if not messages:
+            click.echo(f"no responses recorded for {vacancy_id}")
+            return
+
+        vacancy = store.vacancy(vacancy_id)
+        click.echo()
+        click.echo(ui.rule(_clip(
+            f"{vacancy['title']} — {vacancy['employer']}" if vacancy
+            else vacancy_id, width - 8)))
+
+        for message in messages:
+            click.echo()
+            click.echo(ui.field_list([
+                ("state", message["state"]),
+                ("from", message["sender"] or ""),
+                ("subject", message["subject"] or ""),
+                ("received", (message["received_at"] or "")[:16].replace("T", " ")),
+                ("matched by", message["method"] or ""),
+            ], indent="  "))
+
+            body = (message["body"] or "").strip()
+            if not body:
+                click.echo("\n      (no body retained — recorded before "
+                           "bodies were kept)")
+                continue
+            click.echo()
+            for line in body.splitlines():
+                for wrapped in (_wrap(line, width - 8) or [""]):
+                    click.echo(f"      {wrapped}")
+        return
+
     rows = store.responses(status, limit=limit)
 
     if not rows:
@@ -2846,9 +2886,10 @@ def responses_cmd(status, limit, db) -> None:
          for r in rows],
     ))
 
+    click.echo("\n  vanguard responses <ID>   read the messages themselves")
     if (status or "").upper() == "DECLINE" or any(
             r["state"] == "DECLINE" for r in rows):
-        click.echo('\n  vanguard feedback <ID> --name "..." --contact "..."')
+        click.echo('  vanguard feedback <ID> --name "..." --contact "..."')
 
 
 # ---------------------------------------------------------------------------

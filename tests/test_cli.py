@@ -1815,3 +1815,57 @@ def test_no_test_module_polls_without_clearing_credentials() -> None:
         assert "VANGUARD_NO_ENV_FILE" in block, (
             f"a test invokes poll without suppressing .env: "
             f"{block.splitlines()[0][:60]}")
+
+
+def test_responses_can_show_one_message(runner: CliRunner, tmp_path: Path) -> None:
+    """Eight AMBIGUOUS messages and no way to read them was the gap."""
+    from vanguard.adapters.base import Vacancy
+    from vanguard.store import Store
+
+    db = tmp_path / "v.db"
+    store = Store(db)
+    store.initialise()
+    store.upsert_vacancy(Vacancy(id="linkedin:c56f", board_id="linkedin",
+                                 employer="Harnham", title="Data Scientist",
+                                 description="d"))
+    store.record_response("linkedin:c56f", "AMBIGUOUS",
+                          sender="jobs-noreply@linkedin.com",
+                          subject="your application was sent to Harnham",
+                          received_at="2026-08-14T11:20:00+00:00",
+                          method="ats",
+                          body="Harnham typically responds within two weeks.")
+
+    out = runner.invoke(main, ["responses", "linkedin:c56f",
+                               "--db", str(db)]).output
+    assert "Harnham" in out
+    assert "two weeks" in out, "the body must be shown, not just the subject"
+    assert "AMBIGUOUS" in out
+
+
+def test_reading_a_vacancy_with_no_responses(runner: CliRunner,
+                                             tmp_path: Path) -> None:
+    from vanguard.store import Store
+
+    db = tmp_path / "v.db"
+    Store(db).initialise()
+    out = runner.invoke(main, ["responses", "reed:nothere", "--db", str(db)]).output
+    assert "no responses recorded" in out
+
+
+def test_an_old_response_without_a_body_says_so(runner: CliRunner,
+                                                tmp_path: Path) -> None:
+    """Rows recorded before bodies were kept should explain themselves rather
+    than showing nothing."""
+    from vanguard.adapters.base import Vacancy
+    from vanguard.store import Store
+
+    db = tmp_path / "v.db"
+    store = Store(db)
+    store.initialise()
+    store.upsert_vacancy(Vacancy(id="reed:1", board_id="reed", employer="Acme",
+                                 title="Role", description="d"))
+    store.record_response("reed:1", "ACK", sender="hr@acme.com",
+                          subject="Thanks", received_at="2026-08-19")
+
+    out = runner.invoke(main, ["responses", "reed:1", "--db", str(db)]).output
+    assert "no body retained" in out

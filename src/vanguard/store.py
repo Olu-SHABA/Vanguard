@@ -138,7 +138,8 @@ CREATE TABLE IF NOT EXISTS responses (
   subject     TEXT,
   received_at TIMESTAMP,
   recorded_at TIMESTAMP NOT NULL,
-  method      TEXT
+  method      TEXT,
+  body        TEXT NOT NULL DEFAULT ''
 );
 
 -- The unique index on (vacancy_id, message_id) is created in
@@ -207,6 +208,7 @@ class Store:
         ("vacancies", "closes", "TEXT"),
         ("responses", "message_id", "TEXT NOT NULL DEFAULT ''"),
         ("responses", "message_key", "TEXT NOT NULL DEFAULT ''"),
+        ("responses", "body", "TEXT NOT NULL DEFAULT ''"),
     )
 
     def initialise(self) -> None:
@@ -485,11 +487,20 @@ class Store:
 
     def record_response(self, vacancy_id: str, state: str, *, sender: str = "",
                         subject: str = "", received_at: str = "",
-                        method: str = "", message_id: str = "") -> bool:
+                        method: str = "", message_id: str = "",
+                        body: str = "") -> bool:
         """Record that a classified message arrived for an application.
 
         Kept even after a terminal state: a rejection followed by an
         administrative message is worth being able to see.
+
+        The body is retained because AMBIGUOUS exists precisely so a human
+        reads the message — and until now the system could say one had
+        arrived without being able to show it. The archive holds a copy only
+        where the vacancy was dispatched, which most are not.
+
+        Truncated: a reply is a few hundred words, and quoted threads and
+        marketing footers add megabytes without adding information.
         """
         from datetime import datetime, timezone
 
@@ -509,11 +520,11 @@ class Store:
         with self.connect() as conn:
             cursor = conn.execute(
                 "INSERT OR IGNORE INTO responses (vacancy_id, message_key, state,"
-                " sender, subject, received_at, recorded_at, method, message_id)"
-                " VALUES (?,?,?,?,?,?,?,?,?)",
+                " sender, subject, received_at, recorded_at, method, message_id,"
+                " body) VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (vacancy_id, key, state, sender, subject, received_at,
                  datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                 method, message_id),
+                 method, message_id, (body or "")[:8000]),
             )
             return cursor.rowcount > 0
 
