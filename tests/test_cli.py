@@ -749,17 +749,27 @@ def test_poll_strategy_is_configurable() -> None:
     assert _window_threshold(str(ROOT / "config" / "boards.yaml")) > 0
 
 
-def test_poll_reports_which_strategy_it_used(runner: CliRunner, tmp_path: Path) -> None:
+def test_poll_reports_which_strategy_it_used(runner: CliRunner, tmp_path: Path,
+                                             monkeypatch) -> None:
     """Without this a switch would be invisible.
 
-    With no credentials the command stops at the health check, before a
-    strategy is chosen — so the mailbox line is what proves it got that far.
+    The docstring said "with no credentials" and nothing ensured there were
+    none. On a machine with a configured `.env` this test logged into the
+    operator's real mailbox and read their email — 32 seconds of a 94-second
+    suite, non-deterministic, and touching data no test should touch.
+
     `choose_strategy` is tested directly in test_mailbox.
     """
+    for name in ("VANGUARD_MAIL_HOST", "VANGUARD_MAIL_USER",
+                 "VANGUARD_MAIL_PASSWORD", "VANGUARD_MAIL_ADDRESS"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("VANGUARD_NO_ENV_FILE", "1")
+
     out = runner.invoke(main, ["poll", "--db", str(tmp_path / "v.db"),
                                "--cv", str(ROOT / "data" / "canonical_cv.md")]).output
     assert "MAILBOX" in out
-    assert "UNREACHABLE" in out or "TARGETED" in out or "WINDOW" in out
+    assert "UNREACHABLE" in out, (
+        "the test must not reach a real mailbox; credentials leaked in")
 
 
 # ---------------------------------------------------------------------------
@@ -1762,3 +1772,46 @@ def test_poll_records_with_the_fields_a_message_has() -> None:
     unknown = {name for name in used
                if name not in fields and not hasattr(Message, name)}
     assert not unknown, f"cli.py reads {unknown} off Message, which has {fields}"
+
+
+def test_no_test_reaches_a_real_mailbox(monkeypatch, tmp_path: Path) -> None:
+    """`VANGUARD_NO_ENV_FILE` must actually suppress the file.
+
+    Without it, a poll test on a configured machine logs into the operator's
+    real mailbox — 32 seconds of a 94-second suite, and reading email no test
+    should read.
+    """
+    import os
+
+    from vanguard.cli import _load_env
+
+    env_file = tmp_path / ".env"
+    env_file.write_text("VANGUARD_MAIL_HOST=imap.example.com\n"
+                        "VANGUARD_MAIL_PASSWORD=secret\n", encoding="utf-8")
+
+    monkeypatch.delenv("VANGUARD_MAIL_HOST", raising=False)
+    monkeypatch.delenv("VANGUARD_MAIL_PASSWORD", raising=False)
+    monkeypatch.setenv("VANGUARD_NO_ENV_FILE", "1")
+
+    assert _load_env(env_file) == 0
+    assert not os.environ.get("VANGUARD_MAIL_HOST")
+
+
+def test_no_test_module_polls_without_clearing_credentials() -> None:
+    """A structural guard.
+
+    `test_poll_reports_which_strategy_it_used` invoked `poll` and, on a
+    machine with a configured `.env`, connected to the operator's real
+    mailbox. Any future test that invokes `poll` must clear the credentials
+    first or it will do the same.
+    """
+    import re as _re
+
+    source = (ROOT / "tests" / "test_cli.py").read_text(encoding="utf-8")
+
+    for block in _re.split(r"\ndef (?=test_)", source):
+        if '"poll"' not in block:
+            continue
+        assert "VANGUARD_NO_ENV_FILE" in block, (
+            f"a test invokes poll without suppressing .env: "
+            f"{block.splitlines()[0][:60]}")

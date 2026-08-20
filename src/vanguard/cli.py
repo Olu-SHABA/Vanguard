@@ -73,7 +73,14 @@ def _load_env(path: Path = Path(".env")) -> int:
     ends with someone pasting a key into a tracked file. `.env` is gitignored.
 
     Existing environment variables win — an explicit export overrides the file.
+
+    `VANGUARD_NO_ENV_FILE=1` skips the file entirely. Tests need it: a test
+    that reads `.env` on a configured machine will connect to the operator's
+    real mailbox, which is slow, non-deterministic, and touching data no test
+    should touch.
     """
+    if os.environ.get("VANGUARD_NO_ENV_FILE"):
+        return 0
     if not path.is_file():
         return 0
     loaded = 0

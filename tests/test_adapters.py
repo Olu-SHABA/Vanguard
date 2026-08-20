@@ -518,6 +518,9 @@ def test_reed_paginates_with_offset(registry) -> None:
 
 
 def test_reed_rate_limit_records_truncation(registry) -> None:
+    """The adapter backs off for real on a 429, which cost six seconds of a
+    test run. The behaviour under test is that truncation is RECORDED, not
+    that the sleep happens — so the sleep is replaced."""
     from vanguard.adapters.reed import ReedAPIAdapter
 
     class Limited:
@@ -526,6 +529,7 @@ def test_reed_rate_limit_records_truncation(registry) -> None:
 
     adapter = ReedAPIAdapter(_with_creds(registry.get("reed"), api_key="k"),
                              client=Limited())
+    adapter.limiter._sleep = lambda _seconds: None
     adapter.fetch(Query(keywords=("x",)))
     assert adapter.truncations and "rate limited" in adapter.truncations[0].reason
 
