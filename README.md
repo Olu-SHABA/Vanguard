@@ -153,6 +153,7 @@ vanguard diagnose                   # why adverts refuse; unrecognised headings
 vanguard adverts ingest             # batch-ingest a folder of pasted adverts
 vanguard poll                       # read the mailbox, correlate, classify
 vanguard responses --status DECLINE # what came back, and what it was
+vanguard funnel                     # where applications stop, and why
 vanguard interviews                 # interview processes, all rounds
 vanguard archive                    # what was actually submitted
 vanguard evidence --repo <path|url> # propose CV bullets from your own repos

@@ -1663,6 +1663,11 @@ def poll_cmd(provider, since_days, limit, dry_run, verbose, show_uncorrelated,
             click.echo(f"  {ui.badge(process.state.value, tone)} "
                        f"{_clip(application.employer, 24)} — {process.summary()}")
             if process.active and state.value == "PROGRESS":
+                from vanguard.lifecycle import Stage, infer_stage
+
+                stage = infer_stage(message.subject, message.body)
+                if stage is not Stage.UNKNOWN:
+                    click.echo(f"      stage: {stage.value.lower()}")
                 phase = suggested_phase(process.current_round)
                 click.echo(f"      vanguard interview {application.vacancy_id} "
                            f"--phase {phase}")
@@ -2020,15 +2025,20 @@ def interviews_cmd(vacancy_id, show_all, withdraw, db) -> None:
         ], indent="  "))
 
         if process.rounds:
+            from vanguard.lifecycle import infer_stage
+
             click.echo()
             click.echo(ui.rule("ROUNDS"))
             click.echo(ui.table(
                 [
                     ui.Column("#", 0.2, 3, "right"),
-                    ui.Column("OPENED", 0.6, 12),
-                    ui.Column("SUBJECT", 1.8, 16),
+                    ui.Column("STAGE", 0.5, 10),
+                    ui.Column("OPENED", 0.5, 12),
+                    ui.Column("SUBJECT", 1.5, 16),
                 ],
-                [[str(r.number), r.opened_at[:16].replace("T", " "), r.subject]
+                [[str(r.number),
+                  infer_stage(r.subject).value.lower(),
+                  r.opened_at[:16].replace("T", " "), r.subject]
                  for r in process.rounds],
             ))
 
@@ -2900,6 +2910,110 @@ def responses_cmd(vacancy_id, status, limit, db) -> None:
     if (status or "").upper() == "DECLINE" or any(
             r["state"] == "DECLINE" for r in rows):
         click.echo('  vanguard feedback <ID> --name "..." --contact "..."')
+
+
+@main.command("funnel")
+@click.option("--db", default=DEFAULTS["db"])
+@click.option("--reasons", is_flag=True, help="Show every stated reason.")
+def funnel_cmd(db, reasons) -> None:
+    """Where applications get to, and where they stop.
+
+    Every rejection looked alike: rejected on the CV and rejected after a
+    final panel were the same state, and they mean opposite things — the
+    second says the CV worked and something later did not.
+
+    **Reasons are never inferred.** A rejection that gives none is recorded
+    as giving none. Manufacturing a cause from an email that states one
+    nowhere would be inventing exactly the kind of authoritative-sounding
+    content this system exists to prevent.
+
+    The answer is in the shape, not in any single message.
+    """
+    from vanguard.lifecycle import FUNNEL_ORDER, StageOutcome, build_lifecycle
+
+    store, _ = _ctx(db)
+    width = _terminal_width()
+
+    dispatched = [r for r in store.list_queue(limit=1000)
+                  if r["status"] == "DISPATCHED"]
+    if not dispatched:
+        click.echo("nothing dispatched yet — the funnel needs applications")
+        return
+
+    by_vacancy: dict[str, list[dict]] = {}
+    for row in store.responses(limit=2000):
+        by_vacancy.setdefault(row["vacancy_id"], []).append(dict(row))
+
+    points = [build_lifecycle(row["vacancy_id"],
+                              by_vacancy.get(row["vacancy_id"], []))
+              for row in dispatched]
+
+    silent = [p for p in points
+              if not by_vacancy.get(p.vacancy_id)]
+
+    click.echo()
+    click.echo(ui.rule(f"FUNNEL  ·  {len(points)} application(s) dispatched"))
+
+    rows = []
+    for stage in FUNNEL_ORDER:
+        reached = [p for p in points if p.depth >= FUNNEL_ORDER.index(stage)]
+        failed = [p for p in points
+                  if p.reached is stage and p.outcome is StageOutcome.FAILED]
+        if not reached and not failed:
+            continue
+        rows.append([
+            stage.value.title(),
+            str(len(reached)),
+            str(len(failed)) if failed else "—",
+            ui.bar(len(reached), len(points), width=16),
+        ])
+
+    click.echo(ui.table(
+        [
+            ui.Column("STAGE", 0.6, 12),
+            ui.Column("REACHED", 0.3, 7, "right"),
+            ui.Column("ENDED", 0.3, 6, "right"),
+            ui.Column("", 0.8, 18, tone=ui.Tone.MUTED),
+        ],
+        rows,
+    ))
+
+    offers = [p for p in points if p.outcome is StageOutcome.PASSED]
+    live = [p for p in points if p.outcome is StageOutcome.PENDING
+            and by_vacancy.get(p.vacancy_id)]
+
+    click.echo()
+    click.echo(ui.field_list([
+        ("offers", str(len(offers)) if offers else "—"),
+        ("still live", str(len(live))),
+        ("no reply at all", str(len(silent))),
+    ], indent="  "))
+
+    # --- why, where anyone said -------------------------------------------
+    stated = [p for p in points if p.reason_is_stated]
+    failures = [p for p in points if p.outcome is StageOutcome.FAILED]
+
+    if failures:
+        click.echo()
+        click.echo(ui.rule("WHY"))
+        click.echo(f"  {len(stated)} of {len(failures)} rejection(s) gave a reason")
+
+        if stated and (reasons or len(stated) <= 5):
+            for point in stated:
+                vacancy = store.vacancy(point.vacancy_id)
+                click.echo()
+                click.echo(f"  {_clip(vacancy['employer'] if vacancy else point.vacancy_id, 30)}"
+                           f"  ({point.describe()})")
+                for line in _wrap(point.stated_reason, width - 8):
+                    click.echo(f"      {line}")
+        elif stated:
+            click.echo("  --reasons to read them")
+
+        if len(stated) < len(failures):
+            click.echo(f"\n  The other {len(failures) - len(stated)} gave none, "
+                       "and none is inferred.")
+            click.echo("  Where an application ends says more than any single "
+                       "rejection does.")
 
 
 # ---------------------------------------------------------------------------

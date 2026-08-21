@@ -16,7 +16,7 @@ what.
 | [Looking at results](#looking-at-results) | `todo` · `review` · `score` · `stats` · `diagnose` · `evidence` |
 | [Deciding](#deciding) | `session` · `approve` · `reject` · `resolve` · `override` · `draft` · `apply` · `dispatch` |
 | [Accounts](#accounts) | `registrations` |
-| [Responses](#responses) | `poll` · `responses` · `mail` · `dormant` · `feedback` · `interview` · `interviews` |
+| [Responses](#responses) | `poll` · `responses` · `funnel` · `mail` · `dormant` · `feedback` · `interview` · `interviews` |
 | [Operations](#operations) | `logs` · `archive` |
 | [What grows](#what-grows-and-what-does-not) | Which files accumulate, and when to act |
 
@@ -1172,6 +1172,67 @@ letter.
 Find one with `vanguard responses --status DECLINE`. Where the rejection came
 by phone or through a portal there is no classified message, and `--force`
 covers that.
+
+## `vanguard funnel`
+
+Where applications get to, and where they stop.
+
+```bash
+vanguard funnel
+vanguard funnel --reasons
+```
+
+```
+FUNNEL  ·  9 application(s) dispatched
+  STAGE        REACHED  ENDED
+  Application        9      4  ################ 9/9 (100%)
+  Screen             2      —  ####------------ 2/9 (22%)
+  Assessment         2      1  ####------------ 2/9 (22%)
+  Panel              1      —  ##-------------- 1/9 (11%)
+
+  offers           —
+  still live       3
+  no reply at all  1
+
+WHY
+  1 of 5 rejection(s) gave a reason
+
+  Theta  (ended at assessment)
+      We are looking for someone with more experience in Spark.
+
+  The other 4 gave none, and none is inferred.
+```
+
+**Every rejection used to look alike.** Rejected on the CV and rejected after
+a final panel were the same state, and they mean opposite things — the second
+says the CV worked and something later did not.
+
+### Stages are inferred from the invitation
+
+`SCREEN`, `ASSESSMENT`, `INTERVIEW`, `PANEL`, `FINAL`. Employers name what
+they are inviting you to, and the vocabulary is small. Where one names
+nothing, `UNKNOWN` — a guess would put the application at the wrong depth,
+and the shape is the output that matters.
+
+### Outcomes are inferred from what follows
+
+An invitation to a later stage means the earlier one was passed. A decline
+means the current stage was failed. **Silence means neither**, and stays
+pending rather than being counted as a rejection.
+
+### Reasons are never inferred
+
+This is the line that matters. A stated reason is extracted **verbatim** and
+labelled as stated; where none is given, the record says so.
+
+Softeners are excluded. *"We had many strong applicants"* says nothing about
+your application, and recording it as a reason would fill the register with
+noise that reads as insight.
+
+**The answer is in the shape, not in any single message.** Twelve of twenty
+ending at CV stage tells you more about why than any rejection email will.
+
+---
 
 ## `vanguard interviews`
 

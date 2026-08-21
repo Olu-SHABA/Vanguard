@@ -384,6 +384,7 @@ the alias table against an advert you already know well.
 [ ] vanguard stats                     coverage distribution, recurring gaps
 [ ] vanguard diagnose                  parse rate, unrecognised headings
 [ ] vanguard interviews                anything waiting on you
+[ ] vanguard funnel                    where applications are stopping
 [ ] vanguard dormant                   applications gone quiet
 [ ] vanguard logs                      any errors during the week
 ```

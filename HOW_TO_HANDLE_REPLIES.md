@@ -28,13 +28,12 @@ Each message is one of these:
 | **OFFER** | You got the job | Nothing. Well done |
 | **PROGRESS** | Interview or assessment | Step 3 |
 | **DECLINE** | Unsuccessful | Step 5 |
-| **QUERY** | They asked something | Answer it yourself |
+| **QUERY** | They asked something | Answer it |
 | **ACK** / **ADMIN** | Receipt, or scheduling | Nothing |
-| **AMBIGUOUS** | No marker fired | Read it yourself |
+| **AMBIGUOUS** | No marker fired | Read it |
 
-**UNCORRELATED** — matched no application, usually a job alert.
-**"matched 2 applications"** — matched several, usually two at one employer.
-The system names both rather than guessing.
+**UNCORRELATED** — matched no application, usually a job alert. **"matched 2
+applications"** — several matched; the system names both rather than guessing.
 
 ---
 
@@ -92,17 +91,14 @@ yourself** — nothing is sent for you.
 
 # IF SOMETHING GOES WRONG
 
-**"UNCORRELATED" on a real reply**
-Nothing identified the application. Use `vanguard mail --file` with the
-employer name in `--subject`.
+**"UNCORRELATED" on a real reply** — nothing identified it. Use
+`vanguard mail --file` with the employer name in `--subject`.
 
-**No messages found**
-`vanguard poll --since-days 60 --category all` — by default it reads the
-Primary tab, last 30 days.
+**No messages found** — `vanguard poll --since-days 60 --category all`. By
+default it reads the Primary tab, last 30 days.
 
-**Nothing in `vanguard interviews`**
-A process opens only on a **PROGRESS** message against a **dispatched**
-application. Check `vanguard review --status DISPATCHED`.
+**Nothing in `vanguard interviews`** — a process opens only on a **PROGRESS**
+message against a **dispatched** application.
 
 ---
 
@@ -118,10 +114,9 @@ A forward, or a reply to a different address, can be entered by hand with
 
 ```powershell
 vanguard poll
-vanguard interviews
-vanguard interviews <id>
+vanguard responses
+vanguard funnel                  # where applications stop, and why
 vanguard interview <id> --phase 1
-vanguard feedback <id> --name "..." --contact "..."
 ```
 
 *Full reference: `COMMANDS.md`. Day-to-day routine: `SOP.md`.*
