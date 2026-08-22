@@ -728,3 +728,59 @@ def test_tokens_backfill_like_bodies(store: Store) -> None:
     store.record_response("reed:1", "ACK", sender="hr@x.com", subject="Thanks",
                           received_at="2026-08-19", tokens=("124894",))
     assert store.known_threads().get("token:124894") == "reed:1"
+
+
+def test_a_better_classification_replaces_ambiguous(store: Store) -> None:
+    """The state was frozen at whatever the first poll decided. Every later
+    poll re-classified correctly and threw the result away, which is why
+    widening the classifier changed nothing the operator could see."""
+    store.record_response("reed:1", "AMBIGUOUS", sender="hr@x.com",
+                          subject="Update", received_at="2026-08-21")
+    store.record_response("reed:1", "DECLINE", sender="hr@x.com",
+                          subject="Update", received_at="2026-08-21")
+    assert store.latest_response("reed:1")["state"] == "DECLINE"
+
+
+def test_a_decided_state_is_not_overwritten(store: Store) -> None:
+    """A message classified DECLINE must not silently become ACK because a
+    threshold moved."""
+    store.record_response("reed:1", "DECLINE", sender="hr@x.com",
+                          subject="Update", received_at="2026-08-21")
+    store.record_response("reed:1", "ACK", sender="hr@x.com",
+                          subject="Update", received_at="2026-08-21")
+    assert store.latest_response("reed:1")["state"] == "DECLINE"
+
+
+def test_ambiguous_does_not_replace_ambiguous(store: Store) -> None:
+    store.record_response("reed:1", "AMBIGUOUS", sender="hr@x.com",
+                          subject="Update", received_at="2026-08-21")
+    store.record_response("reed:1", "AMBIGUOUS", sender="hr@x.com",
+                          subject="Update", received_at="2026-08-21")
+    assert len(store.responses()) == 1
+
+
+def test_reclassify_works_from_stored_bodies(store: Store) -> None:
+    """No mailbox needed: a classifier improved after the fact applies to
+    everything already received."""
+    store.record_response("reed:1", "AMBIGUOUS", sender="hr@x.com",
+                          subject="Update", received_at="2026-08-21",
+                          body="The team has decided to proceed with others.")
+
+    changed, total = store.reclassify(lambda row: "DECLINE")
+    assert changed == 1
+    assert store.latest_response("reed:1")["state"] == "DECLINE"
+
+
+def test_reclassify_leaves_decided_records_alone(store: Store) -> None:
+    store.record_response("reed:1", "ACK", sender="hr@x.com", subject="Thanks",
+                          received_at="2026-08-21", body="We received it.")
+    changed, _ = store.reclassify(lambda row: "DECLINE")
+    assert changed == 0
+    assert store.latest_response("reed:1")["state"] == "ACK"
+
+
+def test_reclassify_skips_records_with_no_body(store: Store) -> None:
+    store.record_response("reed:1", "AMBIGUOUS", sender="hr@x.com",
+                          subject="Update", received_at="2026-08-21")
+    changed, _ = store.reclassify(lambda row: "DECLINE")
+    assert changed == 0

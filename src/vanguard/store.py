@@ -545,7 +545,18 @@ class Store:
                 "               THEN excluded.message_id"
                 "               ELSE responses.message_id END,"
                 "   tokens = CASE WHEN responses.tokens = ''"
-                "               THEN excluded.tokens ELSE responses.tokens END",
+                "               THEN excluded.tokens ELSE responses.tokens END,"
+                # A better classification must be able to replace AMBIGUOUS.
+                # Without this the state was frozen at whatever the first
+                # poll decided, and every later poll re-classified correctly
+                # and threw the result away — which is why widening the
+                # classifier changed nothing the operator could see.
+                #
+                # Only AMBIGUOUS is replaced. A message classified DECLINE
+                # must not silently become ACK on a re-read.
+                "   state = CASE WHEN responses.state = 'AMBIGUOUS'"
+                "               AND excluded.state != 'AMBIGUOUS'"
+                "               THEN excluded.state ELSE responses.state END",
                 (vacancy_id, key, state, sender, subject, received_at,
                  datetime.now(timezone.utc).isoformat(timespec="seconds"),
                  method, message_id, (body or "")[:8000],
@@ -593,6 +604,33 @@ class Store:
             if len(subject) > 12:
                 out[f"subject:{subject}"] = row["vacancy_id"]
         return out
+
+    def reclassify(self, classify_fn) -> tuple[int, int]:
+        """Re-run classification over stored bodies.
+
+        Returns `(changed, total)`. Needs no mailbox: the bodies are already
+        held, so a classifier improved after the fact can be applied to
+        everything already received.
+        """
+        rows = self.responses(limit=5000)
+        changed = 0
+
+        with self.connect() as conn:
+            for row in rows:
+                if not (row["body"] or "").strip():
+                    continue
+                new_state = classify_fn(row)
+                if not new_state or new_state == row["state"]:
+                    continue
+                # Same rule as on write: only an AMBIGUOUS record is replaced.
+                if row["state"] != "AMBIGUOUS":
+                    continue
+                conn.execute("UPDATE responses SET state = ? WHERE id = ?",
+                             (new_state, row["id"]))
+                changed += 1
+            conn.commit()
+
+        return changed, len(rows)
 
     def latest_response(self, vacancy_id: str) -> sqlite3.Row | None:
         with self.connect() as conn:

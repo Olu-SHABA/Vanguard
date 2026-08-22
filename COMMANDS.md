@@ -1199,6 +1199,26 @@ Find one with `vanguard responses --status DECLINE`. Where the rejection came
 by phone or through a portal there is no classified message, and `--force`
 covers that.
 
+## `vanguard reclassify`
+
+Re-run classification over messages already received.
+
+```bash
+vanguard reclassify --dry-run
+vanguard reclassify
+```
+
+**Needs no mailbox.** The bodies are stored, so a classifier improved after
+the fact applies to everything already in the register.
+
+**Only `AMBIGUOUS` records change.** A message already classified DECLINE
+must not silently become something else because a threshold moved.
+
+A record with no body stored cannot be reclassified — `vanguard poll` fills
+those in from the mailbox, if the message is still there.
+
+---
+
 ## `vanguard funnel`
 
 Where applications get to, and where they stop.

@@ -3024,6 +3024,80 @@ def funnel_cmd(db, reasons) -> None:
                        "rejection does.")
 
 
+@main.command("reclassify")
+@click.option("--dry-run", is_flag=True, help="Report what would change.")
+@click.option("--db", default=DEFAULTS["db"])
+@click.option("--no-model", is_flag=True, help="Rules only.")
+def reclassify_cmd(dry_run, db, no_model) -> None:
+    """Re-run classification over messages already received.
+
+    Needs no mailbox — the bodies are stored, so a classifier improved after
+    the fact applies to everything already in the register.
+
+    **Only AMBIGUOUS records are changed.** A message already classified
+    DECLINE must not silently become something else because a threshold
+    moved.
+    """
+    from datetime import datetime, timezone
+
+    from vanguard.mail import Message, classify
+
+    store, _ = _ctx(db)
+    width = _terminal_width()
+    classifier, classifier_name = _embedder(not no_model)
+
+    def _classify(row) -> str:
+        message = Message(
+            message_id=row["message_id"] or "",
+            sender=row["sender"] or "",
+            subject=row["subject"] or "",
+            body=row["body"] or "",
+            received=datetime.now(timezone.utc),
+        )
+        return classify(message, embedder=classifier).state.value
+
+    rows = [r for r in store.responses(limit=5000)
+            if r["state"] == "AMBIGUOUS" and (r["body"] or "").strip()]
+
+    click.echo(ui.rule(f"RECLASSIFY  ·  {len(rows)} ambiguous with a body "
+                       f"[{classifier_name}]"))
+
+    if not rows:
+        without_body = sum(1 for r in store.responses(limit=5000)
+                           if r["state"] == "AMBIGUOUS" and not (r["body"] or "").strip())
+        if without_body:
+            click.echo(f"  {without_body} ambiguous record(s) have no body "
+                       "stored — `vanguard poll` fills them in")
+        else:
+            click.echo("  nothing to reclassify")
+        return
+
+    proposed = [(row, _classify(row)) for row in rows]
+    moved = [(row, state) for row, state in proposed if state != "AMBIGUOUS"]
+
+    if moved:
+        click.echo(ui.table(
+            [
+                ui.Column("NOW", 0.4, 9),
+                ui.Column("EMPLOYER", 0.9, 12),
+                ui.Column("SUBJECT", 1.5, 16),
+                ui.Column("ID", 0.9, 12, tone=ui.Tone.MUTED, protected=True),
+            ],
+            [[state, row["employer"] or "", row["subject"] or "",
+              row["vacancy_id"]] for row, state in moved],
+        ))
+
+    if dry_run:
+        click.echo(f"\n  dry run — {len(moved)} would change")
+        return
+
+    changed, total = store.reclassify(_classify)
+    click.echo(f"\n  {ui.badge('RECLASSIFIED', ui.Tone.GOOD)} {changed}")
+    if len(rows) > len(moved):
+        click.echo(f"  {len(rows) - len(moved)} still ambiguous — read them "
+                   "with `vanguard responses <ID>`")
+
+
 # ---------------------------------------------------------------------------
 # Response loop (Route 5) — classify only. Never sends.
 # ---------------------------------------------------------------------------
