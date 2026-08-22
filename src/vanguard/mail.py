@@ -842,7 +842,129 @@ def correlate(
 
 # --- classification --------------------------------------------------------
 
-def classify(message: Message) -> Classification:
+#: Reference sentences per state, for semantic classification.
+#:
+#: A phrase list is a treadmill: every employer's wording is a new defect, and
+#: "the team has decided to proceed with other candidates" — unmistakably a
+#: rejection — matched nothing in a list of five markers.
+#:
+#: These are not markers. They are EXAMPLES of what each state sounds like,
+#: compared by meaning rather than by substring, so a wording nobody
+#: anticipated still lands in the right place.
+REFERENCES: dict[str, tuple[str, ...]] = {
+    "DECLINE": (
+        "Unfortunately you have not been successful on this occasion.",
+        "The team has decided to proceed with other candidates.",
+        "We will not be taking your application any further.",
+        "We have chosen to move forward with applicants whose experience is a"
+        " closer match.",
+        "On this occasion we are unable to offer you an interview.",
+        "On this occasion we are unable to take your application further.",
+        "We regret to inform you that your application was unsuccessful.",
+        "After reviewing your application we have decided not to progress it.",
+        "The position has been filled by another candidate.",
+    ),
+    "PROGRESS": (
+        "We would like to invite you to an interview.",
+        "We would like to arrange a call to discuss the role further.",
+        "Please complete the attached technical assessment.",
+        "The team would like to meet you for the next stage.",
+        "Are you available for a conversation this week?",
+        "We would like to move you forward to the next round.",
+        "Please book a time using the link below to speak with the team.",
+    ),
+    "OFFER": (
+        "We are pleased to offer you the position.",
+        "We would like to offer you the role and have attached the details.",
+        "Congratulations, the team would like to welcome you aboard.",
+        "Please find enclosed your formal offer of employment.",
+    ),
+    "ACK": (
+        "Thank you for applying. We have received your application.",
+        "This is confirmation that your application has been submitted.",
+        "We have received your details and will be in touch.",
+        "Your application is now with the hiring team for review.",
+    ),
+    "QUERY": (
+        "Could you confirm your notice period and salary expectations?",
+        "We need a few more details before we can proceed.",
+        "Please send us a copy of your right to work documentation.",
+    ),
+    "ADMIN": (
+        "Your interview has been rescheduled to Thursday.",
+        "Here is the joining link for your call.",
+        "Please use the portal below to upload your documents.",
+    ),
+}
+
+#: How close a message must sit to a reference before the meaning decides.
+#:
+#: **AUTHORED, not measured.** Below this the message is left AMBIGUOUS, which
+#: asks the operator to read it — the right failure. Above it, a state is
+#: assigned on similarity alone, and a wrong DECLINE drafts a feedback letter
+#: for a rejection nobody sent.
+SEMANTIC_THRESHOLD = 0.55
+
+
+def classify_semantically(message: Message, embedder,
+                          threshold: float = SEMANTIC_THRESHOLD
+                          ) -> Classification | None:
+    """Classify by meaning, where no marker fired.
+
+    Compares the message's decision-bearing sentences against reference
+    examples of each state. Returns None when nothing is close enough —
+    AMBIGUOUS is the correct answer to a message that says nothing clear.
+
+    Runs on the LOCAL embedder. Mail is at least as personal as the CV, and
+    the ruling that keeps embeddings off an API applies here with more force.
+    """
+    if embedder is None:
+        return None
+
+    best_state, best_score, best_line = "", 0.0, ""
+
+    for line in _decision_sentences(message):
+        for state, examples in REFERENCES.items():
+            for example in examples:
+                try:
+                    score = embedder.similarity(line, example)
+                except Exception:
+                    return None
+                if score > best_score:
+                    best_state, best_score, best_line = state, score, line
+
+    if not best_state or best_score < threshold:
+        return None
+
+    return Classification(
+        State(best_state), 6, (best_line[:90],),
+        f"semantic match at {best_score:.2f} — no marker fired",
+    )
+
+
+def _decision_sentences(message: Message) -> list[str]:
+    """Sentences worth classifying on.
+
+    A signature block, a legal footer and an unsubscribe line carry no
+    decision and drag every similarity toward nothing.
+    """
+    text = f"{message.subject}\n{message.body}"
+    lines: list[str] = []
+    for raw in re.split(r"(?<=[.!?])\s+|\n+", text):
+        line = raw.strip()
+        if len(line) < 20 or len(line) > 300:
+            continue
+        low = line.lower()
+        if any(marker in low for marker in (
+                "unsubscribe", "privacy policy", "confidential",
+                "registered in england", "this email and any attachments",
+                "do not reply", "view this email")):
+            continue
+        lines.append(line)
+    return lines[:40]
+
+
+def classify(message: Message, embedder=None) -> Classification:
     """Assign one of seven states. First rule to fire wins.
 
     DECLINE is checked before PROGRESS. A decline phrase always wins over a
@@ -893,6 +1015,16 @@ def classify(message: Message) -> Classification:
         return Classification(State.ADMIN, 3, tuple(admin))
 
     # RULE 4 — everything else. Surfaced to the operator, never forced.
+    # RULE 5 — meaning, where no marker fired.
+    #
+    # A phrase list is a treadmill. "The team has decided to proceed with
+    # other candidates" is unmistakably a rejection and matched none of the
+    # five DECLINE markers. Rules stay first because they are deterministic
+    # and explainable; this catches the wording nobody anticipated.
+    semantic = classify_semantically(message, embedder)
+    if semantic is not None:
+        return semantic
+
     return Classification(
         State.AMBIGUOUS, 4, (),
         "no marker fired — review manually rather than assume",

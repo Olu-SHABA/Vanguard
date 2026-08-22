@@ -1037,3 +1037,108 @@ def test_a_token_outranks_every_other_stage() -> None:
 
     result = correlate(message, apps, known_threads=threads)
     assert result.application.vacancy_id == "linkedin:a2d5"
+
+
+# ---------------------------------------------------------------------------
+# Meaning, not markers
+#
+# A phrase list is a treadmill: every employer's wording is a new defect.
+# "While the team has decided to proceed with other candidates" — an
+# unmistakable rejection — matched none of the five DECLINE markers, and the
+# message sat as AMBIGUOUS.
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def embedder():
+    from vanguard.rank import LexicalEmbedder
+
+    return LexicalEmbedder()
+
+
+@pytest.mark.parametrize(
+    "body, state",
+    [
+        ("While the team has decided to proceed with other candidates, we were "
+         "impressed by your background.", State.DECLINE),
+        ("We have chosen to move forward with applicants whose experience is a "
+         "closer match to the role.", State.DECLINE),
+        ("On this occasion we are unable to take your application further.",
+         State.DECLINE),
+        ("The team would like to meet you for the next stage. Are you free on "
+         "Thursday?", State.PROGRESS),
+        ("We are pleased to offer you the position of Data Scientist.",
+         State.OFFER),
+    ],
+)
+def test_wording_no_marker_covers_is_still_understood(embedder, body: str,
+                                                      state: State) -> None:
+    result = classify(msg(body, subject="Update to your application"),
+                      embedder=embedder)
+    assert result.state is state, result.note
+
+
+def test_the_exact_message_that_was_missed(embedder) -> None:
+    """WPP Media, 21 Aug 2026."""
+    result = classify(
+        msg("Thank you for taking the time to apply. While the team has "
+            "decided to proceed with other candidates, we were impressed by "
+            "your background.",
+            subject="Update to Your Application for Data Scientist"),
+        embedder=embedder)
+    assert result.state is State.DECLINE
+
+
+@pytest.mark.parametrize(
+    "subject, body",
+    [
+        ("Data Scientist at Sky", "New roles matching your search. Apply now."),
+        ("Your statement", "Your monthly statement is now available online."),
+        ("This week in data", "Five articles our editors picked for you."),
+        ("Hello", "Just checking in about a few things."),
+    ],
+)
+def test_noise_does_not_become_a_decision(embedder, subject: str,
+                                          body: str) -> None:
+    """A wrong DECLINE drafts a feedback letter for a rejection nobody sent.
+    AMBIGUOUS asks the operator to read it, which is the right failure."""
+    assert classify(msg(body, subject=subject),
+                    embedder=embedder).state is State.AMBIGUOUS
+
+
+def test_rules_still_win_where_they_fire(embedder) -> None:
+    """Deterministic and explainable beats inferred. A marker match names the
+    phrase that decided; a semantic match can only give a number."""
+    result = classify(msg("Unfortunately you have not been successful."),
+                      embedder=embedder)
+    assert result.state is State.DECLINE
+    assert result.rule == 1, "a marker must decide before meaning does"
+
+
+def test_a_semantic_decision_says_so(embedder) -> None:
+    """An operator must be able to tell a rule from an inference."""
+    result = classify(
+        msg("The team has decided to proceed with other candidates."),
+        embedder=embedder)
+    assert result.rule == 6
+    assert "semantic" in (result.note or "")
+
+
+def test_classification_works_without_a_model() -> None:
+    """torch is optional. Rules alone must still classify."""
+    assert classify(msg("Unfortunately you have not been successful.")
+                    ).state is State.DECLINE
+    assert classify(msg("Something entirely unclear.")).state is State.AMBIGUOUS
+
+
+def test_signatures_and_footers_are_not_classified(embedder) -> None:
+    """A legal footer carries no decision and drags every similarity toward
+    nothing."""
+    from vanguard.mail import _decision_sentences
+
+    message = msg("We have decided to proceed with other candidates.\n\n"
+                  "This email and any attachments are confidential.\n"
+                  "Registered in England and Wales number 123456.\n"
+                  "Unsubscribe from these emails.")
+    kept = _decision_sentences(message)
+    assert any("other candidates" in line for line in kept)
+    assert not any("confidential" in line.lower() for line in kept)

@@ -1443,11 +1443,14 @@ def archive_cmd(vacancy_id, root, limit) -> None:
               type=click.Choice(["auto", "targeted", "window"]), default=None,
               help="How to narrow the mailbox. Default from boards.yaml, else auto.")
 @click.option("--broad", is_flag=True, help="Alias for --strategy window.")
+@click.option("--no-model", is_flag=True,
+              help="Rules only. Faster, and misses wording no marker covers.")
 @click.option("--cv", default=DEFAULTS["cv"])
 @click.option("--db", default=DEFAULTS["db"])
 @click.option("--archive-root", default=str(ARCHIVE_ROOT))
 def poll_cmd(provider, since_days, limit, dry_run, verbose, show_uncorrelated,
-             category, strategy_name, broad, cv, db, archive_root) -> None:
+             category, strategy_name, broad, no_model, cv, db,
+             archive_root) -> None:
     """Read the mailbox, correlate replies to applications, classify them.
 
     Read-only. Never sends, never replies, never deletes.
@@ -1559,6 +1562,11 @@ def poll_cmd(provider, since_days, limit, dry_run, verbose, show_uncorrelated,
     # application without having to re-earn correlation on its own.
     threads = store.known_threads()
 
+    # The local embedder, for messages no marker matches. Mail is at least as
+    # personal as the CV, and the ruling that keeps embeddings off an API
+    # applies here with more force.
+    classifier, classifier_name = _embedder(not no_model)
+
     for message in messages:
         result = correlate(message, applications, known_threads=threads)
         if result.ambiguous:
@@ -1571,7 +1579,7 @@ def poll_cmd(provider, since_days, limit, dry_run, verbose, show_uncorrelated,
             uncorrelated.append(message)
             continue
 
-        outcome = classify(message)
+        outcome = classify(message, embedder=classifier)
         rows.append([
             outcome.state.value,
             _clip(result.application.employer, 20),
@@ -3050,7 +3058,10 @@ def mail_cmd(path, sender, subject, db) -> None:
         click.echo("  correlation failure is not a classification outcome")
         return
 
-    outcome = classify(message)
+    # The same local embedder poll uses, so a message read from a file is
+    # classified no worse than one read from the mailbox.
+    classifier, _ = _embedder(True)
+    outcome = classify(message, embedder=classifier)
     click.echo(f"correlated to {result.application.vacancy_id} via {result.method.value}")
     click.echo(f"{outcome}")
     if outcome.note:

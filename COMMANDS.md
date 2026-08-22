@@ -1067,6 +1067,32 @@ advert are both third parties naming an employer; the difference is intent,
 and it is visible in the subject. "Thank you for applying at X" correlates;
 "apply now to X" does not.
 
+### How a message is classified
+
+**Markers first.** Deterministic and explainable — the output names the phrase
+that decided, and the same message always classifies the same way.
+
+**Meaning second, where no marker fires.** A phrase list is a treadmill: every
+employer's wording is a new defect. *"While the team has decided to proceed
+with other candidates"* is an unmistakable rejection and matched none of the
+five DECLINE markers.
+
+The message's decision-bearing sentences are compared against reference
+examples of each state — not markers, examples of what each state *sounds
+like*. Signature blocks, legal footers and unsubscribe lines are excluded;
+they carry no decision and drag every similarity toward nothing.
+
+**Runs on the local embedder.** Mail is at least as personal as the CV, and
+the ruling that keeps embeddings off an API applies here with more force.
+`--no-model` uses rules only.
+
+**AMBIGUOUS when neither is sure**, which is the right failure: a wrong
+DECLINE drafts a feedback letter for a rejection nobody sent, while AMBIGUOUS
+asks you to read it.
+
+A semantically classified message says so, with its score, so you can tell a
+rule from an inference.
+
 | State | Meaning |
 |---|---|
 | `DECLINE` | Application closed unsuccessfully |
