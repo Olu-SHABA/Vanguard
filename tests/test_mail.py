@@ -1142,3 +1142,186 @@ def test_signatures_and_footers_are_not_classified(embedder) -> None:
     kept = _decision_sentences(message)
     assert any("other candidates" in line for line in kept)
     assert not any("confidential" in line.lower() for line in kept)
+
+
+# ---------------------------------------------------------------------------
+# A decision hidden in a clause
+#
+# WPP Media, 21 Aug 2026:
+#
+#   "While the team has decided to proceed with other candidates, we want to
+#    assure you that your skills, dedication, and the impact you are making
+#    are deeply valued here at WPP Media."
+#
+# The rejection is a subordinate clause and the rest is reassurance. Scored
+# whole the sentence reached 0.80; the clause alone reaches 0.96. Diluting a
+# decision with the comfort wrapped around it is how a rejection reads as
+# nothing in particular.
+# ---------------------------------------------------------------------------
+
+WPP_DECLINE = (
+    "Hi Olumide,\n\n"
+    "We truly appreciate the time, effort and interest you have shown with "
+    "the Data Scientist role. While the team has decided to proceed with "
+    "other candidates, we want to assure you that your skills, dedication, "
+    "and the impact you are making are deeply valued here at WPP Media.\n\n"
+    "We encourage you to explore the resources available from WPP Media "
+    "University to support your growth and development."
+)
+
+
+def test_a_decision_inside_a_clause_is_found(embedder) -> None:
+    result = classify(
+        msg(WPP_DECLINE,
+            subject="Update to Your Application for Data Scientist at WPP Media"),
+        embedder=embedder)
+    assert result.state is State.DECLINE, result.note
+
+
+def test_the_clause_scores_higher_than_the_sentence(embedder) -> None:
+    """The measurement behind the fix."""
+    from vanguard.mail import _decision_sentences
+
+    reference = "The team has decided to proceed with other candidates."
+    lines = _decision_sentences(msg(WPP_DECLINE, subject="Update"))
+
+    whole = next(l for l in lines
+                 if "assure you" in l and "while the team" in l.lower())
+    clause = next(l for l in lines
+                  if l.lower().startswith("while the team has decided")
+                  and "assure" not in l)
+
+    assert embedder.similarity(clause, reference) > embedder.similarity(
+        whole, reference)
+
+
+@pytest.mark.parametrize(
+    "sentence, expected",
+    [
+        ("While the team has decided to proceed with others, we wish you well",
+         "while the team has decided to proceed with others"),
+        ("Unfortunately we cannot take this further, but thank you",
+         "unfortunately we cannot take this further"),
+        ("Although your background is strong, we have chosen another candidate",
+         "although your background is strong"),
+    ],
+)
+def test_clauses_are_split_at_the_opener(sentence: str,
+                                         expected: str) -> None:
+    from vanguard.mail import _clauses_of
+
+    clauses = [c.lower() for c in _clauses_of(sentence)]
+    assert any(c.startswith(expected[:30]) for c in clauses), clauses
+
+
+def test_the_matching_acknowledgement_stays_an_acknowledgement(embedder) -> None:
+    """Both WPP messages come from the same address two days apart. Splitting
+    clauses must not turn the welcome into a rejection."""
+    ack = ("Thanks for your application to join WPP Media! We are excited you "
+           "are interested. Our team is reviewing applications, and we will be "
+           "in touch soon about the next steps in the interview process.")
+    assert classify(msg(ack, subject="Thank you for applying to WPP Media!"),
+                    embedder=embedder).state is State.ACK
+
+
+@pytest.mark.parametrize(
+    "subject, body",
+    [
+        ("Data Scientist at Sky",
+         "New roles matching your search, apply now, and see more today."),
+        ("This week in data",
+         "Here are five articles our editors picked, covering models and tooling."),
+        ("Your statement",
+         "Your monthly statement is available to view online, please log in."),
+    ],
+)
+def test_clause_splitting_did_not_make_it_eager(embedder, subject: str,
+                                                body: str) -> None:
+    """More candidate strings means more chances to match something. Noise
+    must still stay AMBIGUOUS."""
+    assert classify(msg(body, subject=subject),
+                    embedder=embedder).state is State.AMBIGUOUS
+
+
+def test_a_fragment_too_short_to_mean_anything_is_dropped() -> None:
+    from vanguard.mail import _clauses_of
+
+    assert all(len(c) >= 20
+               for c in _clauses_of("Hi, thanks, bye, all the best, regards"))
+
+
+# ---------------------------------------------------------------------------
+# A described outcome is not a decision
+#
+# Faculty, 14 Aug 2026, in an ACKNOWLEDGEMENT explaining its own process:
+#
+#   "We will then either invite you to an introductory video call, or let you
+#    know we will not be progressing your application on this occasion."
+#
+# `will not be progressing` is a DECLINE marker and it matched. An
+# acknowledgement classified DECLINE drafts a feedback letter for a decision
+# nobody made — the worst failure this classifier has.
+# ---------------------------------------------------------------------------
+
+FACULTY_ACK = (
+    "Thank you for applying. We have received your application.\n\n"
+    "Thank you so much for taking the time to apply for the Data Scientist at "
+    "Faculty.\n\nWhat happens next?\n\nOne of our Talent Partners will review "
+    "your application and assess if your skills align with the role.\n\nWe "
+    "will then either invite you to an introductory video call, or let you "
+    "know we will not be progressing your application on this occasion.\n\n"
+    "You should expect to hear from us within 10 working days."
+)
+
+FACULTY_DECLINE = (
+    "Thank you so much for taking the time to apply for our Data Scientist "
+    "role.\n\nUnfortunately, after careful consideration, we have decided to "
+    "move forward with other candidates at this time.\n\nThis decision was "
+    "not easy, given the number of talented applicants we received."
+)
+
+
+def test_a_described_outcome_is_not_a_decision(embedder) -> None:
+    result = classify(msg(FACULTY_ACK,
+                          subject="Faculty | Application Confirmation for Data Scientist"),
+                      embedder=embedder)
+    assert result.state is State.ACK, result.note
+
+
+def test_the_real_rejection_from_the_same_employer(embedder) -> None:
+    """Four days apart, same sender, same opening sentence. One announces a
+    decision and the other describes the possibility of one."""
+    result = classify(msg(FACULTY_DECLINE,
+                          subject="Faculty | Update on your application"),
+                      embedder=embedder)
+    assert result.state is State.DECLINE, result.note
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "We will then either invite you to a call, or let you know we will not "
+        "be progressing your application.",
+        "If we decide not to take your application further we will be in touch.",
+        "Should your application be unsuccessful, we will let you know.",
+    ],
+)
+def test_conditional_framing_never_classifies(embedder, body: str) -> None:
+    assert classify(msg(body, subject="Application received"),
+                    embedder=embedder).state is not State.DECLINE
+
+
+def test_a_plain_marker_still_fires_on_rule_one(embedder) -> None:
+    """Deterministic matching must not be lost to the guard."""
+    result = classify(msg("Unfortunately you have not been successful on this "
+                          "occasion."), embedder=embedder)
+    assert result.state is State.DECLINE
+    assert result.rule == 1
+
+
+def test_a_real_rejection_that_also_explains_its_process(embedder) -> None:
+    """A genuine decline may still describe what happens next. Checked per
+    sentence, so the announcement is not lost to the description."""
+    body = ("Unfortunately you have not been successful on this occasion. "
+            "If we have suitable roles in future we will be in touch.")
+    assert classify(msg(body), embedder=embedder).state is State.DECLINE

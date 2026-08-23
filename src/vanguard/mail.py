@@ -189,6 +189,37 @@ def _matches(text_low: str, markers: Iterable[str]) -> list[str]:
     return [m for m in markers if _phrase(text_low, m)]
 
 
+def _decisive_matches(text: str, markers: Iterable[str]) -> list[str]:
+    """Markers found in a sentence that ANNOUNCES rather than describes.
+
+    Faculty's acknowledgement explained its own process:
+
+        "We will then either invite you to an introductory video call, or let
+         you know we will not be progressing your application on this
+         occasion."
+
+    `will not be progressing` is a DECLINE marker and it matched. The
+    sentence is a description of a possible outcome, not a decision — and an
+    acknowledgement classified DECLINE drafts a feedback letter for a
+    decision nobody made.
+
+    So a marker only counts where the sentence carrying it is not
+    conditional. Checked per sentence rather than per message, because a real
+    rejection may still explain its process further down.
+    """
+    found: list[str] = []
+    sentences = [s for s in re.split(r"(?<=[.!?])\s+|\n+", text or "") if s.strip()]
+
+    for marker in markers:
+        for sentence in sentences:
+            low = sentence.lower()
+            if _phrase(low, marker) and not _is_conditional(sentence):
+                found.append(marker)
+                break
+
+    return found
+
+
 # ---------------------------------------------------------------------------
 # Broadcast senders — never a reply to an application
 #
@@ -862,6 +893,8 @@ REFERENCES: dict[str, tuple[str, ...]] = {
         "On this occasion we are unable to take your application further.",
         "We regret to inform you that your application was unsuccessful.",
         "After reviewing your application we have decided not to progress it.",
+        "We have decided to move forward with other candidates at this time.",
+        "After careful consideration we are moving forward with other applicants.",
         "The position has been filled by another candidate.",
     ),
     "PROGRESS": (
@@ -942,26 +975,110 @@ def classify_semantically(message: Message, embedder,
     )
 
 
+#: Words that begin a clause carrying the decision, where the rest of the
+#: sentence softens it. Observed 21 Aug 2026: WPP Media wrote
+#:
+#:   "While the team has decided to proceed with other candidates, we want to
+#:    assure you that your skills, dedication, and the impact you are making
+#:    are deeply valued here at WPP Media."
+#:
+#: The rejection is a subordinate clause and the rest is reassurance. Scored
+#: whole it reached 0.80; the clause alone reaches 0.96. Diluting a decision
+#: with the comfort wrapped around it is exactly how a rejection reads as
+#: nothing in particular.
+#: Phrasing that describes what MIGHT happen rather than what has. Faculty's
+#: acknowledgement explained its own process:
+#:
+#:   "We will then either invite you to an introductory video call, or let you
+#:    know we will not be progressing your application on this occasion."
+#:
+#: The second half reads as a rejection and is a description of one. An
+#: acknowledgement classified DECLINE drafts a feedback letter for a decision
+#: nobody made — the worst failure this classifier has.
+_CONDITIONAL = (
+    "either", " or let you know", "will then", "we will then", "we'll then",
+    "if we ", "if your application", "should your application",
+    "should we ", "in the event",
+)
+
+
+def _is_conditional(line: str) -> bool:
+    """Does this describe a possible outcome rather than announce one?"""
+    low = (line or "").lower()
+    return any(marker in low for marker in _CONDITIONAL)
+
+
+_CLAUSE_OPENERS = (
+    "while", "although", "though", "however", "unfortunately", "regrettably",
+    "sadly", "whilst", "but", "that said", "having said",
+)
+
+
 def _decision_sentences(message: Message) -> list[str]:
-    """Sentences worth classifying on.
+    """Sentences and clauses worth classifying on.
 
     A signature block, a legal footer and an unsubscribe line carry no
     decision and drag every similarity toward nothing.
+
+    Long sentences are ALSO offered as clauses. A rejection is routinely
+    written as a subordinate clause with reassurance attached, and scoring
+    the sentence whole averages the decision away.
     """
     text = f"{message.subject}\n{message.body}"
     lines: list[str] = []
+
     for raw in re.split(r"(?<=[.!?])\s+|\n+", text):
         line = raw.strip()
-        if len(line) < 20 or len(line) > 300:
+        if len(line) < 20 or len(line) > 400:
             continue
+
         low = line.lower()
         if any(marker in low for marker in (
                 "unsubscribe", "privacy policy", "confidential",
                 "registered in england", "this email and any attachments",
                 "do not reply", "view this email")):
             continue
-        lines.append(line)
-    return lines[:40]
+
+        # A sentence explaining what MIGHT happen is not a decision, and
+        # neither is any clause taken out of it.
+        if _is_conditional(line):
+            continue
+
+        lines.append(line[:300])
+
+        # And its clauses, where the sentence is long enough for a decision
+        # to hide inside one.
+        if len(line) > 90:
+            lines.extend(c for c in _clauses_of(line) if not _is_conditional(c))
+
+    # Deduplicate while keeping order — a short sentence is its own clause.
+    seen: set[str] = set()
+    unique = []
+    for line in lines:
+        if line not in seen:
+            seen.add(line)
+            unique.append(line)
+    return unique[:60]
+
+
+def _clauses_of(sentence: str) -> list[str]:
+    """Clauses that could carry a decision on their own.
+
+    Split on commas and semicolons. A fragment is kept only if it opens with
+    a word that introduces a decision, or is long enough to stand alone —
+    "we want to assure you that your skills" is neither.
+    """
+    out: list[str] = []
+    parts = [p.strip() for p in re.split(r"[;,]\s+", sentence) if p.strip()]
+
+    for index, part in enumerate(parts):
+        if len(part) < 20:
+            continue
+        first = part.split()[0].lower().strip(".,") if part.split() else ""
+        if index == 0 or first in _CLAUSE_OPENERS or len(part) >= 40:
+            out.append(part[:300])
+
+    return out
 
 
 def classify(message: Message, embedder=None) -> Classification:
@@ -973,9 +1090,9 @@ def classify(message: Message, embedder=None) -> Classification:
     low = message.text.lower()
 
     # RULE 1 — DECLINE. First, and it outranks everything.
-    declines = _matches(low, DECLINE_MARKERS)
+    declines = _decisive_matches(message.text, DECLINE_MARKERS)
     if declines:
-        progress = _matches(low, PROGRESS_MARKERS)
+        progress = _decisive_matches(message.text, PROGRESS_MARKERS)
         note = (
             "decline outranks progress phrasing in the same message"
             if progress else ""
@@ -984,13 +1101,13 @@ def classify(message: Message, embedder=None) -> Classification:
 
     # RULE 2 — OFFER. Before PROGRESS: an offer often invites a further call,
     # and reading that as another interview round would miss the outcome.
-    offers = _matches(low, OFFER_MARKERS)
+    offers = _decisive_matches(message.text, OFFER_MARKERS)
     if offers:
         return Classification(State.OFFER, 2, tuple(offers),
                               "an offer terminates the interview process")
 
     # RULE 3 — PROGRESS.
-    progress = _matches(low, PROGRESS_MARKERS)
+    progress = _decisive_matches(message.text, PROGRESS_MARKERS)
     if progress:
         return Classification(State.PROGRESS, 3, tuple(progress))
 

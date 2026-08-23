@@ -3056,15 +3056,19 @@ def reclassify_cmd(dry_run, db, no_model) -> None:
         )
         return classify(message, embedder=classifier).state.value
 
+    # Provisional states, not just AMBIGUOUS. An acknowledgement is a
+    # holding state, and Faculty's rejection sat as one.
+    PROVISIONAL = ("AMBIGUOUS", "ACK", "ADMIN")
     rows = [r for r in store.responses(limit=5000)
-            if r["state"] == "AMBIGUOUS" and (r["body"] or "").strip()]
+            if r["state"] in PROVISIONAL and (r["body"] or "").strip()]
 
-    click.echo(ui.rule(f"RECLASSIFY  ·  {len(rows)} ambiguous with a body "
+    click.echo(ui.rule(f"RECLASSIFY  ·  {len(rows)} undecided with a body "
                        f"[{classifier_name}]"))
 
     if not rows:
         without_body = sum(1 for r in store.responses(limit=5000)
-                           if r["state"] == "AMBIGUOUS" and not (r["body"] or "").strip())
+                           if r["state"] in PROVISIONAL
+                           and not (r["body"] or "").strip())
         if without_body:
             click.echo(f"  {without_body} ambiguous record(s) have no body "
                        "stored — `vanguard poll` fills them in")
@@ -3073,7 +3077,8 @@ def reclassify_cmd(dry_run, db, no_model) -> None:
         return
 
     proposed = [(row, _classify(row)) for row in rows]
-    moved = [(row, state) for row, state in proposed if state != "AMBIGUOUS"]
+    moved = [(row, state) for row, state in proposed
+             if state not in PROVISIONAL and state != row["state"]]
 
     if moved:
         click.echo(ui.table(
@@ -3094,8 +3099,8 @@ def reclassify_cmd(dry_run, db, no_model) -> None:
     changed, total = store.reclassify(_classify)
     click.echo(f"\n  {ui.badge('RECLASSIFIED', ui.Tone.GOOD)} {changed}")
     if len(rows) > len(moved):
-        click.echo(f"  {len(rows) - len(moved)} still ambiguous — read them "
-                   "with `vanguard responses <ID>`")
+        click.echo(f"  {len(rows) - len(moved)} unchanged — read them with "
+                   "`vanguard responses <ID>`")
 
 
 # ---------------------------------------------------------------------------

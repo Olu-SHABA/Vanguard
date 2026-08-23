@@ -1077,10 +1077,34 @@ employer's wording is a new defect. *"While the team has decided to proceed
 with other candidates"* is an unmistakable rejection and matched none of the
 five DECLINE markers.
 
-The message's decision-bearing sentences are compared against reference
-examples of each state — not markers, examples of what each state *sounds
-like*. Signature blocks, legal footers and unsubscribe lines are excluded;
-they carry no decision and drag every similarity toward nothing.
+The message's decision-bearing sentences **and clauses** are compared against
+reference examples of each state — not markers, examples of what each state *sounds
+like*. Signature blocks, legal footers and unsubscribe lines are excluded; they carry
+no decision and drag every similarity toward nothing.
+
+**A described outcome is not a decision.** Faculty's acknowledgement explained
+its own process:
+
+> *"We will then either invite you to an introductory video call, or let you
+> know we will not be progressing your application on this occasion."*
+
+`will not be progressing` is a DECLINE marker and it matched. The sentence
+describes a possible outcome rather than announcing one, and an
+acknowledgement classified DECLINE drafts a feedback letter for a decision
+nobody made. Conditional framing — *either … or*, *if we*, *should your
+application* — is excluded from both markers and meaning, checked per
+sentence so a real rejection can still explain what happens next.
+
+**Clauses matter.** A rejection is routinely written as a subordinate clause
+with reassurance attached:
+
+> *"While the team has decided to proceed with other candidates, we want to
+> assure you that your skills, dedication, and the impact you are making are
+> deeply valued."*
+
+Scored whole that sentence reaches 0.80; the clause alone reaches 0.96.
+Diluting a decision with the comfort wrapped around it is how a rejection
+reads as nothing in particular.
 
 **Runs on the local embedder.** Mail is at least as personal as the CV, and
 the ruling that keeps embeddings off an API applies here with more force.
@@ -1211,8 +1235,13 @@ vanguard reclassify
 **Needs no mailbox.** The bodies are stored, so a classifier improved after
 the fact applies to everything already in the register.
 
-**Only `AMBIGUOUS` records change.** A message already classified DECLINE
-must not silently become something else because a threshold moved.
+**Only undecided records change** — `AMBIGUOUS`, `ACK` and `ADMIN`. An
+acknowledgement is a holding state: it means nothing was decided yet, and
+Faculty's rejection sat as one while every later poll classified it DECLINE
+and threw the result away.
+
+A decided record — `DECLINE`, `OFFER`, `PROGRESS`, `QUERY` — is never
+overwritten.
 
 A record with no body stored cannot be reclassified — `vanguard poll` fills
 those in from the mailbox, if the message is still there.

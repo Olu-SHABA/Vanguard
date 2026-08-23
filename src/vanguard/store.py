@@ -546,16 +546,21 @@ class Store:
                 "               ELSE responses.message_id END,"
                 "   tokens = CASE WHEN responses.tokens = ''"
                 "               THEN excluded.tokens ELSE responses.tokens END,"
-                # A better classification must be able to replace AMBIGUOUS.
-                # Without this the state was frozen at whatever the first
-                # poll decided, and every later poll re-classified correctly
-                # and threw the result away — which is why widening the
-                # classifier changed nothing the operator could see.
+                # A DECISIVE classification replaces a PROVISIONAL one.
                 #
-                # Only AMBIGUOUS is replaced. A message classified DECLINE
-                # must not silently become ACK on a re-read.
-                "   state = CASE WHEN responses.state = 'AMBIGUOUS'"
-                "               AND excluded.state != 'AMBIGUOUS'"
+                # Restricting this to AMBIGUOUS was too narrow: Faculty's
+                # rejection was stored ACK, and every later poll classified it
+                # DECLINE correctly and threw the result away. An
+                # acknowledgement is a holding state — it means nothing was
+                # decided yet — so a later reading that finds a decision
+                # should win.
+                #
+                # A decisive state is never replaced. DECLINE must not become
+                # ACK because a threshold moved.
+                "   state = CASE WHEN responses.state IN"
+                "               ('AMBIGUOUS', 'ACK', 'ADMIN')"
+                "               AND excluded.state NOT IN"
+                "               ('AMBIGUOUS', 'ACK', 'ADMIN')"
                 "               THEN excluded.state ELSE responses.state END",
                 (vacancy_id, key, state, sender, subject, received_at,
                  datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -622,8 +627,11 @@ class Store:
                 new_state = classify_fn(row)
                 if not new_state or new_state == row["state"]:
                     continue
-                # Same rule as on write: only an AMBIGUOUS record is replaced.
-                if row["state"] != "AMBIGUOUS":
+                # Same rule as on write: a provisional state gives way to a
+                # decisive one, and a decisive one is never overwritten.
+                if row["state"] not in ("AMBIGUOUS", "ACK", "ADMIN"):
+                    continue
+                if new_state in ("AMBIGUOUS", "ACK", "ADMIN"):
                     continue
                 conn.execute("UPDATE responses SET state = ? WHERE id = ?",
                              (new_state, row["id"]))

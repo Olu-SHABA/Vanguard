@@ -772,11 +772,15 @@ def test_reclassify_works_from_stored_bodies(store: Store) -> None:
 
 
 def test_reclassify_leaves_decided_records_alone(store: Store) -> None:
-    store.record_response("reed:1", "ACK", sender="hr@x.com", subject="Thanks",
-                          received_at="2026-08-21", body="We received it.")
-    changed, _ = store.reclassify(lambda row: "DECLINE")
+    """Amended 21 Aug 2026: ACK is a PROVISIONAL state, not a decided one —
+    Faculty's rejection sat as an acknowledgement. Decided means DECLINE,
+    OFFER, PROGRESS or QUERY."""
+    store.record_response("reed:1", "DECLINE", sender="hr@x.com",
+                          subject="Update", received_at="2026-08-21",
+                          body="You have not been successful.")
+    changed, _ = store.reclassify(lambda row: "ACK")
     assert changed == 0
-    assert store.latest_response("reed:1")["state"] == "ACK"
+    assert store.latest_response("reed:1")["state"] == "DECLINE"
 
 
 def test_reclassify_skips_records_with_no_body(store: Store) -> None:
@@ -784,3 +788,30 @@ def test_reclassify_skips_records_with_no_body(store: Store) -> None:
                           subject="Update", received_at="2026-08-21")
     changed, _ = store.reclassify(lambda row: "DECLINE")
     assert changed == 0
+
+
+def test_a_decisive_state_replaces_an_acknowledgement(store: Store) -> None:
+    """Faculty's rejection was stored ACK, and every later poll classified it
+    DECLINE correctly and threw the result away. An acknowledgement is a
+    holding state — it means nothing was decided yet."""
+    store.record_response("reed:1", "ACK", sender="hr@x.com", subject="Update",
+                          received_at="2026-08-18")
+    store.record_response("reed:1", "DECLINE", sender="hr@x.com",
+                          subject="Update", received_at="2026-08-18")
+    assert store.latest_response("reed:1")["state"] == "DECLINE"
+
+
+def test_an_acknowledgement_does_not_replace_a_decline(store: Store) -> None:
+    store.record_response("reed:1", "DECLINE", sender="hr@x.com",
+                          subject="Update", received_at="2026-08-18")
+    store.record_response("reed:1", "ACK", sender="hr@x.com", subject="Update",
+                          received_at="2026-08-18")
+    assert store.latest_response("reed:1")["state"] == "DECLINE"
+
+
+def test_reclassify_reaches_acknowledgements(store: Store) -> None:
+    store.record_response("reed:1", "ACK", sender="hr@x.com", subject="Update",
+                          received_at="2026-08-18",
+                          body="We have decided to move forward with others.")
+    changed, _ = store.reclassify(lambda row: "DECLINE")
+    assert changed == 1
