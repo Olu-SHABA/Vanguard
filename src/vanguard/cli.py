@@ -28,6 +28,7 @@ import shutil
 import sys
 import textwrap
 from pathlib import Path
+from typing import Sequence
 
 try:
     import click
@@ -1000,6 +1001,58 @@ def _cv_header(cv_path: str) -> tuple[str, str]:
     return name, contact
 
 
+#: How listings sort. Employer by default: an operator scanning a list is
+#: almost always looking for one company, and a chronological list makes that
+#: the one thing you cannot do.
+SORT_KEYS = ("employer", "state", "via", "date", "subject")
+
+
+def _sorted_rows(rows, key: str, *, reverse: bool = False,
+                 state_order: Sequence[str] = ()) -> list:
+    """Order a listing. Unknown keys fall back to employer rather than raise.
+
+    A secondary sort on date keeps a company's messages in the order they
+    arrived, so grouping by employer does not scramble a conversation.
+    """
+    key = (key or "employer").lower()
+
+    def _text(row, name: str) -> str:
+        try:
+            value = row[name]
+        except (KeyError, IndexError, TypeError):
+            value = getattr(row, name, "")
+        return (value or "").lower()
+
+    def _when(row) -> str:
+        return _text(row, "received_at") or _text(row, "recorded_at")
+
+    if key == "state" and state_order:
+        rank = {name.lower(): index for index, name in enumerate(state_order)}
+        return sorted(rows, key=lambda r: (rank.get(_text(r, "state"), 99),
+                                           _text(r, "employer"), _when(r)),
+                      reverse=reverse)
+
+    if key == "via":
+        return sorted(rows, key=lambda r: (_text(r, "method"),
+                                           _text(r, "employer"), _when(r)),
+                      reverse=reverse)
+
+    if key == "date":
+        return sorted(rows, key=_when, reverse=not reverse)
+
+    if key == "subject":
+        return sorted(rows, key=lambda r: (_text(r, "subject"), _when(r)),
+                      reverse=reverse)
+
+    return sorted(rows, key=lambda r: (_text(r, "employer"), _when(r)),
+                  reverse=reverse)
+
+
+#: States ordered by what needs attention, for `--sort state`.
+STATE_ORDER = ("OFFER", "PROGRESS", "QUERY", "DECLINE", "AMBIGUOUS",
+               "ADMIN", "ACK")
+
+
 def _coverage_cell(row) -> tuple[str, str]:
     """Coverage and its denominator — or a marker when it was not measured.
 
@@ -1445,11 +1498,13 @@ def archive_cmd(vacancy_id, root, limit) -> None:
 @click.option("--broad", is_flag=True, help="Alias for --strategy window.")
 @click.option("--no-model", is_flag=True,
               help="Rules only. Faster, and misses wording no marker covers.")
+@click.option("--sort", "sort_key", type=click.Choice(list(SORT_KEYS)),
+              default="employer", help="Order the listing. Default employer.")
 @click.option("--cv", default=DEFAULTS["cv"])
 @click.option("--db", default=DEFAULTS["db"])
 @click.option("--archive-root", default=str(ARCHIVE_ROOT))
 def poll_cmd(provider, since_days, limit, dry_run, verbose, show_uncorrelated,
-             category, strategy_name, broad, no_model, cv, db,
+             category, strategy_name, broad, no_model, sort_key, cv, db,
              archive_root) -> None:
     """Read the mailbox, correlate replies to applications, classify them.
 
@@ -1610,6 +1665,18 @@ def poll_cmd(provider, since_days, limit, dry_run, verbose, show_uncorrelated,
                 processes.append((result.application, process, outcome.state))
 
     if rows:
+        # `rows` are plain lists here, ordered as the mailbox returned them.
+        # Sorted by the same keys the register uses, so the two listings can
+        # be read against each other.
+        _POSITION = {"state": 0, "employer": 1, "subject": -2, "via": -1}
+        if sort_key == "state":
+            order = {name: i for i, name in enumerate(STATE_ORDER)}
+            rows.sort(key=lambda r: (order.get(r[0], 99), r[1].lower()))
+        elif sort_key in _POSITION and sort_key != "date":
+            index = _POSITION[sort_key]
+            rows.sort(key=lambda r: ((r[index] or "").lower(),
+                                     (r[1] or "").lower()))
+
         columns = [
             ui.Column("STATE", 0.4, 9),
             ui.Column("EMPLOYER", 0.8, 12),
@@ -2062,6 +2129,9 @@ def interviews_cmd(vacancy_id, show_all, withdraw, db) -> None:
         click.echo("no active interview processes"
                    if not show_all else "no interview processes recorded")
         return
+
+    listing.sort(key=lambda p: ((store.vacancy(p.vacancy_id) or {})["employer"]
+                                or "" if store.vacancy(p.vacancy_id) else "").lower())
 
     click.echo(ui.rule(f"INTERVIEWS  ·  {len(listing)}"))
     rows = []
@@ -2843,9 +2913,12 @@ def draft_cmd(vacancy_id, name, contact, hiring_manager, out_dir, show, boards,
 @main.command("responses")
 @click.argument("vacancy_id", required=False)
 @click.option("--status", default="", help="ACK, PROGRESS, DECLINE, OFFER, QUERY, ADMIN.")
+@click.option("--sort", "sort_key", type=click.Choice(list(SORT_KEYS)),
+              default="employer", help="Order the listing. Default employer.")
+@click.option("--reverse", is_flag=True, help="Reverse the order.")
 @click.option("--limit", default=40)
 @click.option("--db", default=DEFAULTS["db"])
-def responses_cmd(vacancy_id, status, limit, db) -> None:
+def responses_cmd(vacancy_id, status, sort_key, reverse, limit, db) -> None:
     """Replies that correlated to an application, and what they were.
 
     Classifications were written to the archive and to the interview process,
@@ -2892,7 +2965,8 @@ def responses_cmd(vacancy_id, status, limit, db) -> None:
                     click.echo(f"      {wrapped}")
         return
 
-    rows = store.responses(status, limit=limit)
+    rows = _sorted_rows(store.responses(status, limit=limit), sort_key,
+                        reverse=reverse, state_order=STATE_ORDER)
 
     if not rows:
         click.echo(f"no {status.upper() or 'correlated'} responses recorded")
@@ -2900,17 +2974,20 @@ def responses_cmd(vacancy_id, status, limit, db) -> None:
         return
 
     click.echo(ui.rule(f"RESPONSES  ·  {len(rows)}"
-                       + (f"  ·  {status.upper()}" if status else "")))
+                       + (f"  ·  {status.upper()}" if status else "")
+                       + f"  ·  by {sort_key}"))
     click.echo(ui.table(
         [
             ui.Column("STATE", 0.4, 9),
             ui.Column("WHEN", 0.4, 10, tone=ui.Tone.MUTED),
             ui.Column("EMPLOYER", 0.9, 12),
-            ui.Column("SUBJECT", 1.4, 14),
+            ui.Column("SUBJECT", 1.3, 14),
+            ui.Column("VIA", 0.4, 7, tone=ui.Tone.MUTED),
             ui.Column("ID", 0.9, 12, tone=ui.Tone.MUTED, protected=True),
         ],
         [[r["state"], (r["received_at"] or r["recorded_at"] or "")[:10],
-          r["employer"] or "", r["subject"] or "", r["vacancy_id"]]
+          r["employer"] or "", r["subject"] or "", r["method"] or "",
+          r["vacancy_id"]]
          for r in rows],
     ))
 
@@ -2923,7 +3000,10 @@ def responses_cmd(vacancy_id, status, limit, db) -> None:
 @main.command("funnel")
 @click.option("--db", default=DEFAULTS["db"])
 @click.option("--reasons", is_flag=True, help="Show every stated reason.")
-def funnel_cmd(db, reasons) -> None:
+@click.option("--sort", "sort_key",
+              type=click.Choice(["employer", "stage", "date"]),
+              default="employer", help="Order the reasons. Default employer.")
+def funnel_cmd(db, reasons, sort_key) -> None:
     """Where applications get to, and where they stop.
 
     Every rejection looked alike: rejected on the CV and rejected after a
@@ -3007,6 +3087,13 @@ def funnel_cmd(db, reasons) -> None:
         click.echo(f"  {len(stated)} of {len(failures)} rejection(s) gave a reason")
 
         if stated and (reasons or len(stated) <= 5):
+            if sort_key == "stage":
+                stated.sort(key=lambda p: -p.depth)
+            else:
+                stated.sort(key=lambda p: (
+                    (store.vacancy(p.vacancy_id) or {})["employer"] or ""
+                    if store.vacancy(p.vacancy_id) else p.vacancy_id).lower())
+
             for point in stated:
                 vacancy = store.vacancy(point.vacancy_id)
                 click.echo()

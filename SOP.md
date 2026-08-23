@@ -250,7 +250,7 @@ learned. That is a table entry, not a reason to ignore the score.
 [ ] vanguard apply <id>                what it needs, and where
 [ ] apply there yourself, then: vanguard dispatch <id>
 [ ] vanguard poll                      replies
-[ ] vanguard responses                 what came back
+[ ] vanguard responses --sort state    what came back, urgent first
 ```
 
 **Stop and investigate if:**

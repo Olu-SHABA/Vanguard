@@ -1888,3 +1888,99 @@ def test_the_sop_covers_the_daily_commands() -> None:
     missing = [name for name in daily if f"vanguard {name}" not in sop]
     assert not missing, f"SOP.md does not mention {missing}"
 
+
+
+# ---------------------------------------------------------------------------
+# Sorting
+#
+# Chronological was the only order available, and an operator scanning a list
+# is almost always looking for one company.
+# ---------------------------------------------------------------------------
+
+def _mixed_responses(tmp_path: Path) -> Path:
+    from vanguard.adapters.base import Vacancy
+    from vanguard.store import Store
+
+    db = tmp_path / "v.db"
+    store = Store(db)
+    store.initialise()
+    rows = [("Zeta", "ACK", "ats", "2026-08-11"),
+            ("Alpha", "DECLINE", "thread", "2026-08-19"),
+            ("Mu", "PROGRESS", "sender_domain", "2026-08-14"),
+            ("Alpha", "ACK", "ats", "2026-08-12")]
+    for i, (employer, state, method, when) in enumerate(rows):
+        store.upsert_vacancy(Vacancy(id=f"reed:{i}", board_id="reed",
+                                     employer=employer, title="Role",
+                                     description="d"))
+        store.record_response(f"reed:{i}", state, sender="hr@x.com",
+                              subject=f"{employer} message", received_at=when,
+                              method=method)
+    return db
+
+
+def _column(output: str, index: int) -> list[str]:
+    rows = [line.split() for line in output.splitlines()
+            if line.startswith("  ") and "202" in line]
+    return [r[index] for r in rows if len(r) > index]
+
+
+def test_responses_sort_by_employer_by_default(runner: CliRunner,
+                                               tmp_path: Path) -> None:
+    """An operator scanning a list is almost always looking for one company,
+    and a chronological list makes that the one thing you cannot do."""
+    db = _mixed_responses(tmp_path)
+    out = runner.invoke(main, ["responses", "--db", str(db)]).output
+    employers = _column(out, 2)
+    assert employers == sorted(employers)
+
+
+def test_responses_can_sort_by_state(runner: CliRunner, tmp_path: Path) -> None:
+    """Ordered by what needs attention, not alphabetically — PROGRESS before
+    ACK matters more than P before A."""
+    db = _mixed_responses(tmp_path)
+    out = runner.invoke(main, ["responses", "--sort", "state",
+                               "--db", str(db)]).output
+    states = _column(out, 0)
+    assert states.index("PROGRESS") < states.index("DECLINE")
+    assert states.index("DECLINE") < states.index("ACK")
+
+
+def test_responses_can_sort_by_via(runner: CliRunner, tmp_path: Path) -> None:
+    db = _mixed_responses(tmp_path)
+    out = runner.invoke(main, ["responses", "--sort", "via",
+                               "--db", str(db)]).output
+    assert "ats" in out and "thread" in out
+
+
+def test_responses_can_sort_by_date(runner: CliRunner, tmp_path: Path) -> None:
+    """Newest first, which is what a date sort is for."""
+    db = _mixed_responses(tmp_path)
+    out = runner.invoke(main, ["responses", "--sort", "date",
+                               "--db", str(db)]).output
+    dates = _column(out, 1)
+    assert dates == sorted(dates, reverse=True)
+
+
+def test_the_same_employers_messages_stay_in_order(runner: CliRunner,
+                                                   tmp_path: Path) -> None:
+    """Grouping by employer must not scramble a conversation."""
+    db = _mixed_responses(tmp_path)
+    out = runner.invoke(main, ["responses", "--db", str(db)]).output
+    alpha = [line for line in out.splitlines() if "Alpha" in line]
+    assert "2026-08-12" in alpha[0] and "2026-08-19" in alpha[1]
+
+
+def test_via_is_shown(runner: CliRunner, tmp_path: Path) -> None:
+    """Sorting by a column nobody can see is not useful."""
+    db = _mixed_responses(tmp_path)
+    out = runner.invoke(main, ["responses", "--db", str(db)]).output
+    assert "VIA" in out
+    assert "thread" in out
+
+
+def test_an_unknown_sort_key_is_refused(runner: CliRunner,
+                                        tmp_path: Path) -> None:
+    db = _mixed_responses(tmp_path)
+    result = runner.invoke(main, ["responses", "--sort", "nonsense",
+                                  "--db", str(db)])
+    assert result.exit_code != 0

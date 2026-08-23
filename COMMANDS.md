@@ -1159,7 +1159,30 @@ vanguard responses linkedin:c56f76c4cbf8a346    # read the messages themselves
 | Option | Effect |
 |---|---|
 | `--status` | `ACK`, `PROGRESS`, `DECLINE`, `OFFER`, `QUERY`, `ADMIN`, `AMBIGUOUS` |
+| `--sort` | `employer` (default), `state`, `via`, `date`, `subject` |
+| `--reverse` | Reverse the order |
 | `--limit` | How many to show. Default 40 |
+
+### Sorting
+
+**Employer by default.** An operator scanning a list is almost always looking
+for one company, and a chronological list makes that the one thing you cannot
+do. Within an employer, messages stay in the order they arrived, so grouping
+does not scramble a conversation.
+
+| `--sort` | Orders by |
+|---|---|
+| `employer` | Company name, then date within it |
+| `state` | **What needs attention** — OFFER, PROGRESS, QUERY, DECLINE, AMBIGUOUS, ADMIN, ACK |
+| `via` | Which correlation stage matched: `thread`, `reference`, `sender_domain`, `ats`, `fuzzy` |
+| `date` | Newest first |
+| `subject` | Alphabetical |
+
+`--sort state` is ordered by urgency rather than alphabetically: an offer
+above an acknowledgement matters more than O before A.
+
+The same keys work on `vanguard poll` and, for the reasons block, on
+`vanguard funnel`.
 
 **Why it exists.** Classifications were written to the archive as files and to
 the interview process, but nothing was queryable — you could not ask *"what
@@ -1255,7 +1278,13 @@ Where applications get to, and where they stop.
 ```bash
 vanguard funnel
 vanguard funnel --reasons
+vanguard funnel --reasons --sort stage
 ```
+
+| Option | Effect |
+|---|---|
+| `--reasons` | Show every stated reason |
+| `--sort` | `employer` (default), `stage`, `date` — orders the reasons block |
 
 ```
 FUNNEL  ·  9 application(s) dispatched
