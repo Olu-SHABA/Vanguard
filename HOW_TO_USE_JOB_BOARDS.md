@@ -27,27 +27,52 @@ permanent one.
 Only one board is read automatically today. That is not a gap — it is what
 the sources allow.
 
-| Tier | Means | Boards |
+### Two halves: finding a job, and reading it
+
+A board can be automatable for one and not the other, and that is what
+decides the tier.
+
+| Board | Finding vacancies | Getting the advert |
 |---|---|---|
-| **api_official** | A documented API for candidates. Read automatically | Reed |
-| **feed** | A publisher's own email alerts, meant for syndication | — |
-| **manual** | You paste. No automation | Adzuna, LinkedIn, Civil Service, NHS Jobs |
+| **Reed** | API | **full text** — nothing to paste |
+| **Adzuna** | API works | capped at 500 characters |
+| **Civil Service** | email alerts | summaries only |
+| **NHS Jobs** | email alerts | summaries only |
+| **LinkedIn** | — | — (terms prohibit both) |
+
+**Reed is the only source that supplies a complete advert.**
+
+The other three can tell you a vacancy exists and where it is. They cannot
+give you enough text to score it — and a truncated advert does not score
+badly, it scores *meaninglessly*. Adzuna's 500-character cap produced
+`C=1.000` on a Service Centre Team Manager, because two requirements were
+extracted and the CV happened to match both.
+
+So the choice was: fetch automatically and get scores that look authoritative
+and measure nothing, or paste and get real ones. Scoring integrity won.
+
+### Why the reason barely matters to you
+
+In practice it makes no difference. Whether a board is manual because of its
+terms or because of truncation, **you still open the posting and copy the
+description**.
+
+It matters only for what might change. A terms restriction is permanent —
+LinkedIn will always be paste. A truncation is a capability limit, and if a
+full-text tier appears the board can be promoted without any other change.
 
 **Tier 3 is not second-class.** Scoring, gap classification, drafting and
 tracking all run identically on a pasted vacancy. Only the fetch is by hand.
 
-### Board by board
+### The rest
 
-| Board | Route | Why |
-|---|---|---|
-| **Reed** | automated | Official candidate API, self-service key |
-| **LinkedIn** | paste | User Agreement prohibits automated collection. A terms restriction, not a technical one, and not something to work around |
-| **Adzuna** | paste | Widest aggregated corpus. Manual on a capability limit, not a terms one |
-| **Civil Service** | paste | Bot-detection interstitial and `noindex`. Saved search + email alert, then paste the advert from the portal |
-| **NHS Jobs** | paste | **Resolved 22 Aug 2026** — see below. Saved search + alert, then paste. Success Profiles, so Template F |
-| **Totaljobs, CWJobs** | disabled | No public candidate API. Both StepStone-owned, so expect heavy mutual overlap |
-| **CV-Library, Monster** | disabled | No public candidate API. Email alerts available |
-| **Find a Job (DWP)** | disabled | Corpus is substantially Adzuna's; polling both double-counts |
+**Totaljobs and CWJobs** — no public candidate API. Both StepStone-owned, so
+expect heavy mutual overlap. Email alerts available.
+
+**CV-Library and Monster** — no public candidate API. Email alerts available.
+
+**Find a Job (DWP)** — its corpus is substantially Adzuna's, so polling both
+double-counts. Platform migration status needs verifying.
 
 ### The NHS question, settled
 
