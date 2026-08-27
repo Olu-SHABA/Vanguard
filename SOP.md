@@ -18,6 +18,7 @@ what to *do*; that one is what things *are*.
 |---|---|
 | `HOW_TO_ADD_A_JOB.md` | Entering one vacancy by hand |
 | `HOW_TO_ADD_MANY_JOBS.md` | Entering fifty at once |
+| `HOW_TO_USE_JOB_BOARDS.md` | Which boards are read, and why |
 | `HOW_TO_APPLY.md` | Applying, after review |
 | `HOW_TO_HANDLE_REPLIES.md` | Replies, interviews and rejections |
 | `HOW_TO_USE_REPOSITORY_EVIDENCE.md` | Finding CV evidence in your repositories |

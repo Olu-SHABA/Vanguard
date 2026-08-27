@@ -30,6 +30,7 @@ This document is the reference — what each command *is*. For what to *do*:
 |---|---|
 | `HOW_TO_ADD_A_JOB.md` | Entering one vacancy by hand |
 | `HOW_TO_ADD_MANY_JOBS.md` | Entering fifty at once |
+| `HOW_TO_USE_JOB_BOARDS.md` | Which boards are read, and why |
 | `HOW_TO_APPLY.md` | Applying, after review |
 | `HOW_TO_HANDLE_REPLIES.md` | Replies, interviews and rejections |
 | `HOW_TO_USE_REPOSITORY_EVIDENCE.md` | Finding CV evidence in your repositories |
@@ -121,6 +122,12 @@ characters, too little to extract requirements from. Both end in paste; the
 # Getting vacancies in
 
 ## `vanguard run`
+
+| Option | Effect |
+|---|---|
+| `--board` | Read from these boards only, this run. Repeat for several |
+| `--skip` | Every enabled board except these, this run |
+
 
 Fetch, rank, hydrate, score, queue, exit. The autonomous command.
 
@@ -358,6 +365,26 @@ The second row improved its coverage and kept its status, which is correct.
 
 **A filter is required.** Re-scoring the whole store silently is not something
 to do by accident.
+
+---
+
+## `vanguard board <enable|disable> <id>`
+
+Turn a board on or off permanently.
+
+```bash
+vanguard board enable totaljobs
+vanguard board disable totaljobs
+```
+
+Edits `boards.yaml` in place, changing only the `enabled:` line and leaving
+every comment and note intact — the notes record **why** a board is in the
+state it is, and losing them to a rewrite would lose the reasoning.
+
+For a one-off choice use `vanguard run --board` instead. Editing the file to
+try something out is how a temporary decision becomes permanent.
+
+*Which boards can be automated, and why: `HOW_TO_USE_JOB_BOARDS.md`.*
 
 ---
 

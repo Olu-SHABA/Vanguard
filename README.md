@@ -45,6 +45,7 @@ commit and nobody notices — run `pytest`.
 Day-to-day operation and troubleshooting: **`SOP.md`**.
 Adding a job by hand, five steps: **`HOW_TO_ADD_A_JOB.md`**.
 Adding many at once: **`HOW_TO_ADD_MANY_JOBS.md`**.
+Turning job boards on and off: **`HOW_TO_USE_JOB_BOARDS.md`**.
 Applying, after review: **`HOW_TO_APPLY.md`**.
 Handling replies and interviews: **`HOW_TO_HANDLE_REPLIES.md`**.
 Finding CV evidence in your repositories: **`HOW_TO_USE_REPOSITORY_EVIDENCE.md`**.

@@ -81,8 +81,19 @@ def test_unknown_adapter_named_clearly(registry) -> None:
 
 
 def test_declared_but_unimplemented_adapter_is_honest(registry) -> None:
+    """Amended 22 Aug 2026: `nhs_jobs` no longer names an unimplemented
+    adapter.
+
+    The NHS Jobs API turned out to be a PUBLISHER API — it lets trusts push
+    vacancies out to third-party sites, and cannot be searched by a
+    candidate. So `NHSJobsAPIAdapter` was never going to be written, and the
+    board is Tier 3 like LinkedIn.
+
+    `findajob_dwp` still declares an adapter that does not exist, which is
+    what this test is for.
+    """
     with pytest.raises(IngestionError, match="not yet implemented"):
-        build_adapter(registry.get("nhs_jobs"))
+        build_adapter(registry.get("findajob_dwp"))
 
 
 # --- isolation ------------------------------------------------------------

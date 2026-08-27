@@ -891,6 +891,7 @@ GUIDES = (
     "HOW_TO_HANDLE_REPLIES.md",
     "HOW_TO_USE_REPOSITORY_EVIDENCE.md",
     "HOW_TO_APPLY.md",
+    "HOW_TO_USE_JOB_BOARDS.md",
 )
 
 

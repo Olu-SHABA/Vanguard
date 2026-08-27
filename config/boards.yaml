@@ -135,13 +135,23 @@ boards:
            an absent `what` returns the whole index."
 
   - id: nhs_jobs
-    adapter: NHSJobsAPIAdapter
-    enabled: false                   # pending NHSBSA access arrangement
-    tier: api_official
+    adapter: ManualEntryAdapter
+    enabled: true
+    tier: manual                     # RESOLVED 22 Aug 2026 — see note
     priority: 2
     silence_days: 30
-    note: "Official API exists for publishing NHS Jobs vacancies to third-party
-           sites. Access arranged via NHSBSA Training and Support, not self-service."
+    portal_url: "https://www.jobs.nhs.uk/candidate"
+    note: "RESOLVED. The NHS Jobs API is a PUBLISHER API: it exists so NHS
+           trusts can push their vacancies OUT to third-party job sites. It
+           does not let a candidate search, so arranging NHSBSA access would
+           not have helped — the endpoint does the wrong thing. This was
+           carried as `pending access` for weeks on that misreading.
+
+           The candidate route is a saved search on jobs.nhs.uk with email
+           alerts, then paste. Alerts carry summaries rather than full
+           adverts, same as Civil Service Jobs, so the advert itself is
+           copied from the portal. Submission type SUCCESS_PROFILE — NHS
+           uses supporting statements against named criteria, Template F."
 
   - id: civil_service_jobs
     adapter: EmailAlertAdapter

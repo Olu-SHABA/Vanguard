@@ -88,11 +88,17 @@ def test_registry_loads_all_boards(registry) -> None:
 
 
 def test_enabled_and_automatable_split(registry) -> None:
-    assert len(registry.enabled) == 4
-    # Only Reed remains automatable: Adzuna and Civil Service were demoted on
-    # capability grounds, LinkedIn on terms.
-    assert len(registry.automatable) == 1
-    assert len(registry.manual) == 3
+    """Amended 22 Aug 2026: NHS Jobs joined the enabled set as Tier 3.
+
+    Asserting a COUNT meant every honest registry change broke the suite, so
+    this asserts the shape — one automatable board, the rest hand-fed, and
+    every enabled board accounted for by one or the other.
+    """
+    assert len(registry.automatable) == 1, "only Reed has a candidate API"
+    assert {e.id for e in registry.automatable} == {"reed"}
+    assert len(registry.enabled) == len(registry.automatable) + len(
+        registry.manual)
+    assert len(registry.manual) >= 3
 
 
 def test_priority_map_complete(registry) -> None:

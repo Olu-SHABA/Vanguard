@@ -368,12 +368,24 @@ def main(plain, no_colour, ascii_only, high_contrast, width, logging_on) -> None
 @click.option("--db", default=DEFAULTS["db"], help="Vacancy store.")
 @click.option("--title", multiple=True, help="Override query keywords.")
 @click.option("--location", default="", help="Override query location.")
+@click.option("--board", "only_boards", multiple=True,
+              help="Read from these boards only, this run. Repeat for several.")
+@click.option("--skip", "skip_boards", multiple=True,
+              help="Read from every enabled board except these.")
 @click.option("--no-model", is_flag=True, help="Force the lexical fallback.")
-def run(boards, cv, aliases, db, title, location, no_model) -> None:
-    """Fetch, score, classify, queue, exit. Never blocks, never prompts."""
+def run(boards, cv, aliases, db, title, location, only_boards, skip_boards,
+        no_model) -> None:
+    """Fetch, score, classify, queue, exit. Never blocks, never prompts.
+
+    `--board` reads from those boards only, for this run. `--skip` reads from
+    every enabled board except those. Neither changes `boards.yaml` — a
+    one-off choice should not become a permanent one, which is what editing
+    the file to try something out always turns into.
+    """
     store, queue = _ctx(db)
 
     registry = load_registry(boards)
+    registry = _select_boards(registry, only_boards, skip_boards)
     log_config = _logging(boards)
     run_log = RunLog("run", db_path=Path(db), config=log_config)
     run_log.__enter__()
@@ -974,6 +986,39 @@ def _letter_filename(employer: str, title: str, vacancy_id: str,
     tail = vacancy_id.rsplit(":", 1)[-1]
     tail = re.sub(r"[^A-Za-z0-9._-]", "", tail)[:10] or "2"
     return f"{stem}_{tail}.md"
+
+
+def _select_boards(registry, only: Sequence[str], skip: Sequence[str]):
+    """Narrow a registry to the boards wanted for this run.
+
+    Returns the registry unchanged when neither option is given, so the
+    ordinary case pays nothing.
+
+    An unknown name is refused rather than silently ignored: a typo that
+    quietly reads from every board is worse than an error.
+    """
+    if not only and not skip:
+        return registry
+
+    known = {entry.id for entry in registry.entries}
+    unknown = sorted({*only, *skip} - known)
+    if unknown:
+        raise click.ClickException(
+            f"unknown board(s): {', '.join(unknown)}. "
+            f"Known: {', '.join(sorted(known))}")
+
+    wanted = set(only) if only else known
+    wanted -= set(skip)
+
+    for entry in registry.entries:
+        if entry.id not in wanted:
+            entry.enabled = False
+
+    if not registry.enabled:
+        raise click.ClickException(
+            "that selection leaves no enabled board to read from")
+
+    return registry
 
 
 def _cv_header(cv_path: str) -> tuple[str, str]:
@@ -3225,6 +3270,70 @@ def reclassify_cmd(dry_run, force, db, no_model) -> None:
     if len(rows) > len(moved):
         click.echo(f"  {len(rows) - len(moved)} unchanged — read them with "
                    "`vanguard responses <ID>`")
+
+
+@main.command("board")
+@click.argument("action", type=click.Choice(["enable", "disable"]))
+@click.argument("board_id")
+@click.option("--boards", "boards_path", default=DEFAULTS["boards"])
+def board_cmd(action, board_id, boards_path) -> None:
+    """Turn a board on or off permanently.
+
+    Edits `boards.yaml` in place, changing only the `enabled:` line for that
+    board and leaving every comment and note intact — the notes record WHY a
+    board is in the state it is, and losing them to a rewrite would lose the
+    reasoning with them.
+
+    For a one-off choice use `vanguard run --board` instead. Editing the file
+    to try something out is how a temporary decision becomes permanent.
+    """
+    path = Path(boards_path)
+    if not path.is_file():
+        raise click.ClickException(f"no registry at {path}")
+
+    registry = load_registry(boards_path)
+    known = {entry.id for entry in registry.entries}
+    if board_id not in known:
+        raise click.ClickException(
+            f"unknown board {board_id!r}. Known: {', '.join(sorted(known))}")
+
+    entry = registry.get(board_id)
+    wanted = action == "enable"
+    if entry.enabled == wanted:
+        click.echo(f"  {board_id} is already {action}d")
+        return
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    in_block = False
+    changed = False
+
+    for index, line in enumerate(lines):
+        if line.strip().startswith("- id:"):
+            in_block = line.split("- id:", 1)[1].strip() == board_id
+        elif in_block and line.strip().startswith("enabled:"):
+            # Keep the indent and any trailing comment — the comment says why.
+            indent = line[:len(line) - len(line.lstrip())]
+            comment = ""
+            if "#" in line:
+                comment = "   " + line.split("#", 1)[1].strip()
+                comment = f"  #{comment.strip()}"
+            lines[index] = f"{indent}enabled: {str(wanted).lower()}" + (
+                f"                   {comment}" if comment else "")
+            changed = True
+            break
+
+    if not changed:
+        raise click.ClickException(
+            f"could not find the enabled line for {board_id}")
+
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    tone = ui.Tone.GOOD if wanted else ui.Tone.MUTED
+    click.echo(f"  {ui.badge(action.upper() + 'D', tone)} {board_id}")
+
+    if wanted and entry.tier == "manual":
+        click.echo("\n  This board is Tier 3 — `vanguard run` will not read it.")
+        click.echo("  Vacancies are pasted; scoring and drafting run identically.")
+    click.echo(f"\n  vanguard boards    the registry as it now stands")
 
 
 # ---------------------------------------------------------------------------
