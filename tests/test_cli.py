@@ -1984,3 +1984,22 @@ def test_an_unknown_sort_key_is_refused(runner: CliRunner,
     result = runner.invoke(main, ["responses", "--sort", "nonsense",
                                   "--db", str(db)])
     assert result.exit_code != 0
+
+
+def test_a_short_employer_is_searched_for() -> None:
+    """A company called Ki was never searched for, so never fetched, so never
+    correlated. The floor of four characters was written for routing tokens
+    and applied to employer names by accident."""
+    from vanguard.mail import Application
+
+    applications = [Application("reed:1", "Ki", "Data Scientist"),
+                    Application("reed:2", "Sanderson", "ML Engineer")]
+
+    terms = []
+    for app in applications:
+        employer = app.employer.split(",")[0].strip()
+        if len(employer) >= 2:
+            terms.append(f'"{employer}"')
+
+    assert '"Ki"' in terms, "a two-letter employer must be searched for"
+    assert '"Sanderson"' in terms

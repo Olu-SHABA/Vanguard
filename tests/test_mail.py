@@ -1325,3 +1325,419 @@ def test_a_real_rejection_that_also_explains_its_process(embedder) -> None:
     body = ("Unfortunately you have not been successful on this occasion. "
             "If we have suitable roles in future we will be in touch.")
     assert classify(msg(body), embedder=embedder).state is State.DECLINE
+
+
+# ---------------------------------------------------------------------------
+# A short employer name
+#
+# Observed 22 Aug 2026: an application to a company called Ki never appeared
+# at all. Three independent length gates excluded it — it was never searched
+# for, its domain could not match, and the ATS stage rejected a name under
+# three characters. The floors existed to stop `dc4` and `job` matching
+# everything, and were applied to employer names by accident.
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def short_name() -> list[Application]:
+    return [Application("reed:1", "Ki", "Data Scientist")]
+
+
+@pytest.mark.parametrize(
+    "sender, subject",
+    [
+        ("careers@ki.com", "Thank you for applying"),
+        ("no-reply@ashbyhq.com", "Thank you for applying at Ki"),
+        ("no-reply@ashbyhq.com", "Ki | Application Confirmation"),
+    ],
+)
+def test_a_two_letter_employer_correlates(short_name, sender: str,
+                                          subject: str) -> None:
+    assert correlate(msg("Thank you for applying.", subject=subject,
+                         sender=sender), short_name).correlated
+
+
+@pytest.mark.parametrize(
+    "sender, subject, body",
+    [
+        ("no-reply@ashbyhq.com", "Thank you for applying",
+         "Your skills matched what we are looking for."),
+        ("hr@wiki.com", "Thank you for applying", "Body."),
+        ("no-reply@ashbyhq.com", "Thank you for applying",
+         "We look forward to working with strong applicants."),
+        ("no-reply@ashbyhq.com", "Thank you for applying",
+         "Taking your details forward."),
+    ],
+)
+def test_a_short_name_does_not_match_inside_a_word(short_name, sender: str,
+                                                   subject: str,
+                                                   body: str) -> None:
+    """`ki` appears inside working, skills, taking and wiki. A substring test
+    would correlate every message that mentions a skill."""
+    assert not correlate(msg(body, subject=subject, sender=sender),
+                         short_name).correlated
+
+
+def test_a_long_name_still_matches_as_a_substring() -> None:
+    """Word-boundary matching is only needed for short names. "WPP Media"
+    appears inside longer phrasing legitimately."""
+    apps = [Application("reed:1", "Sanderson", "Data Scientist")]
+    assert correlate(msg("Body.", subject="Thank you for applying at Sanderson's",
+                         sender="no-reply@ashbyhq.com"), apps).correlated
+
+
+# ---------------------------------------------------------------------------
+# A decision outranks the courtesy it opens with
+#
+# Pflegia, 24 Aug 2026:
+#
+#   "Thank you for your interest in the position Data Scientist …
+#    Based on your profile and the number of other qualified applications,
+#    for the moment, we are not able to move forward in the recruiting
+#    process with you."
+#
+# Classified ACK. The opener is formulaic and matched an acknowledgement
+# reference closely; the rejection is oddly worded and matched less closely.
+# Taking the single highest score made a rejection read as a thank-you.
+# ---------------------------------------------------------------------------
+
+PFLEGIA_DECLINE = (
+    "Hi Olumide,\n\nThank you for your interest in the position Data "
+    "Scientist - AI & Experimentation.\n\nWe have reviewed your application "
+    "and carefully considered your qualifications. Based on your profile and "
+    "the number of other qualified applications, for the moment, we are not "
+    "able to move forward in the recruiting process with you.\n\n"
+    "Good luck in your search!"
+)
+
+
+def test_a_decision_outranks_a_warm_opener(embedder) -> None:
+    result = classify(msg(PFLEGIA_DECLINE, subject="Your application at Pflegia"),
+                      embedder=embedder)
+    assert result.state is State.DECLINE, result.note
+
+
+def test_an_acknowledgement_with_no_decision_stays_one(embedder) -> None:
+    """The same employer's confirmation, a day earlier. Preferring decisive
+    states must not make every acknowledgement a rejection."""
+    body = ("Hi Olumide,\n\nYou have successfully submitted your application "
+            "for this position: Data Scientist.\n\nSomeone will review your "
+            "qualifications shortly.\n\nThank you for your interest in Pflegia.")
+    assert classify(msg(body, subject="We received your application"),
+                    embedder=embedder).state is not State.DECLINE
+
+
+def test_the_note_explains_an_overridden_opener(embedder) -> None:
+    """An operator must be able to see why a warm message was read as a
+    rejection."""
+    result = classify(msg(PFLEGIA_DECLINE, subject="Your application"),
+                      embedder=embedder)
+    assert result.rule == 6
+    assert "semantic" in (result.note or "")
+
+
+# --- a digest is a digest whatever it says --------------------------------
+
+@pytest.mark.parametrize(
+    "subject",
+    [
+        "Technical Lead ML at Bjak + Lead Data Scientist at Ki",
+        "Two fresh DS leads in Edinburgh + application update",
+        "Senior Analyst at Acme, Data Scientist at Beta",
+    ],
+)
+def test_a_subject_naming_two_roles_is_a_listing(subject: str) -> None:
+    """No acknowledgement mentions two employers. The shape catches digests
+    the wording does not."""
+    from vanguard.mail import _looks_like_a_listing
+
+    assert _looks_like_a_listing(subject)
+
+
+@pytest.mark.parametrize(
+    "subject",
+    [
+        "Thank you for applying at Beatport",
+        "Your application at Pflegia",
+        "Faculty | Update on your application for Data Scientist",
+        "Interview invitation for Data Scientist at Sanderson",
+        "Data Scientist at Sky",
+    ],
+)
+def test_a_single_role_subject_is_not_a_listing(subject: str) -> None:
+    from vanguard.mail import _looks_like_a_listing
+
+    assert not _looks_like_a_listing(subject)
+
+
+def test_a_digest_from_a_human_address_is_still_a_broadcast() -> None:
+    """A small recruiter mails from `hello@`, so the sender says nothing."""
+    from vanguard.mail import is_broadcast
+
+    assert is_broadcast(msg("Body.", sender="hello@jackandjill.co.uk",
+                            subject="Technical Lead ML at Bjak + Lead Data "
+                                    "Scientist at Ki"))
+
+
+# ---------------------------------------------------------------------------
+# OFFER is never reached by meaning alone
+#
+# Observed 22 Aug 2026: acknowledgements classified OFFER. The B-72 fix said a
+# decisive state wins "whenever it clears the bar", so a warm welcome scoring
+# just above threshold against "we are pleased to offer you the position" beat
+# the same message scoring far higher against an acknowledgement.
+#
+# Telling someone they have a job they do not have could stop them applying
+# elsewhere. That failure is not recoverable; missing an oddly worded offer
+# is — the operator opens it.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "We are excited you are interested in joining us and would be "
+        "delighted to have you on the team.",
+        "We are delighted by your interest in the role and will review your "
+        "application shortly.",
+        "Welcome to our application process. We are pleased you applied.",
+        "Thanks for your application to join WPP Media! We are excited you "
+        "are interested in becoming part of our global media collective.",
+    ],
+)
+def test_an_enthusiastic_acknowledgement_is_never_an_offer(embedder,
+                                                           body: str) -> None:
+    assert classify(msg(body, subject="Thanks for applying"),
+                    embedder=embedder).state is not State.OFFER
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "We are pleased to offer you the position of Data Scientist.",
+        "Congratulations and welcome to the team!",
+        "Please find attached your formal offer of employment.",
+    ],
+)
+def test_a_real_offer_still_lands_by_marker(embedder, body: str) -> None:
+    """Employers state an offer unambiguously. The marker list covers it."""
+    result = classify(msg(body, subject="Good news"), embedder=embedder)
+    assert result.state is State.OFFER
+    assert result.rule == 2, "a marker must decide, not meaning"
+
+
+def test_overriding_a_better_match_needs_a_better_reason(embedder) -> None:
+    """A decisive state overrides a provisional one only when clearly
+    confident, not merely by being in a more important category."""
+    warm = ("Thank you so much for applying. We are reviewing applications "
+            "and will be in touch.")
+    assert classify(msg(warm, subject="Application received"),
+                    embedder=embedder).state in (State.ACK, State.AMBIGUOUS)
+
+
+def test_pflegia_survives_the_stricter_bar(embedder) -> None:
+    """The B-72 fix must not be undone by tightening it."""
+    assert classify(msg(PFLEGIA_DECLINE, subject="Your application at Pflegia"),
+                    embedder=embedder).state is State.DECLINE
+
+
+# ---------------------------------------------------------------------------
+# Ki — the whole conversation
+#
+# Three messages over five days, all via Workable. The company name is two
+# characters, which made it invisible until B-71, and the submission receipt
+# uses wording no ACK marker covered.
+#
+# This is the whole thread as it arrived, kept together because the value is
+# in the sequence: two acknowledgements and a decline.
+# ---------------------------------------------------------------------------
+
+KI_SUBMISSION = (
+    "Ki\n\nYour application for the Associate Data Scientist job was submitted "
+    "successfully.\n\nHere's a copy of your application data for safekeeping."
+    "\n\nPersonal information\nName Olumide Shaba\nResume cv.pdf"
+)
+
+KI_ACKNOWLEDGEMENT = (
+    "Dear Olumide,\n\nThank you for applying for the Associate Data Scientist "
+    "role at Ki. We're thrilled that you're considering joining us, and wanted "
+    "to confirm that we have received your application.\n\nYour application "
+    "will be thoroughly reviewed by our hiring team and we will be in touch if "
+    "your experience is a good match for the position."
+)
+
+KI_DECLINE = (
+    "Dear Olumide,\n\nThank you for your interest in the Associate Data "
+    "Scientist position at Ki. We appreciate the time and effort you put into "
+    "your application.\n\nWe have reviewed your application and unfortunately "
+    "will not be progressing at this time.\n\nWe received a high volume of "
+    "applications and while yours was reviewed thoroughly, we've decided to "
+    "move forward with candidates whose experience more closely aligns with "
+    "the requirements of the role."
+)
+
+
+@pytest.fixture
+def ki() -> list[Application]:
+    return [Application("reed:1", "Ki", "Associate Data Scientist")]
+
+
+@pytest.mark.parametrize(
+    "sender, subject, body, expected",
+    [
+        ("noreply@candidates.workablemail.com",
+         "Your application for the Associate Data Scientist job was submitted "
+         "successfully.", KI_SUBMISSION, State.ACK),
+        ("4f07z7ifglkf+bnnx@inbound.workablemail.com",
+         "Thank you for applying for the Associate Data Scientist role at Ki",
+         KI_ACKNOWLEDGEMENT, State.ACK),
+        ("noreply@candidates.workablemail.com",
+         "Thank you for your interest in the Associate Data Scientist position "
+         "at Ki", KI_DECLINE, State.DECLINE),
+    ],
+)
+def test_the_whole_ki_thread(ki, embedder, sender: str, subject: str,
+                             body: str, expected: State) -> None:
+    message = msg(body, subject=subject, sender=sender)
+    assert correlate(message, ki).correlated, "did not correlate"
+    assert classify(message, embedder=embedder).state is expected
+
+
+def test_a_submission_receipt_is_an_acknowledgement(embedder) -> None:
+    """Workable confirms a submission rather than thanking the applicant.
+    "Your application was submitted successfully" matched no ACK marker."""
+    for body in ("Your application was submitted successfully.",
+                 "Here's a copy of your application data for safekeeping.",
+                 "Your application has been submitted."):
+        assert classify(msg(body, subject="Application"),
+                        embedder=embedder).state is State.ACK
+
+
+def test_the_ki_decline_is_not_softened_away(embedder) -> None:
+    """It opens with thanks, mentions a high volume of applications, and buries
+    the decision in the middle. All three are softeners this classifier has
+    been caught by before."""
+    assert classify(msg(KI_DECLINE, subject="Thank you for your interest"),
+                    embedder=embedder).state is State.DECLINE
+
+
+# ---------------------------------------------------------------------------
+# The thresholds, set from measurement
+#
+# Both were judgement, and judgement produced seven misclassifications out of
+# twenty-six. These are the scores MiniLM actually gave on the operator's own
+# mail, captured with `vanguard responses <ID> --explain`.
+#
+# The classifier was ranking correctly all along — ACK topped every one of the
+# seven. What went wrong was the THRESHOLD rejecting a correct answer that
+# scored modestly, and the store then freezing the wrong one.
+# ---------------------------------------------------------------------------
+
+MEASURED = [
+    ("Sanderson receipt", {"ACK": 0.64, "DECLINE": 0.59, "OFFER": 0.56,
+                           "PROGRESS": 0.46}, State.ACK),
+    ("Faculty confirmation", {"ACK": 0.63, "OFFER": 0.56, "DECLINE": 0.53,
+                              "PROGRESS": 0.47}, State.ACK),
+    ("Pflegia confirmation", {"ACK": 1.00, "OFFER": 0.65, "DECLINE": 0.62,
+                              "PROGRESS": 0.51}, State.ACK),
+    ("Pflegia rejection", {"DECLINE": 1.00, "ACK": 0.80, "OFFER": 0.54,
+                           "PROGRESS": 0.45}, State.DECLINE),
+    ("Faculty rejection", {"DECLINE": 1.00, "ACK": 0.67, "OFFER": 0.56,
+                           "PROGRESS": 0.46}, State.DECLINE),
+]
+
+
+from vanguard.mail import REFERENCES  # noqa: E402
+
+
+class _ScriptedEmbedder:
+    """Returns the measured score for whichever state a reference belongs to.
+
+    Lets the real numbers drive the decision logic without needing the model.
+    """
+
+    def __init__(self, scores: dict) -> None:
+        self._scores = scores
+        self._of_reference = {example: state
+                              for state, examples in REFERENCES.items()
+                              for example in examples}
+
+    def similarity(self, line: str, example: str) -> float:
+        return self._scores.get(self._of_reference.get(example, ""), 0.0)
+
+
+@pytest.mark.parametrize("label, scores, expected",
+                         [(m[0], m[1], m[2]) for m in MEASURED])
+def test_the_measured_scores_decide_correctly(label: str, scores: dict,
+                                              expected: State) -> None:
+    """A threshold of 0.72 rejected the three acknowledgements that scored
+    correctly but modestly; a margin of 0.08 rejected two more."""
+    result = classify(msg("Any body text long enough to be considered.",
+                          subject="Subject"),
+                      embedder=_ScriptedEmbedder(scores))
+    assert result is not None
+    assert result.state is expected, f"{label}: {result.note}"
+
+
+def test_a_near_tie_is_still_refused() -> None:
+    """The defect that started this: two states within the margin is noise,
+    not a decision."""
+    result = classify(msg("Any body text long enough to be considered.",
+                          subject="Subject"),
+                      embedder=_ScriptedEmbedder({"ACK": 0.64,
+                                                  "DECLINE": 0.63}))
+    assert result.state is State.AMBIGUOUS
+
+
+def test_the_thresholds_are_stated_in_the_module() -> None:
+    """Fitted to five examples. Anyone changing them should see that."""
+    from vanguard.mail import SEMANTIC_MARGIN, SEMANTIC_THRESHOLD
+
+    assert 0.5 <= SEMANTIC_THRESHOLD <= 0.8
+    assert 0.02 <= SEMANTIC_MARGIN <= 0.15
+
+
+# ---------------------------------------------------------------------------
+# A board's dispatch receipt is a fixed string
+#
+# Three near-identical Reed receipts classified ACK, AMBIGUOUS and AMBIGUOUS.
+# Their bodies differ only in a "recommended jobs" block, which shifted the
+# scores by a few hundredths either side of the margin.
+#
+# A board's receipt is a small closed set, unlike employer phrasing. Deciding
+# it semantically made a fixed string a coin flip.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("employer",
+                         ["Sanderson", "C4S Search Ltd", "Method Resourcing"])
+def test_every_reed_receipt_classifies_the_same(embedder, employer: str) -> None:
+    body = ("Application sent. Your application is on its way! We have "
+            "attached a copy of your CV and cover letter. Based on the job "
+            "you have applied for, we recommend: Data Scientist, AI Engineer.")
+    result = classify(msg(body, subject=f"We've sent your application to {employer}",
+                          sender="no-reply@jobs.reed.co.uk"), embedder=embedder)
+    assert result.state is State.ACK
+    assert result.rule <= 4, "a fixed string should not be decided semantically"
+
+
+def test_a_linkedin_dispatch_receipt_is_an_acknowledgement(embedder) -> None:
+    body = ("Your application was sent to Ki\n\nAssociate Data Scientist\nKi\n"
+            "London\n\nApplied on August 19, 2026")
+    assert classify(msg(body, subject="Olumide, your application was sent to Ki",
+                        sender="jobs-noreply@linkedin.com"),
+                    embedder=embedder).state is State.ACK
+
+
+def test_a_receipt_echoing_the_form_is_not_a_query(embedder) -> None:
+    """Workable returns a copy of the submitted application, questions and
+    all. Those are the APPLICANT's own answers quoted back, not the employer
+    asking anything."""
+    body = ("Ki\n\nYour application for the Associate Data Scientist job was "
+            "submitted successfully.\nHere's a copy of your application data "
+            "for safekeeping.\n\nPERSONAL INFORMATION\nName: Olumide Shaba\n\n"
+            "Answers\n\nHow would you assess your Python skill level "
+            "(Beginner, Intermediate, Advanced)?\nAdvanced\n\n"
+            "What machine learning libraries have you used and how?\n"
+            "I have extensive experience with Scikit-learn.")
+    result = classify(msg(body, subject="Thanks for applying to Ki",
+                          sender="noreply@candidates.workablemail.com"),
+                      embedder=embedder)
+    assert result.state is State.ACK, result.note

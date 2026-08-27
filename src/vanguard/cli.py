@@ -1567,7 +1567,11 @@ def poll_cmd(provider, since_days, limit, dry_run, verbose, show_uncorrelated,
             if app.reference:
                 extra_terms.append(f'"{app.reference}"')
             employer = app.employer.split(",")[0].strip()
-            if len(employer) > 3:
+            # Any employer name is worth searching for. The old floor of four
+            # characters made a company called Ki invisible: never searched
+            # for, so never fetched, so never correlated. Short names are
+            # quoted, so Gmail matches the phrase rather than the letters.
+            if len(employer) >= 2:
                 extra_terms.append(f'"{employer}"')
         extra_terms = list(dict.fromkeys(extra_terms))
         if len(extra_terms) > MAX_SEARCH_TERMS:
@@ -2917,8 +2921,11 @@ def draft_cmd(vacancy_id, name, contact, hiring_manager, out_dir, show, boards,
               default="employer", help="Order the listing. Default employer.")
 @click.option("--reverse", is_flag=True, help="Reverse the order.")
 @click.option("--limit", default=40)
+@click.option("--explain", is_flag=True,
+              help="Show what the classifier scored, per state.")
 @click.option("--db", default=DEFAULTS["db"])
-def responses_cmd(vacancy_id, status, sort_key, reverse, limit, db) -> None:
+def responses_cmd(vacancy_id, status, sort_key, reverse, limit, explain,
+                  db) -> None:
     """Replies that correlated to an application, and what they were.
 
     Classifications were written to the archive and to the interview process,
@@ -2953,6 +2960,28 @@ def responses_cmd(vacancy_id, status, sort_key, reverse, limit, db) -> None:
                 ("received", (message["received_at"] or "")[:16].replace("T", " ")),
                 ("matched by", message["method"] or ""),
             ], indent="  "))
+
+            if explain:
+                from datetime import datetime, timezone
+
+                from vanguard.mail import (Message, SEMANTIC_MARGIN,
+                                           SEMANTIC_THRESHOLD, semantic_scores)
+
+                embedder, name = _embedder(True)
+                scored = semantic_scores(
+                    Message(message_id="", sender=message["sender"] or "",
+                            subject=message["subject"] or "",
+                            body=message["body"] or "",
+                            received=datetime.now(timezone.utc)),
+                    embedder)
+                if scored:
+                    ranked = sorted(scored.items(), key=lambda kv: -kv[1][0])
+                    click.echo(f"\n  what the classifier saw [{name}] — "
+                               f"threshold {SEMANTIC_THRESHOLD:.2f}, "
+                               f"margin {SEMANTIC_MARGIN:.2f}")
+                    for state_name, (score, line) in ranked[:4]:
+                        click.echo(f"      {score:.2f}  {state_name:<10} "
+                                   f"{_clip(line, width - 26)}")
 
             body = (message["body"] or "").strip()
             if not body:
@@ -3113,9 +3142,11 @@ def funnel_cmd(db, reasons, sort_key) -> None:
 
 @main.command("reclassify")
 @click.option("--dry-run", is_flag=True, help="Report what would change.")
+@click.option("--force", is_flag=True,
+              help="Also rewrite DECLINE, OFFER, PROGRESS and QUERY records.")
 @click.option("--db", default=DEFAULTS["db"])
 @click.option("--no-model", is_flag=True, help="Rules only.")
-def reclassify_cmd(dry_run, db, no_model) -> None:
+def reclassify_cmd(dry_run, force, db, no_model) -> None:
     """Re-run classification over messages already received.
 
     Needs no mailbox — the bodies are stored, so a classifier improved after
@@ -3147,10 +3178,14 @@ def reclassify_cmd(dry_run, db, no_model) -> None:
     # holding state, and Faculty's rejection sat as one.
     PROVISIONAL = ("AMBIGUOUS", "ACK", "ADMIN")
     rows = [r for r in store.responses(limit=5000)
-            if r["state"] in PROVISIONAL and (r["body"] or "").strip()]
+            if (force or r["state"] in PROVISIONAL) and (r["body"] or "").strip()]
 
-    click.echo(ui.rule(f"RECLASSIFY  ·  {len(rows)} undecided with a body "
+    scope = "every record" if force else "undecided records"
+    click.echo(ui.rule(f"RECLASSIFY  ·  {len(rows)} {scope} with a body "
                        f"[{classifier_name}]"))
+    if force:
+        click.echo("  --force rewrites decided states too. A record you have "
+                   "already acted on\n  may change.")
 
     if not rows:
         without_body = sum(1 for r in store.responses(limit=5000)
@@ -3165,25 +3200,27 @@ def reclassify_cmd(dry_run, db, no_model) -> None:
 
     proposed = [(row, _classify(row)) for row in rows]
     moved = [(row, state) for row, state in proposed
-             if state not in PROVISIONAL and state != row["state"]]
+             if state != row["state"]
+             and (force or state not in PROVISIONAL)]
 
     if moved:
         click.echo(ui.table(
             [
-                ui.Column("NOW", 0.4, 9),
+                ui.Column("CHANGE", 0.6, 16),
                 ui.Column("EMPLOYER", 0.9, 12),
                 ui.Column("SUBJECT", 1.5, 16),
                 ui.Column("ID", 0.9, 12, tone=ui.Tone.MUTED, protected=True),
             ],
-            [[state, row["employer"] or "", row["subject"] or "",
-              row["vacancy_id"]] for row, state in moved],
+            [[f'{row["state"]} -> {state}', row["employer"] or "",
+              row["subject"] or "", row["vacancy_id"]]
+             for row, state in moved],
         ))
 
     if dry_run:
         click.echo(f"\n  dry run — {len(moved)} would change")
         return
 
-    changed, total = store.reclassify(_classify)
+    changed, total = store.reclassify(_classify, force=force)
     click.echo(f"\n  {ui.badge('RECLASSIFIED', ui.Tone.GOOD)} {changed}")
     if len(rows) > len(moved):
         click.echo(f"  {len(rows) - len(moved)} unchanged — read them with "

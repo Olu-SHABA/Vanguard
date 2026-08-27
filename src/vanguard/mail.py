@@ -159,6 +159,29 @@ ACK_MARKERS: tuple[str, ...] = (
     "application received",
     "your application has been received",
     "confirmation of your application",
+    # Workable's standard receipt, and the wording ATS vendors use when
+    # confirming a submission rather than thanking an applicant. "Your
+    # application was submitted successfully" is an acknowledgement and
+    # matched nothing.
+    "submitted successfully",
+    "successfully submitted",
+    "application was submitted",
+    "application has been submitted",
+    "copy of your application",
+    "we received your application",
+    # Board DISPATCH receipts. Reed and LinkedIn confirm they have forwarded
+    # an application, in fixed wording, and a board's receipt is a small
+    # closed set — unlike employer phrasing, which is unbounded.
+    #
+    # These were being decided semantically, and three near-identical Reed
+    # receipts classified ACK, AMBIGUOUS and AMBIGUOUS because their
+    # "recommended jobs" blocks shifted the scores by a few hundredths. A
+    # fixed string should not be a coin flip.
+    "we've sent your application",
+    "we have sent your application",
+    "your application was sent",
+    "application sent",
+    "your application is on its way",
 )
 
 QUERY_MARKERS: tuple[str, ...] = (
@@ -573,8 +596,23 @@ def _is_routing_token(part: str) -> bool:
 
 
 def _looks_like_a_listing(subject: str) -> bool:
+    """Is this subject advertising roles?
+
+    Markers catch the obvious wording. The SHAPE catches the rest: a subject
+    naming two or more roles — "Technical Lead ML at Bjak + Lead Data
+    Scientist at Ki" — is a digest whatever words it uses, and no
+    acknowledgement mentions two employers.
+    """
     low = (subject or "").lower()
-    return any(marker in low for marker in _LISTING_MARKERS)
+    if any(marker in low for marker in _LISTING_MARKERS):
+        return True
+
+    # Two or more " at <employer>" fragments, or a "+" joining two roles.
+    if low.count(" at ") >= 2:
+        return True
+    if "+" in low and low.count(" at ") >= 1:
+        return True
+    return False
 
 
 def looks_like_an_acknowledgement(message: Message) -> bool:
@@ -645,6 +683,21 @@ def _one_of(matches: list[Application], method: Correlation
                              tuple(unique.values()))
 
 
+def _employer_in(employer: str, text: str) -> bool:
+    """Is this employer named here, as a word?
+
+    A substring test is wrong for short names — `ki` appears inside `working`,
+    `skills` and `taking`. A word-boundary match lets a two-character company
+    be found without matching every message that mentions a skill.
+    """
+    if not employer or not text:
+        return False
+    if len(employer) >= 5:
+        return employer in text
+    return re.search(rf"(?<![a-z0-9]){re.escape(employer)}(?![a-z0-9])",
+                     text) is not None
+
+
 def _domain_resembles_employer(domain: str, employer: str) -> bool:
     """Does this sender domain plausibly belong to this employer?
 
@@ -661,6 +714,17 @@ def _domain_resembles_employer(domain: str, employer: str) -> bool:
 
     tokens = {t for t in _norm(employer).split()
               if len(t) >= 4 and t not in _COMMON_EMPLOYER_WORDS}
+
+    # A short name has no four-character token and was excluded entirely.
+    # Fall back to the whole name, matched at a boundary in the host, so
+    # `ki.com` matches Ki without `ki` matching `wiki.com`.
+    if not tokens:
+        whole = _norm(employer).replace(" ", "")
+        if len(whole) < 2 or whole in _COMMON_EMPLOYER_WORDS:
+            return False
+        host = (domain or "").lower()
+        return any(part == whole for part in re.split(r"[.\-]", host))
+
     if not tokens:
         return False
 
@@ -819,8 +883,12 @@ def correlate(
         body_head = _norm(message.body[:400])
         named = [
             app for app in applications
-            if (employer := _norm(app.employer)) and len(employer) >= 3
-            and (employer in subject_norm or employer in body_head)
+            # Two characters is a real company name. The floor existed to
+            # stop noise matching, and a WORD-BOUNDARY match does that job
+            # without excluding anyone.
+            if (employer := _norm(app.employer)) and len(employer) >= 2
+            and (_employer_in(employer, subject_norm)
+                 or _employer_in(employer, body_head))
         ]
         decided = _one_of(named, Correlation.ATS)
         if decided is not None and not decided.ambiguous:
@@ -895,6 +963,8 @@ REFERENCES: dict[str, tuple[str, ...]] = {
         "After reviewing your application we have decided not to progress it.",
         "We have decided to move forward with other candidates at this time.",
         "After careful consideration we are moving forward with other applicants.",
+        "We are not able to move forward in the recruiting process with you.",
+        "We are unable to progress your application at this stage.",
         "The position has been filled by another candidate.",
     ),
     "PROGRESS": (
@@ -917,6 +987,10 @@ REFERENCES: dict[str, tuple[str, ...]] = {
         "This is confirmation that your application has been submitted.",
         "We have received your details and will be in touch.",
         "Your application is now with the hiring team for review.",
+        "You have successfully submitted your application for this position.",
+        "Someone will review your qualifications shortly.",
+        "Your application was submitted successfully.",
+        "Here is a copy of your application data for safekeeping.",
     ),
     "QUERY": (
         "Could you confirm your notice period and salary expectations?",
@@ -936,7 +1010,57 @@ REFERENCES: dict[str, tuple[str, ...]] = {
 #: asks the operator to read it — the right failure. Above it, a state is
 #: assigned on similarity alone, and a wrong DECLINE drafts a feedback letter
 #: for a rejection nobody sent.
-SEMANTIC_THRESHOLD = 0.55
+SEMANTIC_THRESHOLD = 0.60
+
+#: How far ahead of the next state a match must be before it decides.
+#:
+#: Sentence embeddings measure TOPIC far more than polarity. "We've sent your
+#: application to Sanderson" and "We will not be taking your application any
+#: further" are both about an application, share structure, and score close
+#: together. A raw threshold cannot separate them; a MARGIN can — if two
+#: states score within this of each other, the message is not clearly either.
+#:
+#: Set from MEASUREMENT on 22 Aug 2026, against the operator's own mail with
+#: MiniLM. Both numbers were judgement before that, and judgement produced
+#: seven misclassifications out of twenty-six.
+#:
+#:   Sanderson receipt       ACK 0.64, DECLINE 0.59   gap 0.05
+#:   Faculty confirmation    ACK 0.63, OFFER   0.56   gap 0.07
+#:   Pflegia confirmation    ACK 1.00, OFFER   0.65   gap 0.35
+#:   Pflegia rejection   DECLINE 1.00, ACK     0.80   gap 0.20
+#:   Faculty rejection   DECLINE 1.00, ACK     0.67   gap 0.33
+#:
+#: A threshold of 0.72 rejected the three acknowledgements that scored
+#: correctly but modestly; a margin of 0.08 rejected two more. 0.60 and 0.04
+#: admit all five and still leave the near-ties that caused the original
+#: defect below the bar.
+#:
+#: **Fitted to five examples.** Revisit as more classified mail accumulates —
+#: `vanguard responses <ID> --explain` prints the numbers.
+SEMANTIC_MARGIN = 0.04
+
+
+def semantic_scores(message: Message, embedder) -> dict[str, tuple[float, str]]:
+    """Best score per state, with the line that produced it.
+
+    Exposed so the thresholds can be set from MEASUREMENT rather than
+    judgement. Both were authored, and seven of twenty-six real messages were
+    misclassified before anyone looked at the numbers.
+    """
+    best: dict[str, tuple[float, str]] = {}
+    if embedder is None:
+        return best
+
+    for line in _decision_sentences(message):
+        for state, examples in REFERENCES.items():
+            for example in examples:
+                try:
+                    score = embedder.similarity(line, example)
+                except Exception:
+                    return {}
+                if score > best.get(state, (0.0, ""))[0]:
+                    best[state] = (score, line)
+    return best
 
 
 def classify_semantically(message: Message, embedder,
@@ -954,7 +1078,15 @@ def classify_semantically(message: Message, embedder,
     if embedder is None:
         return None
 
-    best_state, best_score, best_line = "", 0.0, ""
+    # Best score PER STATE, not one best overall.
+    #
+    # A courtesy opener beats a decision on raw similarity: "Thank you for
+    # your interest in the position" matches an ACK reference closely because
+    # openers are formulaic, while "we are not able to move forward in the
+    # recruiting process with you" matches DECLINE less closely because it is
+    # oddly worded. Taking the single highest score classified Pflegia's
+    # rejection as an acknowledgement.
+    best: dict[str, tuple[float, str]] = {}
 
     for line in _decision_sentences(message):
         for state, examples in REFERENCES.items():
@@ -963,16 +1095,63 @@ def classify_semantically(message: Message, embedder,
                     score = embedder.similarity(line, example)
                 except Exception:
                     return None
-                if score > best_score:
-                    best_state, best_score, best_line = state, score, line
+                if score > best.get(state, (0.0, ""))[0]:
+                    best[state] = (score, line)
 
-    if not best_state or best_score < threshold:
+    # A DECISIVE state overrides a provisional one only when it is CLEARLY
+    # confident, not merely above the same bar.
+    #
+    # Written as "whenever it clears the threshold", this turned
+    # acknowledgements into offers: a warm welcome scoring 0.56 against "we
+    # are pleased to offer you the position" beat the same message scoring
+    # 0.85 against an acknowledgement. Overriding a better match needs a
+    # better reason than being in a more important category.
+    #
+    # OFFER carries its own bar. Telling someone they have a job they do not
+    # have is the worst output this classifier can produce.
+    override = threshold + 0.10   # 0.70 with the measured threshold
+    bars = {"DECLINE": override, "PROGRESS": override, "QUERY": override}
+
+    decisive = {state: value for state, value in best.items()
+                if state in bars and value[0] >= bars[state]}
+
+    pool = decisive or {state: value for state, value in best.items()
+                        if value[0] >= threshold}
+
+    # OFFER is never reached by meaning alone.
+    #
+    # An offer is the one outcome employers state unambiguously — "pleased to
+    # offer", "formal offer", "welcome to the team" — and the marker list
+    # covers it. A false OFFER tells someone they have a job they do not
+    # have, which could stop them applying elsewhere. An offer worded so
+    # unusually that no marker fires reads as PROGRESS or AMBIGUOUS instead,
+    # and the operator opens it. That failure is recoverable; the other is
+    # not.
+    pool.pop("OFFER", None)
+
+    if not pool:
         return None
 
-    return Classification(
-        State(best_state), 6, (best_line[:90],),
-        f"semantic match at {best_score:.2f} — no marker fired",
-    )
+    state = max(pool, key=lambda name: pool[name][0])
+    score, line = pool[state]
+
+    # A near-tie is not a decision.
+    #
+    # Embeddings rank topic above polarity, so the runner-up matters as much
+    # as the winner. Where two states score within SEMANTIC_MARGIN, the
+    # message is not clearly either and AMBIGUOUS is the honest answer — it
+    # asks the operator to read it, which costs a minute. A wrong DECLINE
+    # drafts a feedback letter for a rejection nobody sent.
+    rivals = sorted((value[0] for name, value in best.items() if name != state),
+                    reverse=True)
+    if rivals and (score - rivals[0]) < SEMANTIC_MARGIN:
+        return None
+
+    note = (f"semantic match at {score:.2f}"
+            + (f", next {rivals[0]:.2f}" if rivals else "")
+            + " — no marker fired")
+
+    return Classification(State(state), 6, (line[:90],), note)
 
 
 #: Words that begin a clause carrying the decision, where the rest of the

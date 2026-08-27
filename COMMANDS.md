@@ -1082,6 +1082,51 @@ reference examples of each state — not markers, examples of what each state *s
 like*. Signature blocks, legal footers and unsubscribe lines are excluded; they carry
 no decision and drag every similarity toward nothing.
 
+**A near-tie is not a decision.** Sentence embeddings measure topic far more
+than polarity: *"We've sent your application to Sanderson"* and *"We will not
+be taking your application any further"* are both about an application, share
+structure, and score close together. A raw threshold cannot separate them.
+
+So a semantic match decides only when it is both above the threshold **and
+clearly ahead of the next state**. Where two are within the margin, the
+message is AMBIGUOUS — which asks you to read it, at the cost of a minute. A
+wrong DECLINE drafts a feedback letter for a rejection nobody sent.
+
+`vanguard responses <ID> --explain` shows the scores. **Both thresholds were
+set from those numbers** on the operator's own mail:
+
+```
+  Sanderson receipt       ACK 0.64, DECLINE 0.59   gap 0.05
+  Faculty confirmation    ACK 0.63, OFFER   0.56   gap 0.07
+  Pflegia confirmation    ACK 1.00, OFFER   0.65   gap 0.35
+  Pflegia rejection   DECLINE 1.00, ACK     0.80   gap 0.20
+  Faculty rejection   DECLINE 1.00, ACK     0.67   gap 0.33
+```
+
+The classifier had been ranking correctly all along — the right state topped
+every one of the seven misclassifications. The threshold was rejecting a
+correct answer that scored modestly, and the store was then freezing the
+wrong one.
+
+**Fitted to five examples.** Revisit as more classified mail accumulates.
+
+**A decision outranks the courtesy it opens with.** Pflegia's rejection began
+*"Thank you for your interest in the position"* and ended *"we are not able to
+move forward in the recruiting process with you"*. The opener is formulaic and
+matched an acknowledgement closely; the rejection is oddly worded and matched
+less closely. Taking the single highest score made a rejection read as a
+thank-you.
+
+The best score is now taken **per state**, and a decisive state — DECLINE,
+PROGRESS, QUERY — overrides a provisional one only when **clearly** confident,
+not merely by being in a more important category.
+
+**OFFER is never reached by meaning alone.** Employers state an offer
+unambiguously, and the marker list covers it. Telling someone they have a job
+they do not have could stop them applying elsewhere; missing an oddly worded
+offer is recoverable, because they open it. An acknowledgement means nothing was decided, and a message carrying a
+decision is not one however warmly it opens.
+
 **A described outcome is not a decision.** Faculty's acknowledgement explained
 its own process:
 
@@ -1161,6 +1206,7 @@ vanguard responses linkedin:c56f76c4cbf8a346    # read the messages themselves
 | `--status` | `ACK`, `PROGRESS`, `DECLINE`, `OFFER`, `QUERY`, `ADMIN`, `AMBIGUOUS` |
 | `--sort` | `employer` (default), `state`, `via`, `date`, `subject` |
 | `--reverse` | Reverse the order |
+| `--explain` | Show what the classifier scored, per state |
 | `--limit` | How many to show. Default 40 |
 
 ### Sorting
@@ -1258,13 +1304,24 @@ vanguard reclassify
 **Needs no mailbox.** The bodies are stored, so a classifier improved after
 the fact applies to everything already in the register.
 
-**Only undecided records change** — `AMBIGUOUS`, `ACK` and `ADMIN`. An
+| Option | Effect |
+|---|---|
+| `--dry-run` | Report what would change |
+| `--force` | Also rewrite `DECLINE`, `OFFER`, `PROGRESS` and `QUERY` |
+
+**Only undecided records change by default** — `AMBIGUOUS`, `ACK` and `ADMIN`. An
 acknowledgement is a holding state: it means nothing was decided yet, and
 Faculty's rejection sat as one while every later poll classified it DECLINE
 and threw the result away.
 
 A decided record — `DECLINE`, `OFFER`, `PROGRESS`, `QUERY` — is never
-overwritten.
+overwritten without `--force`.
+
+**`--force` exists because a wrong decision is otherwise permanent.** Seven
+acknowledgements were once frozen as DECLINE and OFFER by an earlier
+classifier, and no amount of improvement could reach them. It is off by
+default because overwriting a decision you have acted on is not something to
+do silently.
 
 A record with no body stored cannot be reclassified — `vanguard poll` fills
 those in from the mailbox, if the message is still there.

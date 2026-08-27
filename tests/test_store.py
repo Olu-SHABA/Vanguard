@@ -815,3 +815,29 @@ def test_reclassify_reaches_acknowledgements(store: Store) -> None:
                           body="We have decided to move forward with others.")
     changed, _ = store.reclassify(lambda row: "DECLINE")
     assert changed == 1
+
+
+def test_force_rewrites_a_decided_state(store: Store) -> None:
+    """Seven acknowledgements were frozen as DECLINE and OFFER by an earlier
+    classifier. Without --force those records are permanent, however well the
+    current classifier reads them."""
+    store.record_response("reed:1", "DECLINE", sender="hr@x.com",
+                          subject="We've sent your application",
+                          received_at="2026-08-10",
+                          body="Your application is on its way.")
+
+    changed, _ = store.reclassify(lambda row: "ACK", force=True)
+    assert changed == 1
+    assert store.latest_response("reed:1")["state"] == "ACK"
+
+
+def test_without_force_a_decided_state_stands(store: Store) -> None:
+    """Overwriting a decision the operator has acted on is not something to
+    do silently."""
+    store.record_response("reed:1", "DECLINE", sender="hr@x.com",
+                          subject="Update", received_at="2026-08-10",
+                          body="You have not been successful.")
+
+    changed, _ = store.reclassify(lambda row: "ACK")
+    assert changed == 0
+    assert store.latest_response("reed:1")["state"] == "DECLINE"

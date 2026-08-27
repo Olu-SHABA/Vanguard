@@ -610,12 +610,21 @@ class Store:
                 out[f"subject:{subject}"] = row["vacancy_id"]
         return out
 
-    def reclassify(self, classify_fn) -> tuple[int, int]:
+    def reclassify(self, classify_fn, *, force: bool = False
+                   ) -> tuple[int, int]:
         """Re-run classification over stored bodies.
 
         Returns `(changed, total)`. Needs no mailbox: the bodies are already
         held, so a classifier improved after the fact can be applied to
         everything already received.
+
+        `force` also rewrites DECIDED states. Without it a record written
+        wrongly as DECLINE or OFFER by an earlier classifier is permanent —
+        which is exactly what happened: seven acknowledgements were frozen as
+        decisions that the current classifier gets right.
+
+        Off by default, because overwriting a decision the operator has acted
+        on is not something to do silently.
         """
         rows = self.responses(limit=5000)
         changed = 0
@@ -627,12 +636,13 @@ class Store:
                 new_state = classify_fn(row)
                 if not new_state or new_state == row["state"]:
                     continue
-                # Same rule as on write: a provisional state gives way to a
-                # decisive one, and a decisive one is never overwritten.
-                if row["state"] not in ("AMBIGUOUS", "ACK", "ADMIN"):
-                    continue
-                if new_state in ("AMBIGUOUS", "ACK", "ADMIN"):
-                    continue
+                if not force:
+                    # A provisional state gives way to a decisive one, and a
+                    # decisive one is never overwritten.
+                    if row["state"] not in ("AMBIGUOUS", "ACK", "ADMIN"):
+                        continue
+                    if new_state in ("AMBIGUOUS", "ACK", "ADMIN"):
+                        continue
                 conn.execute("UPDATE responses SET state = ? WHERE id = ?",
                              (new_state, row["id"]))
                 changed += 1
