@@ -54,7 +54,8 @@ Full command reference: **`COMMANDS.md`**.
 Open defects, deferrals and unverified assumptions: **`OUTSTANDING.md`**.
 Route to completion: **`ROADMAP.md`**.
 Phase 2 flowchart and specification: **`docs/PHASE_2.md`**.
-What is done and what remains: **`docs/MILESTONE_REPORT.md`**.
+What is done and what remains: **`docs/AUDIT.md`**.
+Earlier milestone report: **`docs/MILESTONE_REPORT.md`**.
 Phase 3 — market positioning, specified not built: **`docs/PHASE_3.md`**.
 
 ## Install

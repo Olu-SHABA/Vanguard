@@ -20,7 +20,7 @@ code and the live runs on that date — not carried forward on assumption.
 |---|---|---|---|---|
 | B-01 | Board config overrides caller query. `cfg.get("what") or query.keywords` — a CLI-supplied job title is silently ignored | `adapters/adzuna.py:77`, `adapters/reed.py:66` | HIGH | **DEFERRED to D-01** — operator ruling: do not patch precedence in isolation |
 | B-02 | Same precedence issue on location (`where`) | `adapters/adzuna.py`, `adapters/reed.py` | HIGH | **DEFERRED to D-01** |
-| B-03 | `ingest()` has no board filter — cannot restrict a run to named boards | `ingest.py` | MEDIUM | OPEN |
+| B-03 | `ingest()` has no board filter — cannot restrict a run to named boards | `ingest.py` | MEDIUM | OPEN — **CLOSED 22 Aug 2026 by N-18.** `vanguard run --board/--skip` narrows a run; `vanguard board enable/disable` makes it permanent. |
 | B-04 | Reed search returns truncated descriptions; `collect()` never called `fetch_detail()`. Requirement extraction ran against snippets | `adapters/reed.py` | **HIGH** | **CLOSED** — `BoardAdapter.hydrate()` hook added; Reed fetches the full advert per vacancy |
 | B-13 | A snippet produced a confident score. First live run: Service Centre Team Manager scored C=1.000 on \|R\|=1 while a Senior Data Engineer scored 0.000. Coverage on a denominator of 1-2 is meaningless | `coverage.py`, `refactor.py` | **HIGH** | **CLOSED** — `CoverageReport.unreliable` blocks the gate when the source is partial or \|R\| < 6; refactor exits `UNRELIABLE_SOURCE` -> FLAGGED |
 | B-06 | `_to_competency()` trimmed at `", and"`, discarding the clause carrying alias evidence. Found on the first real MiniLM run | `extract.py` | HIGH | **CLOSED** — `source_bullet` retained on every Requirement |
