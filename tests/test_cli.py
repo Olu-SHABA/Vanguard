@@ -2176,3 +2176,29 @@ def test_the_url_column_is_always_blank(runner: CliRunner,
                              ).read_text(encoding="utf-8").splitlines()
            if line.startswith("a.txt")][0]
     assert row.split(",")[3] == "", "the url column must be empty"
+
+
+def test_the_embedder_is_loaded_once_per_process() -> None:
+    """Loading MiniLM takes seconds, and several commands ask for it.
+
+    Measured 22 Aug 2026: one test cost 21 seconds of a 107-second suite
+    because `vanguard mail` loaded the model on every invocation. The model
+    is stateless once loaded — the same text yields the same vector — so
+    reusing it changes nothing but the time.
+    """
+    from vanguard.cli import _embedder
+
+    first, first_name = _embedder(True)
+    second, second_name = _embedder(True)
+
+    assert first is second, "the model must not be reloaded"
+    assert first_name == second_name
+
+
+def test_the_two_preferences_do_not_share_a_cache_entry() -> None:
+    """`--no-model` must still give the lexical fallback after the real model
+    has been loaded."""
+    from vanguard.cli import _embedder
+
+    _embedder(True)
+    assert _embedder(False)[1] == "lexical"

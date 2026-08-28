@@ -1741,3 +1741,77 @@ def test_a_receipt_echoing_the_form_is_not_a_query(embedder) -> None:
                           sender="noreply@candidates.workablemail.com"),
                       embedder=embedder)
     assert result.state is State.ACK, result.note
+
+
+# ---------------------------------------------------------------------------
+# The similarity loop
+#
+# Sixty decision lines against forty-five reference sentences is 2,700 dot
+# products of 384-dimensional vectors in pure Python, per message. Measured at
+# three seconds each, which was most of the cost of classifying a mailbox.
+#
+# Encodings were already cached; the waste was the arithmetic.
+# ---------------------------------------------------------------------------
+
+class _FakeModel:
+    """Deterministic unit vectors, as a real embedder produces."""
+
+    def __init__(self) -> None:
+        self._cache: dict[str, list[float]] = {}
+
+    def embed(self, text: str) -> list[float]:
+        import math
+        import random
+
+        if text not in self._cache:
+            rng = random.Random(abs(hash(text)) % 10 ** 8)
+            vector = [rng.gauss(0, 1) for _ in range(384)]
+            norm = math.sqrt(sum(x * x for x in vector)) or 1.0
+            self._cache[text] = [x / norm for x in vector]
+        return self._cache[text]
+
+    def similarity(self, a: str, b: str) -> float:
+        return sum(x * y for x, y in zip(self.embed(a), self.embed(b)))
+
+
+def test_the_matrix_path_agrees_with_the_loop() -> None:
+    """The optimisation must not change a single score. Verified against the
+    same embedder, with numpy present and absent."""
+    import builtins
+
+    from vanguard.mail import semantic_scores
+
+    model = _FakeModel()
+    body = "\n".join(
+        f"Sentence number {i} about an application, long enough to count."
+        for i in range(20))
+    message = msg(body, subject="Update on your application")
+
+    with_numpy = semantic_scores(message, model)
+
+    real_import = builtins.__import__
+
+    def _blocked(name, *args, **kwargs):
+        if name == "numpy":
+            raise ImportError("blocked for this test")
+        return real_import(name, *args, **kwargs)
+
+    builtins.__import__ = _blocked
+    try:
+        without_numpy = semantic_scores(message, model)
+    finally:
+        builtins.__import__ = real_import
+
+    assert set(with_numpy) == set(without_numpy)
+    for state in with_numpy:
+        assert abs(with_numpy[state][0] - without_numpy[state][0]) < 1e-9
+        assert with_numpy[state][1] == without_numpy[state][1], (
+            "the winning line must be the same")
+
+
+def test_classification_survives_an_embedder_without_embed(embedder) -> None:
+    """The lexical fallback exposes `similarity` but not `embed`. The loop
+    path must still work."""
+    assert not hasattr(embedder, "embed") or classify(
+        msg("Unfortunately you have not been successful."),
+        embedder=embedder).state is State.DECLINE

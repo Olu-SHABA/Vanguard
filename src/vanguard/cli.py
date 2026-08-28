@@ -164,12 +164,37 @@ DEFAULTS = {
 }
 
 
+#: One loaded model per process.
+#:
+#: Loading MiniLM takes seconds, and several commands ask for it — `run`,
+#: `poll`, `mail`, `reclassify`, `responses --explain`. Loading it afresh
+#: each time made one test cost 21 seconds of a 107-second suite, and the
+#: same waste applies wherever a command asks twice.
+#:
+#: Keyed on the preference, so `--no-model` and the default do not share an
+#: entry.
+_EMBEDDER_CACHE: dict[bool, tuple] = {}
+
+
 def _embedder(prefer_model: bool):
     """Real model if available, lexical fallback otherwise. Reports which.
 
     A LexicalEmbedder result is degraded and is recorded as such, so a
     recalibration pass can exclude it rather than mixing it with real scores.
+
+    Cached for the life of the process. The model is stateless once loaded —
+    the same text yields the same vector — so reusing it changes nothing but
+    the time.
     """
+    if prefer_model in _EMBEDDER_CACHE:
+        return _EMBEDDER_CACHE[prefer_model]
+
+    result = _load_embedder(prefer_model)
+    _EMBEDDER_CACHE[prefer_model] = result
+    return result
+
+
+def _load_embedder(prefer_model: bool):
     if prefer_model:
         try:
             from vanguard.rank import TERM_MODEL, EmbeddingCache, SentenceTransformerEmbedder

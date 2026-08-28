@@ -1051,7 +1051,37 @@ def semantic_scores(message: Message, embedder) -> dict[str, tuple[float, str]]:
     if embedder is None:
         return best
 
-    for line in _decision_sentences(message):
+    lines = _decision_sentences(message)
+    if not lines:
+        return best
+
+    # Embed once, compare as a matrix.
+    #
+    # The obvious loop calls `similarity(line, example)` for every pair —
+    # sixty lines against forty-five references is 2,700 dot products of
+    # 384-dimensional vectors in pure Python, per message. Measured at three
+    # seconds each, which is most of the cost of classifying a mailbox.
+    #
+    # Encodings are cached by the embedder, so the saving is in the
+    # arithmetic rather than the model.
+    try:
+        import numpy as _np
+
+        line_vectors = _np.array([embedder.embed(line) for line in lines])
+        for state, examples in REFERENCES.items():
+            reference_vectors = _np.array(
+                [embedder.embed(example) for example in examples])
+            # Vectors are normalised on encode, so the dot product IS cosine.
+            scores = line_vectors @ reference_vectors.T
+            index = int(_np.argmax(scores))
+            row, _column = divmod(index, scores.shape[1])
+            best[state] = (float(scores.flat[index]), lines[row])
+        return best
+    except Exception:
+        pass
+
+    # No numpy, or an embedder without `embed`. Correct, just slower.
+    for line in lines:
         for state, examples in REFERENCES.items():
             for example in examples:
                 try:
