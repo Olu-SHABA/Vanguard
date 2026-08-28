@@ -136,6 +136,8 @@ not for real scoring.
 ```bash
 vanguard boards                     # registry health, credential check
 vanguard run                        # autonomous: fetch, score, queue, exit
+vanguard search data scientist --within 6h   # build search links; fetches nothing
+vanguard discover --board adzuna    # list vacancies without scoring them
 vanguard paste --file advert.txt    # Tier 3: hand-feed one vacancy
 vanguard rescore --all              # re-score stored vacancies after a CV edit
 vanguard todo                       # everything waiting on you

@@ -74,10 +74,20 @@ defaults:
 boards:
 
   - id: adzuna
-    adapter: ManualEntryAdapter
+    adapter: AdzunaAPIAdapter
     enabled: true
-    tier: manual                     # NOT a terms restriction — a capability one
+    # RESTORED 22 Aug 2026. Tier records what the TERMS permit; the demotion
+    # to `manual` on 9 Aug recorded a capability limit in the field meant for
+    # terms, and the two are separate — as this file's own dataclass says.
+    #
+    # Adzuna's API is credentialed and permitted. What it cannot do is supply
+    # a scoreable advert, and `supplies_full_text: false` says so. The effect
+    # is unchanged for scoring: `assert_fetchable` still refuses it. What it
+    # unlocks is DISCOVERY — the API can list vacancies with their employer,
+    # title, salary and URL, which removes the searching and the typing.
+    tier: api_official
     supplies_full_text: false
+    discovery_only: true             # list vacancies; never score from them
     priority: 1                      # dedup master — widest aggregated corpus
     auth:
       app_id: ${ADZUNA_APP_ID}
@@ -90,13 +100,16 @@ boards:
       what: ["data scientist", "machine learning engineer", "network analytics"]
       where: "UK"
       max_days_old: 7
-    note: "DEMOTED TO MANUAL 9 Aug 2026. The free API caps every description at
+    note: "NOT SCOREABLE, 9 Aug 2026. The free API caps every description at
            exactly 500 characters and offers no detail endpoint, so requirement
            extraction finds one or two terms and coverage becomes meaningless —
            a Service Centre Team Manager scored C=1.000. Good for DISCOVERY,
-           useless for ASSESSMENT. Browse at adzuna.co.uk, paste with
-           `vanguard paste --board adzuna`. Credentials retained in case a
-           full-text tier becomes available."
+           useless for ASSESSMENT.
+
+           Used for DISCOVERY only: `vanguard discover --board adzuna` lists
+           vacancies with employer, title, salary and URL, and the operator
+           pastes the description against a record that already exists.
+           Credentials retained in case a full-text tier becomes available."
 
   - id: reed
     adapter: ReedAPIAdapter

@@ -60,7 +60,9 @@ class ReedAPIAdapter(BoardAdapter):
         return key
 
     def fetch(self, query: Query) -> list[RawVacancy]:
-        self.entry.assert_fetchable()
+        # Terms bound the fetch; text bounds the scoring. `ingest()`
+        # asserts the stronger guard before anything is assessed.
+        self.entry.assert_discoverable()
         self._api_key()
 
         cfg = self.entry.query or {}
@@ -125,7 +127,9 @@ class ReedAPIAdapter(BoardAdapter):
 
     def fetch_detail(self, job_id: int | str) -> dict[str, Any]:
         """Full description for one job. Search results are truncated."""
-        self.entry.assert_fetchable()
+        # Terms bound the fetch; text bounds the scoring. `ingest()`
+        # asserts the stronger guard before anything is assessed.
+        self.entry.assert_discoverable()
         self.limiter.acquire()
         response = self._http().get(f"{_DETAIL}/{job_id}")
         if getattr(response, "status_code", 200) >= 400:
@@ -172,7 +176,7 @@ class ReedAPIAdapter(BoardAdapter):
 
     def health_check(self) -> AdapterStatus:
         try:
-            self.entry.assert_fetchable()
+            self.entry.assert_discoverable()
             self._api_key()
         except Exception as exc:
             return AdapterStatus(self.board_id, False, str(exc))

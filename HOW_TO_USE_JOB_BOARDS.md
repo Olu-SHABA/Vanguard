@@ -8,6 +8,8 @@ never be automated.
 ## THE SHORT VERSION
 
 ```powershell
+vanguard search data scientist --within 6h    # links to open; fetches nothing
+vanguard discover --board adzuna              # list vacancies, no scoring
 vanguard boards                        # what is registered, and its state
 vanguard run                           # read every enabled, automatable board
 vanguard run --board reed              # read only Reed, this run
@@ -27,29 +29,43 @@ permanent one.
 Only one board is read automatically today. That is not a gap — it is what
 the sources allow.
 
-### Two halves: finding a job, and reading it
+### Three ways in
 
-A board can be automatable for one and not the other, and that is what
-decides the tier.
+| | What it does | Fetches? |
+|---|---|---|
+| `vanguard run` | Fetches and scores, end to end | yes |
+| `vanguard discover` | Lists vacancies; you paste the advert | yes, listings only |
+| `vanguard search` | **Builds links you open yourself** | **no** |
+
+`vanguard search` exists for LinkedIn. The User Agreement prohibits automated
+**collection**, not searching — so Vanguard writes the URL and stops. You
+click it, LinkedIn serves the page to your browser as a normal visit, and you
+read the results.
+
+```powershell
+vanguard search data scientist --within 6h --remote remote --level senior
+```
+
+Windows: `6h`, `12h`, `24h`, `3d`, `1w`, `2w`, `1m`. LinkedIn expects seconds
+(`f_TPR=r21600`), Indeed expects days (`fromage=1`). Vanguard remembers which.
+
+### What each board can supply
 
 | Board | Finding vacancies | Getting the advert |
 |---|---|---|
 | **Reed** | API | **full text** — nothing to paste |
-| **Adzuna** | API works | capped at 500 characters |
+| **Adzuna** | API, via `discover` | capped at 500 characters |
 | **Civil Service** | email alerts | summaries only |
 | **NHS Jobs** | email alerts | summaries only |
-| **LinkedIn** | — | — (terms prohibit both) |
+| **LinkedIn** | `search` builds the link; you browse | you copy it |
 
 **Reed is the only source that supplies a complete advert.**
 
-The other three can tell you a vacancy exists and where it is. They cannot
-give you enough text to score it — and a truncated advert does not score
-badly, it scores *meaninglessly*. Adzuna's 500-character cap produced
-`C=1.000` on a Service Centre Team Manager, because two requirements were
-extracted and the CV happened to match both.
-
-So the choice was: fetch automatically and get scores that look authoritative
-and measure nothing, or paste and get real ones. Scoring integrity won.
+A truncated advert does not score badly — it scores *meaninglessly*. Adzuna's
+500-character cap produced `C=1.000` on a Service Centre Team Manager,
+because two requirements were extracted and the CV matched both. So the
+choice was: fetch automatically and get scores that look authoritative and
+measure nothing, or paste and get real ones. Scoring integrity won.
 
 ### Why the reason barely matters to you
 

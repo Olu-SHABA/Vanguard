@@ -27,6 +27,7 @@ import re
 import shutil
 import sys
 import textwrap
+from dataclasses import replace
 from pathlib import Path
 from typing import Sequence
 
@@ -46,6 +47,7 @@ from vanguard.ingest import health_check_all, ingest
 from vanguard.logs import LogConfig, RunLog, configure
 from vanguard.mailbox import FetchStrategy, choose_strategy
 from vanguard.process import ProcessStore
+from vanguard.search import WINDOWS
 from vanguard.mail import Message
 from vanguard.queue import IllegalTransition, QueueManager, Status
 from vanguard.rank import LexicalEmbedder, rank_score
@@ -526,17 +528,25 @@ def run(boards, cv, aliases, db, title, location, only_boards, skip_boards,
 @click.option("--board", default="linkedin", help="Registry id to attribute it to.")
 @click.option("--employer", default="", help="Overrides anything parsed.")
 @click.option("--title", default="", help="Overrides anything parsed.")
+@click.option("--id", "vacancy_id", default="",
+              help="Fill in the advert for a vacancy already discovered.")
 @click.option("--boards", default=DEFAULTS["boards"])
 @click.option("--cv", default=DEFAULTS["cv"])
 @click.option("--aliases", default=DEFAULTS["aliases"])
 @click.option("--db", default=DEFAULTS["db"])
 @click.option("--no-model", is_flag=True)
-def paste(path, url, board, employer, title, boards, cv, aliases, db, no_model) -> None:
+def paste(path, url, board, employer, title, vacancy_id, boards, cv, aliases,
+          db, no_model) -> None:
     """Ingest a vacancy by hand, then score and queue it.
 
     Tier 3 boards are hand-fed by design — LinkedIn's User Agreement prohibits
     automated collection, and Civil Service Jobs serves a bot interstitial.
     Everything downstream runs identically on a pasted advert.
+
+    `--id` fills in the advert for a vacancy already DISCOVERED — the
+    employer, title and URL are known, so only the text is needed. That is
+    the whole point of `vanguard discover`: the board found the vacancy and
+    could not supply enough text to score it.
 
     Reads --file, or stdin if omitted.
     """
@@ -548,17 +558,43 @@ def paste(path, url, board, employer, title, boards, cv, aliases, db, no_model) 
 
     store, queue = _ctx(db)
     registry = load_registry(boards)
-    try:
-        entry = registry.get(board)
-    except KeyError as exc:
-        raise click.ClickException(f"unknown board {board!r}") from exc
 
-    try:
-        vacancy = ManualEntryAdapter(entry).submit(
-            text, url=url, employer=employer, title=title
+    if vacancy_id:
+        # Filling in a discovered record. Everything but the text is already
+        # known, and re-typing it would be the work `discover` exists to
+        # remove.
+        from dataclasses import replace as _replace
+
+        from vanguard.adapters.base import Vacancy
+
+        record = store.vacancy(vacancy_id)
+        if record is None:
+            raise click.ClickException(
+                f"no vacancy {vacancy_id!r}. `vanguard discover --list` shows "
+                "what is waiting")
+
+        vacancy = Vacancy(
+            id=record["id"], board_id=record["board_id"],
+            employer=employer or record["employer"],
+            title=title or record["title"], description=text,
+            url=url or record["url"] or "",
+            location=record["location"] or "",
+            salary_band=record["salary_band"] or "",
+            reference=record["reference"] or "",
         )
-    except Exception as exc:
-        raise click.ClickException(str(exc)) from exc
+        entry = registry.get(record["board_id"])
+    else:
+        try:
+            entry = registry.get(board)
+        except KeyError as exc:
+            raise click.ClickException(f"unknown board {board!r}") from exc
+
+        try:
+            vacancy = ManualEntryAdapter(entry).submit(
+                text, url=url, employer=employer, title=title
+            )
+        except Exception as exc:
+            raise click.ClickException(str(exc)) from exc
 
     canonical = load_cv(cv)
     alias_table = load_aliases(aliases)
@@ -3334,6 +3370,216 @@ def board_cmd(action, board_id, boards_path) -> None:
         click.echo("\n  This board is Tier 3 — `vanguard run` will not read it.")
         click.echo("  Vacancies are pasted; scoring and drafting run identically.")
     click.echo(f"\n  vanguard boards    the registry as it now stands")
+
+
+@main.command("discover")
+@click.option("--board", "only_boards", multiple=True,
+              help="Poll these boards only. Repeat for several.")
+@click.option("--title", multiple=True, help="Override the query keywords.")
+@click.option("--location", default="", help="Override the query location.")
+@click.option("--list", "list_only", is_flag=True,
+              help="Show what has been discovered and still needs its advert.")
+@click.option("--boards", "boards_path", default=DEFAULTS["boards"])
+@click.option("--db", default=DEFAULTS["db"])
+def discover_cmd(only_boards, title, location, list_only, boards_path,
+                 db) -> None:
+    """Find vacancies without scoring them.
+
+    Some boards can tell you a vacancy exists — employer, title, salary, URL —
+    without supplying enough text to assess it. Adzuna caps every description
+    at 500 characters, which produced `C=1.000` on a Service Centre Team
+    Manager because two requirements were extracted and the CV matched both.
+
+    So this records what was found and stops. You open the URL, read the
+    advert, and paste its text against a record that already knows the
+    employer and the link:
+
+        vanguard discover --board adzuna
+        vanguard discover --list
+        vanguard paste --file advert.txt --id adzuna:1234
+
+    **Nothing discovered is ever scored from the board's own text.**
+    """
+    from vanguard.adapters.base import Query
+    from vanguard.ingest import build_adapter
+
+    store, _ = _ctx(db)
+    width = _terminal_width()
+
+    if list_only:
+        waiting = store.vacancies_awaiting_text()
+        if not waiting:
+            click.echo("nothing discovered is waiting for its advert text")
+            return
+
+        click.echo(ui.rule(f"AWAITING TEXT  ·  {len(waiting)}"))
+        click.echo(ui.table(
+            [
+                ui.Column("EMPLOYER", 0.9, 12),
+                ui.Column("TITLE", 1.4, 14),
+                ui.Column("WHERE", 0.6, 10, tone=ui.Tone.MUTED),
+                ui.Column("ID", 0.9, 12, tone=ui.Tone.MUTED, protected=True),
+            ],
+            [[r["employer"] or "", r["title"] or "", r["location"] or "",
+              r["id"]] for r in waiting],
+        ))
+        click.echo()
+        click.echo("  open the URL, copy the advert, then:")
+        click.echo(f"      vanguard paste --file advert.txt --id {waiting[0]['id']}")
+        click.echo("\n  vanguard discover --list --db ...   URLs in full:")
+        for row in waiting[:5]:
+            click.echo(f"      {row['id']}  {row['url'] or '(no url)'}")
+        return
+
+    registry = load_registry(boards_path)
+    boards = registry.discoverable
+    if only_boards:
+        boards = [e for e in boards if e.id in set(only_boards)]
+        unknown = set(only_boards) - {e.id for e in registry.entries}
+        if unknown:
+            raise click.ClickException(f"unknown board(s): {', '.join(unknown)}")
+
+    if not boards:
+        raise click.ClickException(
+            "no discoverable board. `vanguard boards` shows the registry")
+
+    query = Query(keywords=tuple(title), location=location)
+    click.echo(ui.rule(f"DISCOVER  ·  {len(boards)} board(s)"))
+
+    found, added, existing = 0, 0, 0
+
+    for entry in boards:
+        try:
+            entry.assert_discoverable()
+            adapter = build_adapter(entry)
+            raw = adapter.fetch(query)
+        except Exception as exc:
+            click.echo(f"  {ui.badge('SKIPPED', ui.Tone.WARN)} {entry.id}: "
+                       f"{_clip(str(exc), width - 24)}")
+            continue
+
+        for item in raw:
+            vacancy = adapter.normalise(item)
+            found += 1
+
+            if store.vacancy(vacancy.id) is not None:
+                existing += 1
+                continue
+
+            # Recorded WITHOUT its description. A truncated advert scores as
+            # though it were complete, so none is stored at all — an empty
+            # description is what marks a record as awaiting text.
+            if entry.discovery_only:
+                vacancy = replace(vacancy, description="", awaiting_text=True)
+
+            store.upsert_vacancy(vacancy)
+            added += 1
+
+        click.echo(f"  {ui.badge(entry.id.upper(), ui.Tone.INFO)} "
+                   f"{len(raw)} listed")
+
+    click.echo()
+    click.echo(ui.field_list([
+        ("found", str(found)),
+        ("new", str(added)),
+        ("already known", str(existing)),
+    ], indent="  "))
+
+    if added:
+        click.echo("\n  vanguard discover --list    what needs its advert text")
+
+
+@main.command("search")
+@click.argument("keywords", nargs=-1)
+@click.option("--board", "board_ids", multiple=True,
+              help="Which boards to build links for. Default all searchable.")
+@click.option("--location", default="", help="Where. Free text.")
+@click.option("--within", "window", default="24h",
+              type=click.Choice(list(WINDOWS)),
+              help="How recently posted. Default 24h.")
+@click.option("--remote", type=click.Choice(["remote", "hybrid", "onsite"]),
+              default=None, help="Working arrangement.")
+@click.option("--type", "job_type",
+              type=click.Choice(["full", "part", "contract", "temporary",
+                                 "internship"]),
+              default=None, help="Contract type.")
+@click.option("--level", "experience",
+              type=click.Choice(["entry", "associate", "mid", "senior",
+                                 "director"]),
+              default=None, help="Seniority.")
+@click.option("--sort", default="date", type=click.Choice(["date", "relevance"]))
+def search_cmd(keywords, board_ids, location, window, remote, job_type,
+               experience, sort) -> None:
+    """Build search links for boards that cannot be polled.
+
+    **Nothing is fetched.** This prints URLs. You open them, read the results
+    and paste the ones worth having.
+
+    LinkedIn's User Agreement prohibits automated COLLECTION. It does not
+    prohibit searching — opening a search page in a browser is what the site
+    is for. Building a URL is writing down where to look; following it
+    automatically is the thing that is not done here, and there is no HTTP
+    client in this path to do it with.
+
+        vanguard search data scientist --within 6h --remote remote
+        vanguard search "machine learning engineer" --location Bristol --level senior
+        vanguard search data scientist --board linkedin --board indeed --within 1w
+    """
+    from vanguard.search import SEARCHABLE, WINDOWS, build_search_url, spec_for
+
+    width = _terminal_width()
+    query = " ".join(keywords).strip()
+
+    if not query:
+        raise click.ClickException(
+            'what to search for, e.g. vanguard search data scientist')
+
+    wanted = list(board_ids) or [s.board_id for s in SEARCHABLE]
+    unknown = [b for b in wanted if spec_for(b) is None]
+    if unknown:
+        known = ", ".join(s.board_id for s in SEARCHABLE)
+        raise click.ClickException(
+            f"no search spec for {', '.join(unknown)}. Known: {known}")
+
+    label = {"6h": "last 6 hours", "12h": "last 12 hours",
+             "24h": "last 24 hours", "3d": "last 3 days", "1w": "last week",
+             "2w": "last 2 weeks", "1m": "last month",
+             "any": "any time"}.get(window, window)
+
+    click.echo()
+    click.echo(ui.rule(f"SEARCH  ·  {_clip(query, 30)}  ·  {label}"))
+
+    remote = remote or ""
+    job_type = job_type or ""
+    experience = experience or ""
+
+    filters = [f for f in (location, remote, job_type, experience) if f]
+    if filters:
+        click.echo(f"  {' · '.join(filters)}")
+
+    for board_id in wanted:
+        url = build_search_url(
+            board_id, keywords=query, location=location, window=window,
+            remote=remote, job_type=job_type, experience=experience, sort=sort)
+        spec = spec_for(board_id)
+
+        click.echo()
+        click.echo(f"  {ui.badge(board_id.upper(), ui.Tone.INFO)}")
+        # Never wrapped. A URL split across lines cannot be clicked, and
+        # copying it back together by hand is exactly the work this command
+        # exists to remove.
+        click.echo(f"      {url}")
+        if spec and spec.recency_format and window != "any":
+            supported = [name for name in ("remote", "job_type", "experience")
+                         if locals().get(name) and not spec.supports(name)]
+            if supported:
+                click.echo(f"      {ui.badge('IGNORED', ui.Tone.MUTED)} "
+                           f"{', '.join(supported)} — not supported here")
+
+    click.echo()
+    click.echo("  Vanguard fetched nothing. Open a link, read the results,")
+    click.echo("  and paste what is worth having:")
+    click.echo("      vanguard paste --file advert.txt --board linkedin --url ...")
 
 
 # ---------------------------------------------------------------------------

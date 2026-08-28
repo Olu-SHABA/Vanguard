@@ -2004,3 +2004,93 @@ def test_a_short_employer_is_searched_for() -> None:
 
     assert '"Ki"' in terms, "a two-letter employer must be searched for"
     assert '"Sanderson"' in terms
+
+
+# ---------------------------------------------------------------------------
+# Discovery
+#
+# Some boards can say a vacancy EXISTS without supplying enough text to score
+# it. Adzuna caps every description at 500 characters, which produced
+# C=1.000 on a Service Centre Team Manager — two requirements extracted, both
+# matched.
+#
+# So discovery records employer, title, salary and URL, and stops. The
+# operator pastes the advert against a record that already knows the rest.
+# ---------------------------------------------------------------------------
+
+def _discovered(tmp_path: Path) -> Path:
+    from vanguard.adapters.base import Vacancy
+    from vanguard.store import Store
+
+    db = tmp_path / "v.db"
+    store = Store(db)
+    store.initialise()
+    for i, (employer, title) in enumerate([("Sanderson", "ML Engineer"),
+                                           ("Acme", "Data Scientist")]):
+        store.upsert_vacancy(Vacancy(
+            id=f"adzuna:{1000 + i}", board_id="adzuna", employer=employer,
+            title=title, description="", awaiting_text=True,
+            location="London",
+            url=f"https://www.adzuna.co.uk/jobs/details/{1000 + i}"))
+    return db
+
+
+def test_a_discovered_vacancy_needs_no_description(tmp_path: Path) -> None:
+    """`Vacancy` refuses an empty description — nothing to extract from. A
+    discovery stub says so explicitly rather than slipping past the guard."""
+    from vanguard.adapters.base import IngestionError, Vacancy
+
+    with pytest.raises(IngestionError):
+        Vacancy(id="x:1", board_id="adzuna", employer="A", title="T",
+                description="")
+
+    Vacancy(id="x:1", board_id="adzuna", employer="A", title="T",
+            description="", awaiting_text=True)
+
+
+def test_discover_list_shows_what_is_waiting(runner: CliRunner,
+                                             tmp_path: Path) -> None:
+    db = _discovered(tmp_path)
+    out = runner.invoke(main, ["discover", "--list", "--db", str(db)]).output
+    assert "2" in out
+    assert "Sanderson" in out
+    assert "adzuna.co.uk" in out, "the URL is the point — it saves the search"
+
+
+def test_paste_fills_in_a_discovered_record(runner: CliRunner,
+                                            tmp_path: Path) -> None:
+    """The whole saving: employer, title and URL are already known, so only
+    the advert text is typed."""
+    db = _discovered(tmp_path)
+    advert = tmp_path / "advert.txt"
+    advert.write_text((ROOT / "tests" / "fixtures" /
+                       "moj_senior_data_engineer.txt").read_text(encoding="utf-8"),
+                      encoding="utf-8")
+
+    result = runner.invoke(main, [
+        "paste", "--file", str(advert), "--id", "adzuna:1000", "--db", str(db),
+        "--no-model", "--boards", str(ROOT / "config" / "boards.yaml"),
+        "--cv", str(ROOT / "data" / "canonical_cv.md"),
+        "--aliases", str(ROOT / "config" / "alias_table.yaml")])
+    assert result.exit_code == 0, result.output
+
+    from vanguard.store import Store
+    store = Store(db)
+    record = store.vacancy("adzuna:1000")
+    assert record["employer"] == "Sanderson", "the employer must not be re-typed"
+    assert "adzuna.co.uk" in record["url"], "nor the URL"
+    assert record["description"].strip()
+
+    assert len(store.vacancies_awaiting_text()) == 1, "it should drop off the list"
+
+
+def test_pasting_against_an_unknown_id_is_refused(runner: CliRunner,
+                                                  tmp_path: Path) -> None:
+    db = _discovered(tmp_path)
+    advert = tmp_path / "a.txt"
+    advert.write_text("Requirements\n- Python\n", encoding="utf-8")
+
+    result = runner.invoke(main, ["paste", "--file", str(advert),
+                                  "--id", "adzuna:nothere", "--db", str(db)])
+    assert result.exit_code != 0
+    assert "discover --list" in result.output

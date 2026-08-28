@@ -198,6 +198,15 @@ def ingest(
                 BoardOutcome(entry.id, entry.tier.value, skipped="tier 3 — operator paste only")
             )
             continue
+        if entry.discovery_only:
+            # Its terms permit the fetch; its text cannot be scored. Skipped
+            # HERE rather than left to raise, so a board doing exactly what it
+            # is configured to do is not reported as a failure.
+            outcomes.append(
+                BoardOutcome(entry.id, entry.tier.value,
+                             skipped="discovery only — `vanguard discover`")
+            )
+            continue
 
         try:
             adapter = adapter_factory(entry)

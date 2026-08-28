@@ -144,7 +144,15 @@ class Vacancy:
     posted: datetime | None = None
     fetched_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     reference: str = ""   # employer vacancy reference — correlation stage 1
-    description_is_partial: bool = False   # search snippet, not the full advert
+    description_is_partial: bool = False
+    #: A DISCOVERED vacancy: employer, title and URL are known and the advert
+    #: is not. Permits an empty description, which is otherwise refused.
+    #:
+    #: Deliberately explicit rather than inferred from an empty string. A
+    #: board that truncates its adverts stores no description at all, because
+    #: a truncated one scores as though it were complete — and the record
+    #: should say it is waiting, not merely be silent about it.
+    awaiting_text: bool = False   # search snippet, not the full advert
     closes: object | None = None           # datetime.date, when the advert states one
 
     def __post_init__(self) -> None:
@@ -152,7 +160,7 @@ class Vacancy:
             raise IngestionError("vacancy has no id")
         if not self.title.strip():
             raise IngestionError(f"vacancy {self.id} has no title")
-        if not self.description.strip():
+        if not self.description.strip() and not self.awaiting_text:
             raise IngestionError(
                 f"vacancy {self.id} has no description — nothing to extract requirements from"
             )
@@ -398,7 +406,16 @@ class BoardAdapter(ABC):
 
     @abstractmethod
     def fetch(self, query: Query) -> list[RawVacancy]:
-        """Retrieve raw vacancies. Must call `entry.assert_fetchable()` first."""
+        """Retrieve raw vacancies. Must call `entry.assert_discoverable()` first.
+
+        **Discoverable, not fetchable.** Fetching is bounded by the board's
+        TERMS; scoring is bounded by whether the text can be assessed. A
+        board that lists vacancies honestly but truncates their descriptions
+        may be polled — what must not happen is scoring the truncated result.
+
+        `ingest()` calls `assert_fetchable()` before it scores anything, so
+        the stronger guard still applies on the path that matters.
+        """
 
     @abstractmethod
     def normalise(self, raw: RawVacancy) -> Vacancy:
@@ -593,6 +610,9 @@ class RegistryEntry:
     enabled: bool
     tier: Tier
     supplies_full_text: bool = True
+    #: Poll the API for titles, employers and URLs, but never score from it.
+    #: Set where the terms permit access and the text is too thin to assess.
+    discovery_only: bool = False
     priority: int = 99
     silence_days: int = DEFAULT_SILENCE_DAYS
     calls_per_hour: int = DEFAULT_CALLS_PER_HOUR
@@ -602,6 +622,25 @@ class RegistryEntry:
     ingress: dict[str, str] = field(default_factory=dict)
     note: str = ""
 
+    def assert_discoverable(self) -> None:
+        """Guard a DISCOVERY fetch — titles, employers and URLs, no scoring.
+
+        Weaker than `assert_fetchable` in exactly one respect: it does not
+        require full text, because discovery does not assess anything. It
+        records that a vacancy exists and where to read it.
+
+        Terms still bind. A Tier 3 board is not discoverable either, because
+        the restriction is on automated collection, not on what is collected.
+        """
+        if not self.enabled:
+            raise TermsViolation(
+                f"board {self.id!r} is disabled and must not be contacted")
+        if not self.tier.automatable:
+            raise TermsViolation(
+                f"board {self.id!r} is Tier 3 (manual): automated collection is "
+                "prohibited by its terms, for discovery as much as for text."
+            )
+
     def assert_fetchable(self) -> None:
         """Guard every automated fetch. Raises rather than degrading."""
         if not self.enabled:
@@ -610,6 +649,12 @@ class RegistryEntry:
             raise TermsViolation(
                 f"board {self.id!r} is Tier 3 (manual): automated collection is "
                 "prohibited by its terms. Operator pastes URL or text."
+            )
+        if self.discovery_only:
+            raise InsufficientForAssessment(
+                f"board {self.id!r} is discovery-only: it lists vacancies but "
+                "cannot supply text to score. Use `vanguard discover` and "
+                "paste the advert."
             )
         if not self.supplies_full_text:
             raise InsufficientForAssessment(
@@ -680,11 +725,27 @@ class BoardRegistry:
 
     @property
     def automatable(self) -> list[RegistryEntry]:
-        """Enabled boards the pipeline may fetch from without an operator."""
+        """Enabled boards the pipeline may SCORE from without an operator.
+
+        A discovery-only board is excluded: its terms permit the fetch, but
+        its text cannot be assessed, and `vanguard run` scores everything it
+        fetches.
+        """
+        return [e for e in self.enabled
+                if e.tier.automatable and not e.discovery_only]
+
+    @property
+    def discoverable(self) -> list[RegistryEntry]:
+        """Enabled boards that may be POLLED for titles, employers and URLs.
+
+        Includes boards that can also be scored — Reed lists vacancies as
+        well as supplying their text.
+        """
         return [e for e in self.enabled if e.tier.automatable]
 
     @property
     def manual(self) -> list[RegistryEntry]:
+        """Enabled boards needing an operator for the FETCH itself."""
         return [e for e in self.enabled if not e.tier.automatable]
 
     @property
@@ -761,17 +822,30 @@ def load_registry(path: Path | str) -> BoardRegistry:
                 auth=_expand(raw.get("auth", {}) or {}),
                 query=_expand(raw.get("query", {}) or {}),
                 portal_url=str(raw.get("portal_url", "")),
+                discovery_only=bool(raw.get("discovery_only", False)),
                 ingress=_expand(raw.get("ingress", {}) or {}),
                 note=re.sub(r"\s+", " ", str(raw.get("note", ""))).strip(),
             )
         )
 
     for entry in entries:
-        if entry.enabled and entry.tier.automatable and not entry.supplies_full_text:
+        # A board that cannot supply full text must never be SCORED from its
+        # API. That is the 9 Aug ruling and it stands — `assert_fetchable`
+        # enforces it per fetch.
+        #
+        # It may still be DISCOVERED from, where its terms permit: listing a
+        # vacancy's employer, title and URL assesses nothing. Refusing that
+        # too conflated what the terms allow with what the text supports,
+        # which are separate fields on this dataclass for a reason.
+        #
+        # `discovery_only` records the operator's intent explicitly, so a
+        # board is never silently scored from truncated text.
+        if (entry.enabled and entry.tier.automatable
+                and not entry.supplies_full_text and not entry.discovery_only):
             raise InsufficientForAssessment(
                 f"board {entry.id!r} is enabled at tier {entry.tier.value} but declares "
-                "supplies_full_text: false. A board that cannot be assessed must not "
-                "be automated — set tier: manual."
+                "supplies_full_text: false. Either set tier: manual, or set "
+                "discovery_only: true to list vacancies without scoring them."
             )
 
     return BoardRegistry(tuple(entries), defaults)

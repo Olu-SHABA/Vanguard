@@ -12,7 +12,7 @@ what.
 | Group | Commands |
 |---|---|
 | [Setup and health](#setup-and-health) | `boards` |
-| [Getting vacancies in](#getting-vacancies-in) | `run` · `paste` · `adverts` · `rescore` |
+| [Getting vacancies in](#getting-vacancies-in) | `run` · `search` · `discover` · `paste` · `adverts` · `rescore` |
 | [Looking at results](#looking-at-results) | `todo` · `review` · `score` · `stats` · `diagnose` · `evidence` |
 | [Deciding](#deciding) | `session` · `approve` · `reject` · `resolve` · `override` · `draft` · `apply` · `dispatch` |
 | [Accounts](#accounts) | `registrations` |
@@ -179,6 +179,97 @@ scoring 31 vacanc(ies) [minilm] gate 0.60
 **Why hydration is deferred.** Each full advert costs one API call against 60
 per hour. Ranking first means the budget goes to plausible vacancies rather
 than whatever the search returned first.
+
+---
+
+## `vanguard search`
+
+Build search links for boards that cannot be polled. **Nothing is fetched.**
+
+```bash
+vanguard search data scientist --within 6h --remote remote
+vanguard search "machine learning engineer" --location Bristol --level senior
+vanguard search data scientist --board linkedin --board indeed --within 1w
+```
+
+| Option | Effect |
+|---|---|
+| `--within` | `6h`, `12h`, `24h`, `3d`, `1w`, `2w`, `1m`, `any`. Default `24h` |
+| `--location` | Free text |
+| `--remote` | `remote`, `hybrid`, `onsite` |
+| `--type` | `full`, `part`, `contract`, `temporary`, `internship` |
+| `--level` | `entry`, `associate`, `mid`, `senior`, `director` |
+| `--board` | Which boards to build links for. Default all searchable |
+| `--sort` | `date` (default) or `relevance` |
+
+### Why this is permitted
+
+LinkedIn's User Agreement prohibits **automated collection**. It does not
+prohibit searching — opening a search page in a browser is what the site is
+for.
+
+**Building a URL is writing down where to look. Following it automatically is
+the thing that is not done here**, and there is no HTTP client in that module
+to do it with. A test asserts it stays that way.
+
+### Why it is worth having
+
+A filtered LinkedIn search is a URL nobody types by hand:
+
+```
+?keywords=data+scientist&location=Bristol&f_WT=2&f_E=5&sortBy=DD&f_TPR=r21600
+```
+
+`f_TPR=r21600` means *posted in the last 21,600 seconds* — six hours. Indeed
+wants days in `fromage`; Totaljobs wants `postedwithin`. Vanguard remembers,
+and prints the link.
+
+An unsupported filter is dropped rather than refused, and said so, because a
+board that cannot filter by seniority should still give a usable link for
+what it can.
+
+---
+
+## `vanguard discover`
+
+Find vacancies without scoring them.
+
+```bash
+vanguard discover --board adzuna
+vanguard discover --list
+vanguard paste --file advert.txt --id adzuna:1234
+```
+
+| Option | Effect |
+|---|---|
+| `--board` | Poll these boards only |
+| `--list` | Show what is discovered and still needs its advert |
+| `--title`, `--location` | Override the query |
+
+**Some boards can say a vacancy exists without supplying enough text to score
+it.** Adzuna caps every description at 500 characters, which produced
+`C=1.000` on a Service Centre Team Manager — two requirements extracted, both
+matched.
+
+So discovery records employer, title, salary and URL, and stops. **No
+description is stored at all**, because a truncated advert scores as though it
+were complete.
+
+Then `vanguard paste --id` fills in the text against a record that already
+knows the rest. That removes the searching, and removes re-typing the employer
+and URL — which is most of what makes batch entry slow.
+
+### Discoverable is not scoreable
+
+Tier records what the **terms** permit. `supplies_full_text` records whether
+what comes back can be **assessed**. They are separate, and conflating them
+cost the discovery route entirely for six weeks.
+
+| | Terms permit fetching | Text can be scored |
+|---|---|---|
+| Reed | yes | yes |
+| Adzuna | yes | **no** — `discovery_only: true` |
+| LinkedIn | **no** | — |
 
 ---
 

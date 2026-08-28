@@ -582,6 +582,19 @@ class Store:
         with self.connect() as conn:
             return conn.execute(query, (*params, limit)).fetchall()
 
+    def vacancies_awaiting_text(self, limit: int = 500) -> list[sqlite3.Row]:
+        """Discovered vacancies with no advert stored.
+
+        An empty description is what marks a record as awaiting text: a board
+        that cannot supply a scoreable advert stores none at all, rather than
+        a truncated one that would score as though it were complete.
+        """
+        with self.connect() as conn:
+            return conn.execute(
+                "SELECT * FROM vacancies WHERE COALESCE(TRIM(description), '') = ''"
+                " ORDER BY employer, title LIMIT ?", (limit,)
+            ).fetchall()
+
     def known_threads(self) -> dict[str, str]:
         """Message ids and subject roots already correlated, to the vacancy.
 

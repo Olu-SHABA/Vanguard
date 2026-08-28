@@ -94,10 +94,10 @@ def test_enabled_and_automatable_split(registry) -> None:
     this asserts the shape — one automatable board, the rest hand-fed, and
     every enabled board accounted for by one or the other.
     """
-    assert len(registry.automatable) == 1, "only Reed has a candidate API"
-    assert {e.id for e in registry.automatable} == {"reed"}
-    assert len(registry.enabled) == len(registry.automatable) + len(
-        registry.manual)
+    assert {e.id for e in registry.automatable} == {"reed"}, (
+        "only Reed supplies a full advert")
+    assert "adzuna" in {e.id for e in registry.discoverable}, (
+        "Adzuna lists vacancies even though it cannot supply their text")
     assert len(registry.manual) >= 3
 
 
@@ -728,15 +728,24 @@ def test_automated_board_without_full_text_is_rejected_at_load(tmp_path: Path) -
         "boards:\n  - id: x\n    tier: api_official\n    enabled: true\n"
         "    supplies_full_text: false\n"
     )
-    with pytest.raises(InsufficientForAssessment, match="must not be automated"):
+    with pytest.raises(InsufficientForAssessment, match="discovery_only"):
         load_registry(p)
 
 
-def test_adzuna_is_demoted_to_manual(registry) -> None:
-    """Capability, not terms. Adzuna is legal to poll and useless to score."""
+def test_adzuna_is_discovery_only(registry) -> None:
+    """Renamed 22 Aug 2026 from `test_adzuna_is_demoted_to_manual`.
+
+    The 9 Aug demotion put a CAPABILITY limit in the field meant for TERMS.
+    Adzuna's API is credentialed and permitted; what it cannot do is supply a
+    scoreable advert. Those are separate fields, and conflating them cost the
+    discovery route entirely.
+    """
     entry = registry.get("adzuna")
-    assert entry.tier is Tier.MANUAL
-    assert not entry.supplies_full_text
+    assert entry.tier.automatable, "the terms permit the API"
+    assert not entry.supplies_full_text, "the text cannot be assessed"
+    assert entry.discovery_only
+    assert entry.note, "the reason must be recorded"
+
 
 
 def test_reed_remains_assessable(registry) -> None:
@@ -969,3 +978,45 @@ def test_config_overrides_the_query_default(registry) -> None:
     entry = registry.get("reed")
     entry.query["max_days_old"] = 5
     assert entry.max_days_old(Query(max_days_old=30)) == 5
+
+
+# ---------------------------------------------------------------------------
+# Discovery is not scoring
+#
+# Tier records what the TERMS permit. `supplies_full_text` records whether
+# what comes back can be assessed. Demoting Adzuna to `manual` on 9 Aug put a
+# capability limit in the field meant for terms, and the two are separate.
+# ---------------------------------------------------------------------------
+
+def test_a_discovery_only_board_is_not_scoreable(registry) -> None:
+    from vanguard.adapters.base import InsufficientForAssessment
+
+    entry = registry.get("adzuna")
+    assert entry.discovery_only
+    with pytest.raises(InsufficientForAssessment):
+        entry.assert_fetchable()
+
+
+def test_a_discovery_only_board_is_discoverable(registry) -> None:
+    """Listing a vacancy's employer, title and URL assesses nothing."""
+    registry.get("adzuna").assert_discoverable()
+
+
+def test_terms_bind_discovery_too(registry) -> None:
+    """A Tier 3 restriction is on automated COLLECTION, not on what is
+    collected. LinkedIn is not discoverable either."""
+    from vanguard.adapters.base import TermsViolation
+
+    with pytest.raises(TermsViolation):
+        registry.get("linkedin").assert_discoverable()
+
+
+def test_the_three_sets_are_distinct(registry) -> None:
+    scoreable = {e.id for e in registry.automatable}
+    discoverable = {e.id for e in registry.discoverable}
+    hand_fed = {e.id for e in registry.manual}
+
+    assert scoreable == {"reed"}, "only Reed supplies a full advert"
+    assert "adzuna" in discoverable and "adzuna" not in scoreable
+    assert scoreable <= discoverable
+    assert not (discoverable & hand_fed)
