@@ -153,6 +153,7 @@ vanguard override <id> --why "..."  # apply despite an unreachable ceiling
 vanguard draft <id>                 # cover letter, framed to the vacancy
 vanguard apply <id>                 # what it needs, and where — then stops
 vanguard dispatch <id>              # record a submission YOU made
+vanguard status                     # everything at once — start here
 vanguard stats                      # coverage distribution, recurring gaps
 vanguard sql "SELECT ..."           # query the store directly, read-only
 vanguard diagnose                   # why adverts refuse; unrecognised headings

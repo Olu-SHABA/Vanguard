@@ -592,6 +592,53 @@ with their reasons.
 
 ---
 
+## `vanguard status`
+
+Everything at once. **Start here.**
+
+```bash
+vanguard status
+```
+
+```
+VANGUARD  ·  41 vacancy record(s)
+
+  STATE        N
+  Pending      6  ██------------ 6/41 (15%)
+  Dispatched  20  ███████------- 20/41 (49%)
+  Flagged      9  ███----------- 9/41 (22%)
+
+RESPONSES
+  Decline 4   Ack 2
+
+HOW FAR APPLICATIONS GET
+  dispatched        20
+  furthest reached  Application
+  ended             4
+  no reply at all   14
+
+  ! NOTHING PAST CV STAGE across 20 applications
+
+WAITING ON YOU
+  review 6                   vanguard session
+  resolve 9                  vanguard session --status FLAGGED
+```
+
+Four commands' worth on one screen — `review`, `responses`, `funnel` and
+`todo` — because seeing the picture should not require knowing which four to
+run. Every line names the command that acts on it.
+
+**A summary, not a dashboard.** A dashboard's value scales with volume, and
+choosing what to display against a corpus that does not exist yet is
+guessing. This shows what there is.
+
+**The finding is stated, not left to be inferred** — twelve applications
+reaching no further than CV stage is the thing worth knowing, and a table
+does not say it. Withheld below ten applications, where the same pattern
+means nothing.
+
+---
+
 ## `vanguard stats`
 
 Distribution across everything scored — the recalibration input.

@@ -3826,6 +3826,152 @@ def sql_cmd(statement, tables, limit, as_csv, db) -> None:
                    "--limit 0 for all")
 
 
+@main.command("status")
+@click.option("--db", default=DEFAULTS["db"])
+def status_cmd(db) -> None:
+    """Everything at once. Where the pipeline is, what came back, what needs you.
+
+    The front page. Four commands' worth on one screen, because seeing the
+    picture should not require knowing which four to run.
+
+    This is deliberately a SUMMARY and not a dashboard. A dashboard's value
+    scales with volume, and choosing what to display against a corpus that
+    does not exist yet is guessing — which is how Template F came to be
+    derived from a single advert.
+    """
+    from vanguard.lifecycle import FUNNEL_ORDER, StageOutcome, build_lifecycle
+    from vanguard.process import ProcessStore
+
+    store, _ = _ctx(db)
+    width = _terminal_width()
+
+    counts = store.counts_by_status()
+    total = sum(counts.values())
+
+    click.echo()
+    click.echo(ui.rule(f"VANGUARD  ·  {total} vacancy record(s)"))
+
+    if not total:
+        click.echo("\n  nothing ingested yet")
+        click.echo("\n  vanguard search data scientist --within 24h")
+        click.echo("  vanguard run")
+        return
+
+    # --- the pipeline ------------------------------------------------------
+    order = ("PENDING", "APPROVED", "DISPATCHED", "FLAGGED", "UNREACHABLE",
+             "REJECTED")
+    rows = [[name.title(), str(counts[name]),
+             ui.bar(counts[name], total, width=14)]
+            for name in order if counts.get(name)]
+    for name, count in sorted(counts.items()):
+        if name not in order:
+            rows.append([name.title(), str(count), ui.bar(count, total, width=14)])
+
+    click.echo()
+    click.echo(ui.table(
+        [
+            ui.Column("STATE", 0.5, 11),
+            ui.Column("N", 0.2, 4, "right"),
+            ui.Column("", 0.9, 14, tone=ui.Tone.MUTED),
+        ],
+        rows,
+    ))
+
+    # --- what came back ----------------------------------------------------
+    responses = store.responses(limit=2000)
+    if responses:
+        by_state: dict[str, int] = {}
+        for row in responses:
+            by_state[row["state"]] = by_state.get(row["state"], 0) + 1
+
+        click.echo()
+        click.echo(ui.rule("RESPONSES"))
+        click.echo("  " + "   ".join(
+            f"{state.title()} {n}" for state, n in sorted(
+                by_state.items(), key=lambda kv: -kv[1])))
+
+    # --- how far applications get -----------------------------------------
+    dispatched = [r for r in store.list_queue(limit=1000, order="date")
+                  if r["status"] == "DISPATCHED"]
+    if dispatched:
+        messages: dict[str, list] = {}
+        for row in responses:
+            messages.setdefault(row["vacancy_id"], []).append(dict(row))
+
+        points = [build_lifecycle(r["vacancy_id"],
+                                  messages.get(r["vacancy_id"], []))
+                  for r in dispatched]
+        deepest = max(points, key=lambda p: p.depth)
+        ended = [p for p in points if p.outcome is StageOutcome.FAILED]
+        silent = [p for p in points if not messages.get(p.vacancy_id)]
+
+        click.echo()
+        click.echo(ui.rule("HOW FAR APPLICATIONS GET"))
+        click.echo(ui.field_list([
+            ("dispatched", str(len(dispatched))),
+            ("furthest reached", deepest.reached.value.title()),
+            ("ended", str(len(ended))),
+            ("no reply at all", str(len(silent))),
+        ], indent="  "))
+
+        if deepest.reached is FUNNEL_ORDER[0] and len(dispatched) >= 10:
+            # The finding, stated rather than left to be inferred from a table.
+            click.echo(f"\n  {ui.badge('NOTHING PAST CV STAGE', ui.Tone.WARN)} "
+                       f"across {len(dispatched)} applications")
+
+    # --- the gap -----------------------------------------------------------
+    gaps = store.unmet_term_frequency(limit=6)
+    if gaps:
+        click.echo()
+        click.echo(ui.rule("MOST FREQUENT UNMET REQUIREMENTS"))
+        click.echo("  " + "   ".join(
+            f"{row['term']} {row['n']}" for row in gaps))
+
+    # --- interviews --------------------------------------------------------
+    try:
+        active = ProcessStore(Path(db)).active()
+    except Exception:
+        active = []
+    if active:
+        click.echo()
+        click.echo(ui.rule(f"INTERVIEWS  ·  {len(active)} active"))
+        for process in active[:5]:
+            vacancy = store.vacancy(process.vacancy_id)
+            employer = vacancy["employer"] if vacancy else process.vacancy_id
+            click.echo(f"  {_clip(employer, 24)}  round {process.current_round}")
+
+    # --- what needs you ----------------------------------------------------
+    waiting = []
+    if counts.get("PENDING"):
+        waiting.append(("review " + str(counts["PENDING"]),
+                        "vanguard session"))
+    if counts.get("APPROVED"):
+        waiting.append((f"apply to {counts['APPROVED']}",
+                        "vanguard todo"))
+    if counts.get("FLAGGED"):
+        waiting.append((f"resolve {counts['FLAGGED']}",
+                        "vanguard session --status FLAGGED"))
+
+    unread = len(store.vacancies_awaiting_text())
+    if unread:
+        waiting.append((f"paste {unread} advert(s)", "vanguard discover --list"))
+
+    declines = [r for r in responses if r["state"] == "DECLINE"]
+    if declines:
+        waiting.append((f"{len(declines)} rejection(s) recorded",
+                        "vanguard funnel --reasons"))
+
+    click.echo()
+    if waiting:
+        click.echo(ui.rule("WAITING ON YOU"))
+        for what, how in waiting:
+            click.echo(f"  {what:<26} {how}")
+    else:
+        click.echo(ui.rule("NOTHING WAITING"))
+        click.echo("  the queue is drained. `vanguard poll` for replies,")
+        click.echo("  or `vanguard search data scientist --within 24h` for more")
+
+
 # ---------------------------------------------------------------------------
 # Response loop (Route 5) — classify only. Never sends.
 # ---------------------------------------------------------------------------

@@ -2428,3 +2428,122 @@ def test_a_bad_query_is_reported_not_raised(runner: CliRunner,
                                   "--db", str(db)])
     assert result.exit_code != 0
     assert "no such table" in result.output.lower()
+
+
+# ---------------------------------------------------------------------------
+# `status` — the front page
+#
+# Four commands' worth on one screen. Seeing the picture should not require
+# knowing which four to run.
+#
+# Deliberately a SUMMARY and not a dashboard: a dashboard's value scales with
+# volume, and choosing what to display against a corpus that does not exist
+# is guessing — which is how Template F came to be derived from one advert.
+# ---------------------------------------------------------------------------
+
+def _mixed_pipeline(tmp_path: Path) -> Path:
+    from vanguard.adapters.base import Vacancy
+    from vanguard.store import Store
+
+    db = tmp_path / "v.db"
+    store = Store(db)
+    store.initialise()
+
+    n = 0
+    for status, count in [("PENDING", 3), ("APPROVED", 1), ("DISPATCHED", 12),
+                          ("FLAGGED", 2)]:
+        for _ in range(count):
+            vacancy_id = f"reed:{n}"
+            n += 1
+            store.upsert_vacancy(Vacancy(
+                id=vacancy_id, board_id="reed", employer=f"Employer {n:02d}",
+                title="Data Scientist", description="d"))
+            store.create_queue_record(vacancy_id, "PENDING")
+            if status != "PENDING":
+                store.set_status(vacancy_id, status)
+
+    for i, state in enumerate(["DECLINE", "DECLINE", "ACK"]):
+        store.record_response(f"reed:{4 + i}", state, sender="hr@x.com",
+                              subject="Update", received_at=f"2026-08-1{i}",
+                              body="We have decided to proceed with others.")
+    return db
+
+
+def test_status_shows_the_pipeline(runner: CliRunner, tmp_path: Path) -> None:
+    db = _mixed_pipeline(tmp_path)
+    out = runner.invoke(main, ["status", "--db", str(db)]).output
+    for state in ("Pending", "Approved", "Dispatched", "Flagged"):
+        assert state in out
+
+
+def test_status_shows_what_came_back(runner: CliRunner, tmp_path: Path) -> None:
+    db = _mixed_pipeline(tmp_path)
+    out = runner.invoke(main, ["status", "--db", str(db)]).output
+    assert "RESPONSES" in out
+    assert "Decline 2" in out
+
+
+def test_status_names_the_finding(runner: CliRunner, tmp_path: Path) -> None:
+    """Twelve applications and nothing past CV stage is the finding. Stated,
+    not left to be inferred from a table."""
+    db = _mixed_pipeline(tmp_path)
+    out = runner.invoke(main, ["status", "--db", str(db)]).output
+    assert "NOTHING PAST CV STAGE" in out
+
+
+def test_the_finding_is_withheld_on_thin_evidence(runner: CliRunner,
+                                                  tmp_path: Path) -> None:
+    """Two applications reaching no further says nothing. The claim needs ten
+    before it is worth making."""
+    from vanguard.adapters.base import Vacancy
+    from vanguard.store import Store
+
+    db = tmp_path / "v.db"
+    store = Store(db)
+    store.initialise()
+    for i in range(2):
+        store.upsert_vacancy(Vacancy(id=f"reed:{i}", board_id="reed",
+                                     employer="Acme", title="DS",
+                                     description="d"))
+        store.create_queue_record(f"reed:{i}", "PENDING")
+        store.set_status(f"reed:{i}", "DISPATCHED")
+
+    out = runner.invoke(main, ["status", "--db", str(db)]).output
+    assert "NOTHING PAST CV STAGE" not in out
+
+
+def test_status_says_what_needs_doing(runner: CliRunner,
+                                      tmp_path: Path) -> None:
+    db = _mixed_pipeline(tmp_path)
+    out = runner.invoke(main, ["status", "--db", str(db)]).output
+    assert "WAITING ON YOU" in out
+    assert "vanguard session" in out
+
+
+def test_status_on_an_empty_store(runner: CliRunner, tmp_path: Path) -> None:
+    """The first thing a new operator runs. It must say what to do next
+    rather than showing an empty table."""
+    from vanguard.store import Store
+
+    db = tmp_path / "v.db"
+    Store(db).initialise()
+    out = runner.invoke(main, ["status", "--db", str(db)]).output
+    assert "nothing ingested yet" in out
+    assert "vanguard search" in out
+
+
+def test_status_says_so_when_nothing_waits(runner: CliRunner,
+                                           tmp_path: Path) -> None:
+    from vanguard.adapters.base import Vacancy
+    from vanguard.store import Store
+
+    db = tmp_path / "v.db"
+    store = Store(db)
+    store.initialise()
+    store.upsert_vacancy(Vacancy(id="reed:1", board_id="reed", employer="Acme",
+                                 title="DS", description="d"))
+    store.create_queue_record("reed:1", "PENDING")
+    store.set_status("reed:1", "DISPATCHED")
+
+    out = runner.invoke(main, ["status", "--db", str(db)]).output
+    assert "NOTHING WAITING" in out
