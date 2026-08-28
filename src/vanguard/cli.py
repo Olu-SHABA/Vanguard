@@ -3716,6 +3716,116 @@ def search_cmd(keywords, board_ids, location, window, remote, job_type,
     click.echo("      vanguard paste --file advert.txt --board linkedin --url ...")
 
 
+@main.command("sql")
+@click.argument("statement", required=False)
+@click.option("--tables", is_flag=True, help="List the tables and their columns.")
+@click.option("--limit", default=50, help="Cap the rows returned. 0 for all.")
+@click.option("--csv", "as_csv", is_flag=True, help="Emit CSV instead of a table.")
+@click.option("--db", default=DEFAULTS["db"])
+def sql_cmd(statement, tables, limit, as_csv, db) -> None:
+    """Query the store directly. **Read-only.**
+
+    Everything ingested lives in one SQLite file, and a query is often
+    quicker than a command that does not quite exist yet.
+
+    Writing is refused, and not out of caution about SQL. Three things sit
+    between a command and the database, and a raw UPDATE bypasses all of
+    them:
+
+      * the STATE MACHINE, so a vacancy cannot be dispatched without being
+        approved;
+      * the AUDIT TRAIL, written by the code rather than by a trigger, so a
+        direct write leaves no record of what changed or why;
+      * the CONFLICT rules on `responses`, which deduplicate messages and
+        protect a decided classification from being overwritten.
+
+    Query freely; write through the commands.
+
+        vanguard sql --tables
+        vanguard sql "SELECT status, COUNT(*) FROM queue GROUP BY status"
+        vanguard sql "SELECT term, COUNT(*) n FROM gaps GROUP BY term" --csv
+    """
+    import csv as csv_module
+    import io
+    import re as _re
+    import sqlite3
+
+    store, _ = _ctx(db)
+    width = _terminal_width()
+
+    if tables:
+        with store.connect() as conn:
+            names = [r[0] for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+                " AND name NOT LIKE 'sqlite_%' ORDER BY name")]
+            click.echo(ui.rule(f"TABLES  ·  {len(names)}"))
+            for name in names:
+                columns = [r[1] for r in conn.execute(
+                    f"PRAGMA table_info({name})")]
+                count = conn.execute(f"SELECT COUNT(*) FROM {name}").fetchone()[0]
+                click.echo(f"\n  {ui.badge(name.upper(), ui.Tone.INFO)} "
+                           f"{count:,} row(s)")
+                for line in _wrap(", ".join(columns), width - 8):
+                    click.echo(f"      {line}")
+        click.echo(f"\n  vanguard sql \"SELECT ...\"   to query")
+        return
+
+    if not statement:
+        raise click.ClickException(
+            'pass a statement, or --tables to see what is there')
+
+    # Read-only, checked two ways. The keyword scan gives a clear message;
+    # the connection is opened read-only so a statement that slips past it
+    # still cannot write.
+    forbidden = ("insert", "update", "delete", "drop", "alter", "create",
+                 "replace", "truncate", "attach", "detach", "pragma",
+                 "vacuum", "reindex", "begin", "commit")
+    words = set(_re.findall(r"[a-z]+", statement.lower()))
+    trespass = sorted(words & set(forbidden))
+    if trespass:
+        raise click.ClickException(
+            f"read-only: {', '.join(trespass)} is not permitted here. "
+            "Writing through SQL bypasses the state machine, the audit trail "
+            "and the conflict rules that keep the store consistent — use the "
+            "commands.")
+
+    try:
+        conn = sqlite3.connect(f"file:{Path(db)}?mode=ro", uri=True)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.execute(statement)
+        rows = cursor.fetchmany(limit) if limit else cursor.fetchall()
+        columns = [d[0] for d in (cursor.description or [])]
+    except sqlite3.Error as exc:
+        raise click.ClickException(str(exc)) from exc
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    if not rows:
+        click.echo("no rows")
+        return
+
+    if as_csv:
+        buffer = io.StringIO()
+        writer = csv_module.writer(buffer)
+        writer.writerow(columns)
+        writer.writerows([tuple(r) for r in rows])
+        click.echo(buffer.getvalue().rstrip())
+        return
+
+    click.echo(ui.rule(f"{len(rows)} row(s)"))
+    click.echo(ui.table(
+        [ui.Column(name.upper()[:16], 1.0, 8) for name in columns],
+        [["" if value is None else str(value) for value in row] for row in rows],
+    ))
+
+    if limit and len(rows) == limit:
+        click.echo(f"\n  {ui.badge('CAPPED', ui.Tone.MUTED)} at {limit} — "
+                   "--limit 0 for all")
+
+
 # ---------------------------------------------------------------------------
 # Response loop (Route 5) — classify only. Never sends.
 # ---------------------------------------------------------------------------

@@ -892,6 +892,7 @@ GUIDES = (
     "HOW_TO_USE_REPOSITORY_EVIDENCE.md",
     "HOW_TO_APPLY.md",
     "HOW_TO_USE_JOB_BOARDS.md",
+    "HOW_TO_QUERY_THE_STORE.md",
 )
 
 
@@ -908,10 +909,24 @@ GUIDES = (
 _INDEX_THRESHOLD = 2
 
 
+#: A register is not an index.
+#:
+#: `OUTSTANDING.md` RECORDS that a guide was created, in the entry that
+#: created it. That is a log of what happened, not a map for a reader, and
+#: counting mentions cannot tell the two apart — the register tipped over the
+#: threshold the moment a second guide was written, and then demanded it name
+#: all five.
+#:
+#: Excluded by name rather than by raising the threshold, because the
+#: threshold would only be crossed again later.
+_NOT_AN_INDEX = frozenset({"OUTSTANDING.md", "CHANGELOG.md"})
+
+
 def _guide_indexes() -> list[str]:
     return sorted(
         path.name for path in ROOT.glob("*.md")
         if path.name not in GUIDES
+        and path.name not in _NOT_AN_INDEX
         and sum(guide in (text := path.read_text(encoding="utf-8"))
                 for guide in GUIDES) >= _INDEX_THRESHOLD
     )
@@ -1347,15 +1362,25 @@ def test_include_unmeasured_reaches_them(runner: CliRunner, tmp_path: Path) -> N
     assert "3 record(s)" in out
 
 
-def test_a_passing_mention_is_not_an_index() -> None:
-    """`OUTSTANDING.md` records that a guide was created. That is not the same
-    as pointing readers at them, and the guard demanded it list all five.
+def test_a_register_is_not_an_index() -> None:
+    """`OUTSTANDING.md` records that a guide was created, in the entry that
+    created it. That is a log of what happened, not a map for a reader.
 
-    An index names several guides; one mention is a reference.
+    Rewritten 22 Aug 2026. The earlier version allowed the register ONE
+    mention, which held until a second guide was written and then failed —
+    counting mentions cannot distinguish a register from an index, however
+    the threshold is set.
     """
-    register = (ROOT / "OUTSTANDING.md").read_text(encoding="utf-8")
-    mentions = sum(guide in register for guide in GUIDES)
-    assert mentions < _INDEX_THRESHOLD or "OUTSTANDING.md" not in _guide_indexes()
+    assert "OUTSTANDING.md" not in _guide_indexes()
+
+
+def test_the_real_indexes_are_still_found() -> None:
+    """Excluding the register must not exclude everything. The documents that
+    genuinely point readers at guides are still guarded."""
+    indexes = _guide_indexes()
+    assert "README.md" in indexes
+    assert "COMMANDS.md" in indexes
+    assert "SOP.md" in indexes
 
 
 def test_the_real_indexes_are_all_found() -> None:
@@ -2316,3 +2341,90 @@ def test_employer_order_is_actually_alphabetical(runner: CliRunner,
     employers = [line.split()[-3] for line in out.splitlines()
                  if "Employer" in line and "Data Scientist" in line]
     assert employers == sorted(employers)
+
+
+# ---------------------------------------------------------------------------
+# `sql` — read-only access to the store
+#
+# Everything ingested lives in one SQLite file, and a query is often quicker
+# than a command that does not quite exist yet. Writing is refused, because
+# three things sit between a command and the database that a raw UPDATE
+# bypasses.
+# ---------------------------------------------------------------------------
+
+def test_sql_lists_the_tables(runner: CliRunner, tmp_path: Path) -> None:
+    db = _big_queue(tmp_path, count=3)
+    out = runner.invoke(main, ["sql", "--tables", "--db", str(db)]).output
+    for table in ("QUEUE", "VACANCIES", "SCORES", "GAPS", "TRANSITIONS"):
+        assert table in out
+
+
+def test_sql_runs_a_query(runner: CliRunner, tmp_path: Path) -> None:
+    db = _big_queue(tmp_path, count=3)
+    out = runner.invoke(main, [
+        "sql", "SELECT status, COUNT(*) n FROM queue GROUP BY status",
+        "--db", str(db)]).output
+    assert "FLAGGED" in out and "3" in out
+
+
+def test_sql_emits_csv(runner: CliRunner, tmp_path: Path) -> None:
+    db = _big_queue(tmp_path, count=3)
+    out = runner.invoke(main, ["sql", "SELECT status FROM queue LIMIT 1",
+                               "--csv", "--db", str(db)]).output
+    assert out.splitlines()[0].strip() == "status"
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "UPDATE queue SET status = 'DISPATCHED'",
+        "DELETE FROM vacancies",
+        "DROP TABLE queue",
+        "INSERT INTO queue VALUES (1)",
+        "ALTER TABLE queue ADD COLUMN x TEXT",
+        "ATTACH DATABASE 'other.db' AS other",
+    ],
+)
+def test_sql_refuses_to_write(runner: CliRunner, tmp_path: Path,
+                              statement: str) -> None:
+    """The state machine, the audit trail and the conflict rules on
+    `responses` all sit between a command and the database. A raw write
+    bypasses every one."""
+    db = _big_queue(tmp_path, count=3)
+    result = runner.invoke(main, ["sql", statement, "--db", str(db)])
+    assert result.exit_code != 0
+    assert "read-only" in result.output
+
+
+def test_the_store_survives_a_refused_write(runner: CliRunner,
+                                            tmp_path: Path) -> None:
+    db = _big_queue(tmp_path, count=3)
+    runner.invoke(main, ["sql", "UPDATE queue SET status = 'DISPATCHED'",
+                         "--db", str(db)])
+
+    from vanguard.store import Store
+    assert Store(db).counts_by_status() == {"FLAGGED": 3}
+
+
+def test_the_connection_itself_is_read_only(tmp_path: Path) -> None:
+    """Belt and braces: the keyword scan gives a clear message, and the
+    connection is opened read-only so anything slipping past it still cannot
+    write."""
+    import sqlite3
+
+    db = _big_queue(tmp_path, count=1)
+    conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    try:
+        with pytest.raises(sqlite3.OperationalError):
+            conn.execute("UPDATE queue SET status = 'DISPATCHED'")
+    finally:
+        conn.close()
+
+
+def test_a_bad_query_is_reported_not_raised(runner: CliRunner,
+                                            tmp_path: Path) -> None:
+    db = _big_queue(tmp_path, count=1)
+    result = runner.invoke(main, ["sql", "SELECT * FROM nonesuch",
+                                  "--db", str(db)])
+    assert result.exit_code != 0
+    assert "no such table" in result.output.lower()

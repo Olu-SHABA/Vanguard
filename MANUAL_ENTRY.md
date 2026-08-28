@@ -5,6 +5,7 @@
 > **Just want the steps?** See **`HOW_TO_ADD_A_JOB.md`** — five steps, one page.
 > Adding many at once: **`HOW_TO_ADD_MANY_JOBS.md`**.
 > Job boards: **`HOW_TO_USE_JOB_BOARDS.md`**.
+> Querying the store: **`HOW_TO_QUERY_THE_STORE.md`**.
 > Applying: **`HOW_TO_APPLY.md`**.
 > Handling the replies: **`HOW_TO_HANDLE_REPLIES.md`**.
 > Finding CV evidence in your repositories: **`HOW_TO_USE_REPOSITORY_EVIDENCE.md`**.

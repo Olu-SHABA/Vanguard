@@ -46,6 +46,7 @@ Day-to-day operation and troubleshooting: **`SOP.md`**.
 Adding a job by hand, five steps: **`HOW_TO_ADD_A_JOB.md`**.
 Adding many at once: **`HOW_TO_ADD_MANY_JOBS.md`**.
 Turning job boards on and off: **`HOW_TO_USE_JOB_BOARDS.md`**.
+Querying the store directly: **`HOW_TO_QUERY_THE_STORE.md`**.
 Applying, after review: **`HOW_TO_APPLY.md`**.
 Handling replies and interviews: **`HOW_TO_HANDLE_REPLIES.md`**.
 Finding CV evidence in your repositories: **`HOW_TO_USE_REPOSITORY_EVIDENCE.md`**.
@@ -153,6 +154,7 @@ vanguard draft <id>                 # cover letter, framed to the vacancy
 vanguard apply <id>                 # what it needs, and where — then stops
 vanguard dispatch <id>              # record a submission YOU made
 vanguard stats                      # coverage distribution, recurring gaps
+vanguard sql "SELECT ..."           # query the store directly, read-only
 vanguard diagnose                   # why adverts refuse; unrecognised headings
 vanguard adverts ingest             # batch-ingest a folder of pasted adverts
 vanguard poll                       # read the mailbox, correlate, classify

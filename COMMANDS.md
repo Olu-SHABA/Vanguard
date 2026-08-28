@@ -31,6 +31,7 @@ This document is the reference — what each command *is*. For what to *do*:
 | `HOW_TO_ADD_A_JOB.md` | Entering one vacancy by hand |
 | `HOW_TO_ADD_MANY_JOBS.md` | Entering fifty at once |
 | `HOW_TO_USE_JOB_BOARDS.md` | Which boards are read, and why |
+| `HOW_TO_QUERY_THE_STORE.md` | Querying the database directly |
 | `HOW_TO_APPLY.md` | Applying, after review |
 | `HOW_TO_HANDLE_REPLIES.md` | Replies, interviews and rejections |
 | `HOW_TO_USE_REPOSITORY_EVIDENCE.md` | Finding CV evidence in your repositories |
@@ -1711,6 +1712,44 @@ coverage_gate: 0.65
 ---
 
 # Operations
+
+## `vanguard sql`
+
+Query the store directly. **Read-only.**
+
+```bash
+vanguard sql --tables
+vanguard sql "SELECT status, COUNT(*) FROM queue GROUP BY status"
+vanguard sql "SELECT term, COUNT(*) n FROM gaps GROUP BY term" --csv
+```
+
+| Option | Effect |
+|---|---|
+| `--tables` | List the tables, their columns and row counts |
+| `--limit` | Cap the rows. `0` for all. Default 50 |
+| `--csv` | CSV instead of a table |
+
+Everything ingested lives in one SQLite file, and a query is often quicker
+than a command that does not quite exist yet.
+
+### Writing is refused
+
+Not caution about SQL. Three things sit between a command and the database,
+and a raw `UPDATE` bypasses every one:
+
+- **The state machine** — a vacancy could be dispatched without being approved
+- **The audit trail** — `transitions` is written by the code, not a trigger,
+  so a direct write leaves no record of what changed or why
+- **The conflict rules** on `responses`, which deduplicate messages and stop a
+  decided classification being overwritten
+
+Checked twice: a keyword scan for the clear message, and the connection itself
+opened read-only so anything slipping past still cannot write.
+
+*Tables, useful queries, and moving the data elsewhere:
+`HOW_TO_QUERY_THE_STORE.md`.*
+
+---
 
 ## `vanguard logs`
 
