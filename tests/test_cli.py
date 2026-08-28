@@ -2202,3 +2202,110 @@ def test_the_two_preferences_do_not_share_a_cache_entry() -> None:
 
     _embedder(True)
     assert _embedder(False)[1] == "lexical"
+
+
+def test_no_choice_option_defaults_to_an_invalid_value() -> None:
+    """A `click.Choice` with `default=""` rejects its own default, and the
+    command fails before doing anything.
+
+    Made three times — `--strategy`, `--remote` and `--sort` — each found by
+    the operator rather than by the suite. Structural, so a fourth cannot
+    reach them.
+    """
+    bad = []
+    for name, command in main.commands.items():
+        for param in command.params:
+            if not isinstance(param, click.Option):
+                continue
+            if not isinstance(param.type, click.Choice):
+                continue
+            if param.default is None or param.default in param.type.choices:
+                continue
+            bad.append(f"{name} {param.opts[0]} = {param.default!r}")
+
+    assert not bad, f"choice options rejecting their own default: {bad}"
+
+
+# ---------------------------------------------------------------------------
+# Reviewing a backlog
+#
+# `review --status FLAGGED` returned fifty of five hundred, ordered by rank —
+# which is meaningless for a record flagged BECAUSE its score could not be
+# measured. So the operator saw a tenth of the queue, in arbitrary order,
+# with no indication either was happening.
+# ---------------------------------------------------------------------------
+
+def _big_queue(tmp_path: Path, count: int = 60, status: str = "FLAGGED") -> Path:
+    from vanguard.adapters.base import Vacancy
+    from vanguard.store import Store
+
+    db = tmp_path / "v.db"
+    store = Store(db)
+    store.initialise()
+    for i in range(count):
+        store.upsert_vacancy(Vacancy(
+            id=f"reed:{i}", board_id="reed", employer=f"Employer {i:02d}",
+            title=f"Data Scientist {i:02d}", description="d"))
+        store.create_queue_record(f"reed:{i}", "PENDING")
+        if status != "PENDING":
+            store.set_status(f"reed:{i}", status)
+    return db
+
+
+def test_review_says_how_many_it_is_hiding(runner: CliRunner,
+                                           tmp_path: Path) -> None:
+    db = _big_queue(tmp_path)
+    out = runner.invoke(main, ["review", "--status", "FLAGGED",
+                               "--db", str(db)]).output
+    assert "of 60" in out
+    assert "10 not shown" in out
+
+
+def test_limit_zero_shows_everything(runner: CliRunner, tmp_path: Path) -> None:
+    db = _big_queue(tmp_path)
+    out = runner.invoke(main, ["review", "--status", "FLAGGED", "--limit", "0",
+                               "--db", str(db)]).output
+    assert "60 record(s)" in out
+    assert "not shown" not in out
+
+
+def test_unscored_records_default_to_date_order(runner: CliRunner,
+                                                tmp_path: Path) -> None:
+    """Rank is meaningless for a record flagged because it could not be
+    scored. Date is the order a backlog is worked in."""
+    db = _big_queue(tmp_path, status="FLAGGED")
+    out = runner.invoke(main, ["review", "--status", "FLAGGED",
+                               "--db", str(db)]).output
+    assert "newest first" in out
+
+
+def test_pending_still_defaults_to_rank(runner: CliRunner,
+                                        tmp_path: Path) -> None:
+    """Strongest first is what you review, where a score exists."""
+    db = _big_queue(tmp_path, status="PENDING")
+    out = runner.invoke(main, ["review", "--status", "PENDING",
+                               "--db", str(db)]).output
+    assert "strongest first" in out
+
+
+@pytest.mark.parametrize("order, described",
+                         [("date", "newest first"),
+                          ("employer", "by employer"),
+                          ("title", "by title"),
+                          ("coverage", "highest coverage first")])
+def test_review_can_be_ordered(runner: CliRunner, tmp_path: Path,
+                               order: str, described: str) -> None:
+    db = _big_queue(tmp_path)
+    out = runner.invoke(main, ["review", "--status", "FLAGGED",
+                               "--sort", order, "--db", str(db)]).output
+    assert described in out
+
+
+def test_employer_order_is_actually_alphabetical(runner: CliRunner,
+                                                 tmp_path: Path) -> None:
+    db = _big_queue(tmp_path, count=10)
+    out = runner.invoke(main, ["review", "--status", "FLAGGED", "--sort",
+                               "employer", "--db", str(db)]).output
+    employers = [line.split()[-3] for line in out.splitlines()
+                 if "Employer" in line and "Data Scientist" in line]
+    assert employers == sorted(employers)

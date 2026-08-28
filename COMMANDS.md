@@ -503,6 +503,35 @@ try something out is how a temporary decision becomes permanent.
 
 ## `vanguard review`
 
+| Option | Effect |
+|---|---|
+| `--status` | `PENDING` (default), `FLAGGED`, `UNREACHABLE`, `APPROVED`, ... |
+| `--sort` | `rank`, `date`, `coverage`, `employer`, `title` |
+| `--limit` | How many. **`0` for all.** Default 50 |
+
+### Ordering
+
+**`rank` for PENDING and APPROVED** — strongest first is what you review.
+
+**`date` for everything else.** A FLAGGED record is flagged *because* its
+score could not be measured, so ranking by score put a queue of five hundred
+in effectively arbitrary order.
+
+### The cap
+
+Fifty by default, and the count of what is hidden is now stated:
+
+```
+FLAGGED  ·  50 record(s), newest first  ·  of 523
+
+  ! 473 not shown  --limit 0 for all, or work through them with
+                   `vanguard session --status FLAGGED`
+```
+
+Showing a tenth of a backlog with no indication made it impossible to work
+through — which is what the operator hit at 523 flagged records.
+
+
 The queue, or one record in full.
 
 ```bash

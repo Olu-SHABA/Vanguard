@@ -638,9 +638,13 @@ def paste(path, url, board, employer, title, vacancy_id, boards, cv, aliases,
 @main.command()
 @click.argument("vacancy_id", required=False)
 @click.option("--status", default="PENDING", help="Filter: PENDING, FLAGGED, ...")
+@click.option("--sort", "order", default=None,
+              type=click.Choice(["rank", "date", "coverage", "employer", "title"]),
+              help="Order. Default rank for PENDING, date for anything unscored.")
+@click.option("--limit", default=50, help="How many. 0 for all.")
 @click.option("--db", default=DEFAULTS["db"])
 @click.option("--boards", "boards_path", default=DEFAULTS["boards"])
-def review(vacancy_id, status, db, boards_path) -> None:
+def review(vacancy_id, status, db, boards_path, order, limit) -> None:
     """List queued records, or show one in full."""
     store, queue = _ctx(db)
 
@@ -774,11 +778,24 @@ def review(vacancy_id, status, db, boards_path) -> None:
             click.echo(f"  next:  {options}")
         return
 
-    rows = store.list_queue(status.upper())
+    # Rank orders PENDING sensibly — strongest first is what you review. It
+    # says nothing about FLAGGED or UNREACHABLE, which are in that state
+    # BECAUSE the score could not be measured, so those default to date.
+    chosen = order or ("rank" if status.upper() in ("PENDING", "APPROVED")
+                       else "date")
+    rows = store.list_queue(status.upper(), limit=limit, order=chosen)
     if not rows:
         click.echo(f"no records with status {status.upper()}")
         return
-    click.echo(ui.rule(f"{status.upper()}  ·  {len(rows)} record(s), strongest first"))
+    described = {"rank": "strongest first", "date": "newest first",
+                 "coverage": "highest coverage first",
+                 "employer": "by employer", "title": "by title"}[chosen]
+    total = store.counts_by_status().get(status.upper(), len(rows))
+
+    heading = f"{status.upper()}  ·  {len(rows)} record(s), {described}"
+    if total > len(rows):
+        heading += f"  ·  of {total}"
+    click.echo(ui.rule(heading))
 
     body = []
     unmeasured = 0
@@ -808,7 +825,16 @@ def review(vacancy_id, status, db, boards_path) -> None:
             f"fewer than {_min_terms()} requirements, or partial text. "
             "Run `vanguard diagnose`."
         )
-    click.echo("  vanguard review <ID>   for the full record")
+
+    if total > len(rows):
+        # Showing a tenth of a queue with no indication made a backlog
+        # impossible to work through.
+        click.echo(
+            f"\n  {ui.badge(f'{total - len(rows)} not shown', ui.Tone.WARN)} "
+            f"--limit 0 for all, or work through them with "
+            f"`vanguard session --status {status.upper()}`")
+
+    click.echo("\n  vanguard review <ID>   for the full record")
 
 
 @main.command()

@@ -886,8 +886,18 @@ class Store:
                 "SELECT * FROM queue WHERE vacancy_id = ?", (vacancy_id,)
             ).fetchone()
 
-    def list_queue(self, status: str | None = None, limit: int = 50) -> list[sqlite3.Row]:
-        """Queue records ordered by rank score, strongest first."""
+    def list_queue(self, status: str | None = None, limit: int = 50,
+                   order: str = "rank") -> list[sqlite3.Row]:
+        """Queue records, ordered as asked.
+
+        `rank` is right for PENDING — strongest first is what you review. It
+        is meaningless for FLAGGED, which is flagged BECAUSE the score could
+        not be measured, so those came back in effectively arbitrary order.
+
+        `date` orders by when the vacancy was first seen, newest first. That
+        is the order an operator works a backlog in, and the sensible default
+        for anything unscored.
+        """
         # `scores` holds one row PER RUN by design — that history is the input
         # to threshold recalibration. Joining it naively multiplied each queue
         # record by its number of scoring runs: two vacancies rendered as
@@ -907,8 +917,22 @@ class Store:
         if status:
             sql += " WHERE q.status = ?"
             params.append(status)
-        sql += " ORDER BY s.rank_score DESC NULLS LAST, s.coverage DESC LIMIT ?"
-        params.append(limit)
+        orderings = {
+            "rank": ("s.rank_score DESC NULLS LAST, s.coverage DESC, "
+                     "q.updated_at DESC"),
+            "date": "q.updated_at DESC, v.employer",
+            "coverage": "s.coverage DESC NULLS LAST, q.updated_at DESC",
+            "employer": "v.employer, v.title",
+            "title": "v.title, v.employer",
+        }
+        sql += " ORDER BY " + orderings.get(order, orderings["rank"])
+
+        # `limit=0` means everything. A silent cap of fifty on a queue of five
+        # hundred showed a tenth of it with no indication, which made the
+        # backlog impossible to work through.
+        if limit:
+            sql += " LIMIT ?"
+            params.append(limit)
         with self.connect() as conn:
             return conn.execute(sql, params).fetchall()
 
