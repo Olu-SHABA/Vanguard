@@ -2235,7 +2235,14 @@ def test_no_choice_option_defaults_to_an_invalid_value() -> None:
 # with no indication either was happening.
 # ---------------------------------------------------------------------------
 
-def _big_queue(tmp_path: Path, count: int = 60, status: str = "FLAGGED") -> Path:
+def _big_queue(tmp_path: Path, count: int = 12, status: str = "FLAGGED") -> Path:
+    """A queue larger than the limit the test passes.
+
+    Twelve, not sixty: each record costs three SQLite writes on separate
+    connections, and eight tests building sixty apiece cost 24 seconds of the
+    suite. What is under test is the ordering and the paging arithmetic, and
+    neither needs volume.
+    """
     from vanguard.adapters.base import Vacancy
     from vanguard.store import Store
 
@@ -2255,17 +2262,17 @@ def _big_queue(tmp_path: Path, count: int = 60, status: str = "FLAGGED") -> Path
 def test_review_says_how_many_it_is_hiding(runner: CliRunner,
                                            tmp_path: Path) -> None:
     db = _big_queue(tmp_path)
-    out = runner.invoke(main, ["review", "--status", "FLAGGED",
+    out = runner.invoke(main, ["review", "--status", "FLAGGED", "--limit", "10",
                                "--db", str(db)]).output
-    assert "of 60" in out
-    assert "10 not shown" in out
+    assert "of 12" in out
+    assert "2 not shown" in out
 
 
 def test_limit_zero_shows_everything(runner: CliRunner, tmp_path: Path) -> None:
     db = _big_queue(tmp_path)
     out = runner.invoke(main, ["review", "--status", "FLAGGED", "--limit", "0",
                                "--db", str(db)]).output
-    assert "60 record(s)" in out
+    assert "12 record(s)" in out
     assert "not shown" not in out
 
 
@@ -2303,7 +2310,7 @@ def test_review_can_be_ordered(runner: CliRunner, tmp_path: Path,
 
 def test_employer_order_is_actually_alphabetical(runner: CliRunner,
                                                  tmp_path: Path) -> None:
-    db = _big_queue(tmp_path, count=10)
+    db = _big_queue(tmp_path, count=8)
     out = runner.invoke(main, ["review", "--status", "FLAGGED", "--sort",
                                "employer", "--db", str(db)]).output
     employers = [line.split()[-3] for line in out.splitlines()

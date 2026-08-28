@@ -237,6 +237,20 @@ class Store:
         if "message_key" not in columns:
             return
 
+        # Once the index exists, the collapse has already happened and the
+        # data is kept correct by the ON CONFLICT clause on every write.
+        # Re-running a DROP INDEX, UPDATE, DELETE and CREATE INDEX on every
+        # command invocation was pure waste — and `initialise()` runs on
+        # every command.
+        try:
+            done = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'index'"
+                " AND name = 'ux_responses_key'").fetchone()
+            if done:
+                return
+        except sqlite3.Error:
+            return
+
         try:
             # An index on the old key blocks collapsing rows keyed the other
             # way. Drop it before recomputing.

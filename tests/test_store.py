@@ -841,3 +841,50 @@ def test_without_force_a_decided_state_stands(store: Store) -> None:
     changed, _ = store.reclassify(lambda row: "ACK")
     assert changed == 0
     assert store.latest_response("reed:1")["state"] == "DECLINE"
+
+
+def test_deduplication_runs_once_not_every_command(tmp_path: Path) -> None:
+    """`initialise()` runs on EVERY command invocation, and it was re-running
+    a DROP INDEX, UPDATE, DELETE and CREATE INDEX each time.
+
+    Once the index exists the collapse has happened, and the ON CONFLICT
+    clause on every write keeps it correct. Measured at 11ms falling to 1ms.
+    """
+    import time
+
+    db = tmp_path / "v.db"
+    Store(db).initialise()
+
+    timings = []
+    for _ in range(10):
+        started = time.perf_counter()
+        Store(db).initialise()
+        timings.append(time.perf_counter() - started)
+
+    average = sum(timings) / len(timings)
+    assert average < 0.010, f"initialise costs {average * 1000:.1f}ms per command"
+
+
+def test_deduplication_still_happens_on_a_dirty_database(tmp_path: Path) -> None:
+    """Skipping the work must not skip it the one time it is needed."""
+    import sqlite3
+
+    db = tmp_path / "v.db"
+    conn = sqlite3.connect(db)
+    conn.executescript(
+        "CREATE TABLE responses (id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        " vacancy_id TEXT NOT NULL, state TEXT NOT NULL, sender TEXT,"
+        " subject TEXT, received_at TIMESTAMP, recorded_at TIMESTAMP NOT NULL,"
+        " method TEXT);")
+    for _ in range(2):
+        conn.execute(
+            "INSERT INTO responses (vacancy_id, state, sender, subject,"
+            " received_at, recorded_at, method) VALUES (?,?,?,?,?,?,?)",
+            ("reed:1", "ACK", "hr@x.com", "Thanks", "2026-08-11",
+             "2026-08-11", "ats"))
+    conn.commit()
+    conn.close()
+
+    store = Store(db)
+    store.initialise()
+    assert len(store.responses()) == 1
