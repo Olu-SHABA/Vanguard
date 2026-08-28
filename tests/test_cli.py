@@ -2094,3 +2094,85 @@ def test_pasting_against_an_unknown_id_is_refused(runner: CliRunner,
                                   "--id", "adzuna:nothere", "--db", str(db)])
     assert result.exit_code != 0
     assert "discover --list" in result.output
+
+
+# ---------------------------------------------------------------------------
+# The template fills in what the advert states
+#
+# Re-typing an employer the file already names is the work this is meant to
+# save. What no advert contains is its own URL, so that stays blank.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        ("Senior Data Scientist\nSagacity · London, England · 2 weeks ago",
+         "Sagacity"),
+        ("Data Scientist\nBeatport · Remote · 3 days ago", "Beatport"),
+        ("ML Engineer\nSanderson | Bristol | Posted 3 days ago", "Sanderson"),
+    ],
+)
+def test_an_employer_is_read_from_the_byline(text: str, expected: str) -> None:
+    """LinkedIn puts the employer directly under the title, before a
+    separator."""
+    from vanguard.cli import _employer_from_byline
+
+    assert _employer_from_byline(text) == expected
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Machine Learning Engineer\nSanderson\nBristol\nPosted 3 days ago",
+        "Data Scientist\n\nRequirements\n- Python · SQL · ETL",
+        "Data Scientist\nLondon, England · 2 weeks ago",
+        "Data Scientist\nRemote · 5 days ago",
+    ],
+)
+def test_a_guess_is_refused_rather_than_wrong(text: str) -> None:
+    """A bullet matches the byline shape exactly and means nothing. A wrong
+    pre-fill nobody notices is worse than a blank cell that plainly needs
+    filling."""
+    from vanguard.cli import _employer_from_byline
+
+    assert _employer_from_byline(text) == ""
+
+
+def test_the_template_prefills_what_it_can(runner: CliRunner,
+                                           tmp_path: Path) -> None:
+    directory = tmp_path / "adverts"
+    directory.mkdir()
+    (directory / "sagacity.txt").write_text(
+        "Senior Data Scientist\nSagacity · London, England · 2 weeks ago\n\n"
+        "About the job\nWe need a data scientist.\n\nRequirements\n- Python\n",
+        encoding="utf-8")
+    (directory / "plain.txt").write_text(
+        "Machine Learning Engineer\n\nRequirements\n- Python\n- SQL\n",
+        encoding="utf-8")
+
+    out = runner.invoke(main, ["adverts", "register", "--template",
+                               "--dir", str(directory)]).output
+    assert "1 employer(s) read" in out
+
+    csv_text = (directory / "to_register.csv").read_text(encoding="utf-8")
+    assert "sagacity.txt,Sagacity,Senior Data Scientist" in csv_text
+    assert "plain.txt,,Machine Learning Engineer" in csv_text, (
+        "an advert stating no employer leaves the cell blank")
+
+
+def test_the_url_column_is_always_blank(runner: CliRunner,
+                                        tmp_path: Path) -> None:
+    """No advert contains its own URL. That is the one column the operator
+    must fill."""
+    directory = tmp_path / "adverts"
+    directory.mkdir()
+    (directory / "a.txt").write_text(
+        "Data Scientist\nAcme · London · 1 day ago\n\nRequirements\n- Python\n",
+        encoding="utf-8")
+
+    runner.invoke(main, ["adverts", "register", "--template",
+                         "--dir", str(directory)])
+    row = [line for line in (directory / "to_register.csv"
+                             ).read_text(encoding="utf-8").splitlines()
+           if line.startswith("a.txt")][0]
+    assert row.split(",")[3] == "", "the url column must be empty"

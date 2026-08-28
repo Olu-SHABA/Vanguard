@@ -27,7 +27,8 @@ That writes `adverts\to_register.csv` with a row per file.
 
 Open it in Excel or Notepad. Fill in the **employer** and **url** columns for each row.
 
-Leave a row blank and that file is skipped — not lost, just not ingested.
+Leave employer or url blank and that file is skipped — not lost, just not
+ingested.
 
 ---
 

@@ -994,6 +994,47 @@ def _min_terms() -> int:
     return MIN_TERMS_FOR_CONFIDENCE
 
 
+#: LinkedIn and several other boards put the employer on a byline directly
+#: under the title:
+#:
+#:     Senior Data Scientist
+#:     Sagacity · London, England, United Kingdom · 2 weeks ago
+#:
+#: The first segment is the employer. Specific enough to be reliable, which a
+#: general "second line" rule is not — a wrong pre-fill nobody notices is
+#: worse than a blank cell that plainly needs filling.
+_BYLINE = re.compile(r"^\s*([^\n·|]{2,60}?)\s*[·|]\s*\S", re.M)
+
+
+def _employer_from_byline(text: str) -> str:
+    """The employer from a title-then-byline advert, or nothing.
+
+    Only the first few lines are read. A separator further down is as likely
+    to be a bulleted requirement as a byline.
+    """
+    # A bullet is not a byline. "- Python · SQL · ETL" matches the shape
+    # exactly and means nothing, so list lines are dropped before matching.
+    head = "\n".join(
+        line for line in (text or "").splitlines()[:6]
+        if not line.strip().startswith(("-", "*", "•", "\u2022")))
+
+    match = _BYLINE.search(head)
+    if not match:
+        return ""
+
+    candidate = match.group(1).strip(" -–—\t")
+    lowered = candidate.lower()
+
+    # Guard against catching the title itself, a location, or a date line.
+    if len(candidate) < 2 or len(candidate) > 60:
+        return ""
+    if any(word in lowered for word in (
+            "ago", "applicant", "remote", "hybrid", "on-site", "full-time",
+            "part-time", "contract", "posted", "united kingdom", "england")):
+        return ""
+    return candidate
+
+
 def _letter_filename(employer: str, title: str, vacancy_id: str,
                      directory: Path) -> str:
     """A filename you can read at a glance.
@@ -1951,6 +1992,36 @@ def adverts_register(csv_path, directory, template, out_path, force) -> None:
             return
         out = Path(out_path) if out_path else Path(directory) / "to_register.csv"
 
+        # Read each advert and fill in what it states. Employer and title are
+        # in the text often enough to be worth extracting, and re-typing
+        # something the file already says is the work this is meant to save.
+        #
+        # Anything not stated is left BLANK rather than filled with a
+        # placeholder. "(not stated)" in a CSV column is something the
+        # operator has to notice and delete, which is worse than an empty
+        # cell that plainly needs filling.
+        from vanguard.adapters.manual import ManualEntryAdapter
+
+        registry = load_registry(DEFAULTS["boards"])
+        parser = ManualEntryAdapter(registry.get("linkedin"))
+
+        def _read(name: str) -> tuple[str, str]:
+            try:
+                text = (Path(directory) / name).read_text(encoding="utf-8")
+                vacancy = parser.submit(text, url="")
+            except Exception:
+                return "", ""
+
+            unknown = ("(not stated)", "unknown", "n/a", "")
+            title = (vacancy.title or "").strip()
+            title = "" if title.lower() in unknown else title
+
+            employer = (vacancy.employer or "").strip()
+            if employer.lower() in unknown:
+                employer = _employer_from_byline(text)
+
+            return employer, title
+
         # Refuse to destroy work in progress. Filling in seventy rows and
         # then re-running --template would silently blank the lot, and the
         # loss is invisible until the columns are noticed empty.
@@ -1965,12 +2036,23 @@ def adverts_register(csv_path, directory, template, out_path, force) -> None:
 
         with out.open("w", newline="", encoding="utf-8") as handle:
             writer = csv_module.writer(handle)
-            writer.writerow(["filename", "employer", "url", "board"])
+            writer.writerow(["filename", "employer", "title", "url", "board"])
+            filled = 0
             for name in unregistered:
-                writer.writerow([name, "", "", "linkedin"])
+                employer, title = _read(name)
+                filled += bool(employer)
+                writer.writerow([name, employer, title, "", "linkedin"])
+
         click.echo(f"  wrote {out} with {len(unregistered)} row(s)")
-        click.echo("  fill in employer and url, then: "
-                   "vanguard adverts register --from-csv " + str(out))
+        if filled:
+            click.echo(f"  {ui.badge(f'{filled} employer(s) read from the adverts',
+                                     ui.Tone.GOOD)}")
+        blank = len(unregistered) - filled
+        if blank:
+            click.echo(f"  {blank} advert(s) did not state an employer — "
+                       "fill those in")
+        click.echo("\n  the URL is the one thing no advert contains. Fill it in,")
+        click.echo("  then: vanguard adverts register --from-csv " + str(out))
         return
 
     if not csv_path:
@@ -1988,6 +2070,7 @@ def adverts_register(csv_path, directory, template, out_path, force) -> None:
                     (row.get("employer") or "").strip(),
                     (row.get("url") or "").strip(),
                     board=(row.get("board") or "linkedin").strip() or "linkedin",
+                    note=(row.get("title") or "").strip(),
                 )
                 registered += 1
             except ValidationError as exc:

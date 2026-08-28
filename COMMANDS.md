@@ -333,6 +333,28 @@ Four conditions. Fail any one and the file is skipped.
 | **URL** | Required, a real `http(s)` address. Without it the advert cannot be found again from the record |
 | **The file** | Must exist and be non-empty |
 
+### The template fills in what it can
+
+```csv
+filename,employer,title,url,board
+sagacity.txt,Sagacity,Senior Data Scientist,,linkedin
+sanderson.txt,Sanderson,Machine Learning Engineer,,linkedin
+plain.txt,,Data Scientist,,linkedin
+```
+
+**Employer and title are read from the advert.** LinkedIn puts the employer
+on a byline under the title — `Sagacity · London, England · 2 weeks ago` —
+and the first segment is it.
+
+**A guess is refused rather than made.** `- Python · SQL · ETL` matches the
+byline shape exactly and means nothing, so bulleted lines are excluded, as
+are locations, dates and working arrangements. An advert stating no employer
+leaves the cell blank: a wrong pre-fill nobody notices is worse than an empty
+cell that plainly needs filling.
+
+**The URL is always blank**, because no advert contains its own address.
+That is the one column you fill.
+
 ```yaml
 # adverts/manifest.yaml
 acme-ml-engineer.txt:
@@ -366,7 +388,7 @@ record is missing would be the wrong failure.
 |---|---|---|
 | `add` | `--employer`, `--url` | Both required |
 | | `--board`, `--note` | Attribution and free text |
-| `register` | `--template` | Write a CSV of unregistered files to fill in |
+| `register` | `--template` | Write a CSV of unregistered files, **with what the adverts state already filled in** |
 | | `--from-csv` | Register many at once. Bad rows are reported, not fatal |
 | `check` | `--fix` | Drop entries whose file has gone |
 | `ingest` | `--dry-run` | Report what would be ingested |
