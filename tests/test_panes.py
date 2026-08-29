@@ -129,3 +129,88 @@ def test_rendering_does_not_leak_the_column_setting(populated: str) -> None:
     before = os.environ.get("COLUMNS")
     render(pane_named("s"), db=populated, width=55)
     assert os.environ.get("COLUMNS") == before
+
+
+# ---------------------------------------------------------------------------
+# Running a command from a pane
+#
+# Two mechanisms, because `vanguard review` and `vanguard run` want different
+# things. One prints and finishes; the other streams for minutes and asks
+# questions. Capturing the second into a pane shows nothing until it ends,
+# and a prompt nobody can see hangs it.
+# ---------------------------------------------------------------------------
+
+def test_a_printing_command_runs_in_a_pane(populated: str) -> None:
+    from vanguard.panes import render_command
+
+    text = render_command(
+        ["sql", "SELECT status, COUNT(*) FROM queue GROUP BY status"],
+        db=populated, width=60)
+    assert "PENDING" in text
+
+
+def test_a_command_needing_a_terminal_is_refused(populated: str) -> None:
+    """A hung pane looks like a slow one, so the refusal has to be explicit
+    and say where to go instead."""
+    from vanguard.panes import INTERACTIVE, render_command
+
+    for name in sorted(INTERACTIVE):
+        text = render_command([name], db=populated, width=60)
+        assert "needs a terminal" in text, name
+        assert "press ! to drop to the shell" in text
+
+
+def test_every_interactive_command_exists() -> None:
+    """A name in the list that is not a command would refuse something that
+    was never there, and let the real one hang."""
+    from vanguard.panes import INTERACTIVE
+
+    for name in INTERACTIVE:
+        assert name in main.commands, name
+
+
+def test_the_streaming_commands_are_all_listed() -> None:
+    """`run`, `poll` and `session` are the ones that hang a pane. Named
+    explicitly so a new streaming command is a deliberate omission rather
+    than an oversight."""
+    from vanguard.panes import INTERACTIVE
+
+    for name in ("run", "poll", "session"):
+        assert name in INTERACTIVE
+
+
+def test_a_typo_suggests_rather_than_failing(populated: str) -> None:
+    from vanguard.panes import render_command
+
+    text = render_command(["revew"], db=populated, width=60)
+    assert "no command" in text
+    assert "review" in text
+
+
+def test_options_are_passed_through(populated: str) -> None:
+    """The command bar IS the CLI. Anything the CLI accepts works."""
+    from vanguard.panes import render_command
+
+    text = render_command(["review", "--status", "DISPATCHED"],
+                          db=populated, width=70)
+    assert "DISPATCHED" in text
+
+
+def test_an_explicit_db_is_not_overridden(tmp_path: Path,
+                                          populated: str) -> None:
+    """Typing `--db` yourself must win over the pane view's."""
+    from vanguard.panes import render_command
+
+    other = tmp_path / "other.db"
+    Store(other).initialise()
+
+    text = render_command(["review", "--db", str(other)],
+                          db=populated, width=70)
+    assert "no records" in text, (
+        "the typed --db must win — otherwise it would read the pane's store")
+
+
+def test_nothing_typed_is_handled(populated: str) -> None:
+    from vanguard.panes import render_command
+
+    assert render_command([], db=populated, width=60)

@@ -613,10 +613,40 @@ vanguard panes --list
 
 | Key | Does |
 |---|---|
-| `f` | Enlarge the focused pane |
+| `f` | Enlarge the focused pane — **press again to restore** |
+| `Esc` | Restore, from an enlarged pane |
+| `:` | Type a command; its output replaces the focused pane |
+| `!` | Drop to the shell, `exit` to come back |
 | `r` | Refresh every pane |
 | `Tab` | Move between panes |
-| `q` | Back to the shell |
+| `q` | Quit |
+
+### Running a command
+
+Two ways, because commands differ.
+
+**`:` for anything that prints** — `review --status DISPATCHED`,
+`responses --sort state`, `sql "SELECT ..."`, `funnel --reasons`. The output
+appears in the focused pane, options and all. It **is** the CLI, invoked
+in-process, so anything the CLI accepts works. `r` puts the pane back to its
+own command.
+
+**`!` for anything that streams or asks** — `run`, `poll`, `session`,
+`adverts ingest`. Those print progress for minutes or wait for an answer, and
+a pane can show neither. `!` suspends the panes, gives you a real shell, and
+returns when you type `exit`.
+
+A command that needs a terminal says so rather than hanging:
+
+```
+`run` needs a terminal — it streams output or asks questions,
+and a pane can show neither.
+
+    press ! to drop to the shell, then:
+        vanguard run
+```
+
+A hung pane looks like a slow one, which is why the refusal is explicit.
 
 ### No pane computes anything
 

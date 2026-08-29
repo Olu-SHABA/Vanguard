@@ -24,9 +24,11 @@ from __future__ import annotations
 import io
 import os
 from contextlib import redirect_stderr, redirect_stdout
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
-__all__ = ["Pane", "PANES", "render", "pane_named"]
+__all__ = ["Pane", "PANES", "render", "render_command", "pane_named",
+           "INTERACTIVE"]
 
 
 @dataclass(frozen=True)
@@ -122,6 +124,63 @@ def render(pane: Pane, *, db: str = "", width: int = 80,
             os.environ.pop("COLUMNS", None)
         else:
             os.environ["COLUMNS"] = previous
+
+
+#: Commands that do not work captured into a pane.
+#:
+#: `run` streams progress for minutes; `session` and `resolve` ask questions;
+#: `poll` does both. Capturing their output means the operator sees nothing
+#: until it finishes, and a prompt they cannot answer hangs the pane.
+#:
+#: Named rather than discovered, because the failure is silent — a hung pane
+#: looks like a slow one.
+INTERACTIVE: frozenset[str] = frozenset({
+    "run", "session", "resolve", "poll", "interview", "adverts", "discover",
+    "evidence", "dispatch", "apply",
+})
+
+
+def render_command(words: Sequence[str], *, db: str = "",
+                   width: int = 80) -> str:
+    """Run an arbitrary command and return what it printed.
+
+    The command bar behind `:` in the pane view. Anything the CLI accepts
+    works, including options — it IS the CLI, invoked in-process.
+
+    A command that needs a terminal is refused with the reason rather than
+    hanging the pane on a prompt nobody can see.
+    """
+    from click.testing import CliRunner
+
+    from vanguard.cli import main
+
+    if not words:
+        return "(nothing to run)"
+
+    name = words[0]
+    if name not in main.commands:
+        close = [c for c in main.commands if c.startswith(name[:3])]
+        suggestion = f"  did you mean: {', '.join(sorted(close)[:4])}" if close else ""
+        return f"no command {name!r}\n{suggestion}"
+
+    if name in INTERACTIVE:
+        return (f"`{name}` needs a terminal — it streams output or asks "
+                f"questions,\nand a pane can show neither.\n\n"
+                f"    press ! to drop to the shell, then:\n"
+                f"        vanguard {' '.join(words)}\n")
+
+    args = ["--width", str(max(40, width)), *words]
+    if db and _accepts_db(name) and "--db" not in words:
+        args += ["--db", db]
+
+    try:
+        result = CliRunner().invoke(main, args, catch_exceptions=True)
+        text = (result.output or "").rstrip()
+        if result.exception is not None and not text.strip():
+            text = f"({name} failed: {result.exception})"
+        return text or "(no output)"
+    except Exception as exc:                       # pragma: no cover - defensive
+        return f"({name} could not run: {exc})"
 
 
 def _accepts_db(command: str) -> bool:

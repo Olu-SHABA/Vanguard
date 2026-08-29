@@ -47,8 +47,8 @@ def run_app(db: str) -> None:
     """Start the pane view. Raises `ImportError` when Textual is absent."""
     from textual.app import App, ComposeResult
     from textual.binding import Binding
-    from textual.containers import Horizontal, Vertical, VerticalScroll
-    from textual.widgets import Footer, Header, Static
+    from textual.containers import Horizontal, VerticalScroll
+    from textual.widgets import Footer, Header, Input, Static
 
     class PaneBox(VerticalScroll):
         """One region. Scrolls, because a pane is always smaller than the
@@ -71,6 +71,18 @@ def run_app(db: str) -> None:
             width = max(40, self.size.width - 4) if self.size.width else 76
             self.body.update(render(self.pane, db=self.db_path, width=width))
 
+        def show_command(self, words: list[str], db_path: str) -> None:
+            """Show an arbitrary command's output in this pane.
+
+            The pane keeps its own identity — a refresh puts its own command
+            back — so a query does not permanently repurpose a region.
+            """
+            from vanguard.panes import render_command
+
+            width = max(40, self.size.width - 4) if self.size.width else 76
+            self.border_title = f"{self.pane.title}  ·  {' '.join(words)}"
+            self.body.update(render_command(words, db=db_path, width=width))
+
     class VanguardApp(App):
         CSS = """
         Screen { layout: vertical; }
@@ -88,7 +100,10 @@ def run_app(db: str) -> None:
         BINDINGS = [
             Binding("q", "quit", "Quit"),
             Binding("r", "refresh", "Refresh"),
-            Binding("f", "full", "Full screen"),
+            Binding("f", "full", "Enlarge / restore"),
+            Binding("escape", "restore", "Restore", show=False),
+            Binding("colon", "command", "Run a command"),
+            Binding("exclamation_mark", "shell", "Drop to shell"),
             Binding("tab", "focus_next", "Next pane", show=False),
         ]
 
@@ -96,6 +111,9 @@ def run_app(db: str) -> None:
             super().__init__()
             self.db_path = db_path
             self.boxes: list[PaneBox] = []
+            #: Which pane is enlarged, or None. Held so `f` can TOGGLE —
+            #: the first version hid every other pane and had no way back.
+            self.enlarged: PaneBox | None = None
 
         def compose(self) -> ComposeResult:
             yield Header(show_clock=True)
@@ -119,31 +137,124 @@ def run_app(db: str) -> None:
                     yield box
 
             yield Static(
-                "  every pane runs a command — press f to enlarge one, "
-                "q to drop back to the shell",
+                "  f enlarge · : run a command · ! drop to the shell · q quit",
                 id="hint")
+
+            # Hidden until `:`. A command bar rather than a menu, because the
+            # commands are the interface — a menu would be a second one.
+            self.bar = Input(placeholder="vanguard …", id="bar")
+            self.bar.display = False
+            yield self.bar
+
             yield Footer()
 
         def action_refresh(self) -> None:
             for box in self.boxes:
                 box.refresh_content()
 
-        def action_full(self) -> None:
-            """Enlarge the focused pane.
+        # -- enlarging ------------------------------------------------------
 
-            A pane is always smaller than the output it can be asked to show,
-            and long output — an advert, a rejection email — wants room.
-            """
+        def _focused_box(self) -> PaneBox | None:
             focused = self.focused
-            box = focused if isinstance(focused, PaneBox) else None
-            if box is None:
-                box = next((b for b in self.boxes if b.has_focus_within), None)
+            if isinstance(focused, PaneBox):
+                return focused
+            return next((b for b in self.boxes if b.has_focus_within), None)
+
+        def action_full(self) -> None:
+            """Toggle the focused pane between full screen and the grid.
+
+            A TOGGLE, not a one-way trip. The first version hid every other
+            pane with no way back, which made `f` a mistake you could not
+            undo without quitting.
+            """
+            if self.enlarged is not None:
+                self.action_restore()
+                return
+
+            box = self._focused_box()
             if box is None:
                 return
 
             for other in self.boxes:
-                other.display = other is box or box is None
+                other.display = other is box
+            self.enlarged = box
             box.refresh_content()
+            self._set_hint("  f or Esc to restore · : run a command · "
+                           f"! shell · full: {box.pane.full}")
+
+        def action_restore(self) -> None:
+            """Back to the grid. Bound to Escape as well as `f`, because
+            Escape is what people press when a screen has swallowed them."""
+            if self.enlarged is None:
+                return
+            for box in self.boxes:
+                box.display = True
+                box.refresh_content()
+            self.enlarged = None
+            self._set_hint("  f enlarge · : run a command · "
+                           "! drop to the shell · q quit")
+
+        def _set_hint(self, text: str) -> None:
+            try:
+                self.query_one("#hint", Static).update(text)
+            except Exception:                      # pragma: no cover - defensive
+                pass
+
+        # -- running commands -----------------------------------------------
+
+        def action_command(self) -> None:
+            """Type a command and see it in the focused pane.
+
+            For anything that PRINTS — `review`, `responses`, `sql`, `funnel`.
+            Output is captured, so a command that takes a minute or asks a
+            question is the wrong tool here; that is what `!` is for.
+            """
+            box = self._focused_box() or (self.boxes[0] if self.boxes else None)
+            if box is None:
+                return
+            self.bar.display = True
+            self.bar.value = ""
+            self.bar.placeholder = f"vanguard …   (shown in {box.pane.title})"
+            self.bar.focus()
+
+        def on_input_submitted(self, event) -> None:
+            typed = (event.value or "").strip()
+            self.bar.display = False
+
+            box = self._focused_box() or (self.boxes[0] if self.boxes else None)
+            if not typed or box is None:
+                return
+
+            # `vanguard` is optional — nobody types the program name twice.
+            words = typed.split()
+            if words and words[0] == "vanguard":
+                words = words[1:]
+            if not words:
+                return
+
+            box.show_command(words, self.db_path)
+
+        def action_shell(self) -> None:
+            """Drop to the real terminal, then come back.
+
+            `vanguard run` streams progress for minutes; `vanguard session`
+            asks questions. Neither works captured into a pane, and pretending
+            otherwise would give a worse version of something the shell
+            already does well.
+            """
+            with self.suspend():
+                print("\nBack to the shell. Type `exit` to return to the panes.\n")
+                import os
+                import subprocess
+
+                shell = os.environ.get("COMSPEC") or os.environ.get(
+                    "SHELL", "/bin/sh")
+                try:
+                    subprocess.call([shell])
+                except Exception as exc:
+                    print(f"could not start a shell: {exc}")
+
+            self.action_refresh()
 
         def action_quit(self) -> None:
             self.exit()
