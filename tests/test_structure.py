@@ -1,6 +1,8 @@
 """Advert structure parsing — heading binding and section classification."""
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from vanguard.extract import extract
@@ -353,3 +355,63 @@ def test_new_requirement_heading_yields_terms() -> None:
               "<ul><li>Python and SQL</li><li>AWS and Docker</li>"
               "<li>ETL pipelines</li></ul>")
     assert {r.canonical for r in extract(advert)} >= {"Python", "SQL", "AWS"}
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+# ---------------------------------------------------------------------------
+# The CI claim
+#
+# `continuous integration` moved from Tier C to Tier A on 22 Aug 2026. An
+# alias table entry is a claim made to employers, and this one is only true
+# while the workflow exists.
+# ---------------------------------------------------------------------------
+
+def test_the_ci_claim_has_a_workflow_behind_it() -> None:
+    """Tier A means evidenced. Delete the workflow and the claim becomes
+    false — this fails first, rather than an employer finding out."""
+    import yaml
+
+    workflow = ROOT / ".github" / "workflows" / "tests.yml"
+    assert workflow.is_file(), (
+        "the alias table claims continuous integration at Tier A; "
+        "no workflow exists to support it")
+
+    spec = yaml.safe_load(workflow.read_text(encoding="utf-8"))
+
+    # `on` is parsed as the boolean True by YAML 1.1. Both spellings checked
+    # so this does not depend on the parser's version.
+    triggers = spec.get("on") or spec.get(True) or {}
+    assert "push" in triggers, "CI that does not run on push is not CI"
+
+    assert spec.get("jobs"), "no jobs"
+    commands = [
+        step.get("run", "")
+        for job in spec["jobs"].values()
+        for step in job.get("steps", [])
+    ]
+    assert any("pytest" in c for c in commands), (
+        "the workflow runs no tests")
+
+
+def test_continuous_deployment_is_still_excluded() -> None:
+    """CI exists; CD does not. Nothing is built, packaged, released or
+    deployed, and claiming CD from a test workflow is the overreach this
+    table exists to prevent."""
+    text = (ROOT / "config" / "alias_table.yaml").read_text(encoding="utf-8")
+    assert "EXCLUDED_continuous_deployment" in text
+
+
+def test_ci_cd_as_one_term_is_still_a_gap() -> None:
+    """An advert asking for `CI/CD` wants both halves. Resolving it to the CI
+    entry would turn a partial capability into a full HIT."""
+    from vanguard.coverage import load_aliases
+
+    table = load_aliases(str(ROOT / "config" / "alias_table.yaml"))
+    owner = next(
+        (e.canonical for e in table.entries
+         if "ci/cd" in [a.lower() for a in getattr(e, "aliases", [])]),
+        None)
+    assert owner == "EXCLUDED_continuous_deployment", (
+        f"CI/CD resolves to {owner}; it must remain a gap")

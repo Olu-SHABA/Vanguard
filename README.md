@@ -1,5 +1,7 @@
 # Project Vanguard
 
+![tests](https://github.com/Olu-SHABA/Vanguard/actions/workflows/tests.yml/badge.svg)
+
 Semi-autonomous job application pipeline. Ingests vacancies, scores them
 against a canonical CV, classifies gaps, drafts artefacts, and queues them
 for human approval. It never submits without authorisation and never invents

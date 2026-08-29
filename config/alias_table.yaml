@@ -247,12 +247,42 @@ aliases:
              Reclassify to Tier A only when a test suite is evidenced by a
              canonical_cv.md line."
 
-  - canonical: EXCLUDED_cicd
+  - canonical: continuous integration
+    tier: A
+    aliases: ["CI", "continuous integration", "CI pipeline", "GitHub Actions",
+              "build-on-commit"]
+    cv_evidence: "GitHub Actions workflow running 1,380 tests on every push,
+                  across two dependency profiles and two credential states"
+    source_role: "Project Vanguard, 2026 – Present"
+    note: "PROMOTED FROM TIER C, 22 Aug 2026. The exclusion was correct until
+           the workflow existed — scheduled execution at 06:00 is
+           orchestration, not CI. It now runs on every push: a fast job on
+           base dependencies, a full job with scoring and rendering, and an
+           advisory lint job.
+
+           CONTINUOUS DEPLOYMENT is NOT claimed. Nothing deploys. A
+           requirement naming deployment, release automation or delivery
+           pipelines is still unmet — see EXCLUDED_continuous_deployment."
+
+  - canonical: EXCLUDED_continuous_deployment
     tier: C
-    aliases: ["CI/CD", "continuous integration", "continuous deployment",
-              "GitHub Actions", "Jenkins", "build pipeline"]
-    reason: "Scheduled execution at 06:00 is orchestration, not CI/CD. No
-             build-on-commit pipeline exists."
+    aliases: ["CI/CD", "CICD", "continuous deployment", "continuous delivery",
+              "CD", "release automation", "deployment pipeline", "build
+              pipeline", "blue-green", "canary release", "Jenkins", "ArgoCD",
+              "Spinnaker"]
+    reason: "CI exists; CD does not.
+
+             `CI/CD` AS A SINGLE TERM STAYS HERE. An advert asking for CI/CD
+             wants both halves, and half a match is a gap. Resolving it to
+             the CI entry would turn a partial capability into a full HIT,
+             which is precisely what this table exists to prevent.
+
+             The rest: The workflow runs tests. Nothing is
+             built, packaged, released or deployed by it, and there is no
+             environment to deploy to. Claiming CD from a test workflow is
+             the kind of overreach this table exists to prevent.
+
+             Reclassify when something is actually deployed by a pipeline."
 
   - canonical: version control
     tier: B

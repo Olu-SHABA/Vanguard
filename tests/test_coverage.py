@@ -43,7 +43,7 @@ def req(text: str, canonical: str | None = None) -> Requirement:
         ("AWS", "EXCLUDED_cloud_platforms"),
         ("Spark", "EXCLUDED_distributed_compute"),
         ("pull requests", "EXCLUDED_collaborative_git"),
-        ("CI/CD", "EXCLUDED_cicd"),
+        ("CI/CD", "EXCLUDED_continuous_deployment"),
         ("line management", "EXCLUDED_line_management"),
     ],
 )
@@ -81,10 +81,20 @@ def test_moj_advert_reproduces_manual_assessment(cv, aliases) -> None:
     blocked = {r.requirement.canonical for r in report.excluded_gaps}
 
     assert {"Python", "SQL", "data wrangling"} <= hit
+
     # `git` moved to Tier B on 9 Aug 2026 — individual version control is now
-    # evidenced. The rest of the SDLC criterion is still unmet.
-    assert {"pytest", "CI/CD", "GitHub Actions"} <= blocked
+    # evidenced.
     assert "git" not in blocked
+
+    # `GitHub Actions` moved to Tier A on 22 Aug 2026, when a workflow
+    # started running the suite on every push. It is a real capability now
+    # and resolving it is correct.
+    assert "GitHub Actions" not in blocked
+
+    # `CI/CD` as a single term stays blocked. An advert asking for it wants
+    # both halves, and only CI exists — nothing is built, packaged, released
+    # or deployed. Half a match is a gap.
+    assert {"pytest", "CI/CD"} <= blocked
 
 
 # --- stage ordering -------------------------------------------------------
