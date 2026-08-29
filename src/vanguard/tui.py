@@ -1,39 +1,62 @@
 """
-The pane view — a window onto the commands, not a replacement for them.
+The pane view — menu, four regions, and a record that follows the cursor.
 
-Four regions on one screen: what needs doing, where the queue is, what came
-back, and how far applications get. Quitting drops you back to a normal
-prompt with everything intact.
+## What the first version got wrong
 
-## What this module does NOT do
+It was a viewer. Five panes of command output, a hidden command bar, and no
+menu — so nine views were reachable only by knowing their command name, which
+is the problem a pane view exists to solve.
 
-It computes nothing. Every pane runs the command it corresponds to and shows
-what comes back — see `panes.py` for why. This file is layout and key
-bindings.
+Worse, the region the sketch labelled INPUT held `status` instead. The one
+section that gave the layout a purpose was missing.
 
-## Read-only, for now
+## The four regions
 
-Approving from the keyboard is better and roughly doubles the work, because
-every action needs a confirmation and a way to undo a mis-key. Worth adding
-once the panes have been used and it is clear which actions are actually
-reached for.
+    +- MENU ----+- INPUT ---------------------------------+
+    | > Queue   |  [r]un  [s]earch  [p]aste  [o] poll     |
+    |   Replies +-----------------------------------------+
+    |   Progress|  RESULT - the record under the cursor   |
+    |   Gaps    |  coverage, unmet terms, the link        |
+    |           +------------------+----------------------+
+    |           |  NEEDS DOING     |  PROGRESS            |
+    |           |  the list        |  funnel              |
+    +-----------+------------------+----------------------+
 
-Every pane names the command behind it, so acting means one keystroke to the
-shell rather than a menu that does not exist yet.
+**RESULT follows the cursor.** Move through the list and the record appears
+above it — the one thing a page of command output cannot do.
 
-## Textual is optional
+## Still read-only
 
-It is not a base dependency. Without it, `vanguard panes` says how to install
-it and exits — the CLI is unaffected, which is the point of keeping both.
+Approving from the keyboard is the obvious next step and is deliberately not
+here. Both defects the operator found were in the layout layer, which cannot
+be tested from this sandbox: Textual is not installable here, so every line
+below is written but unrun.
+
+Adding a keystroke that dispatches an application to a UI whose focus
+behaviour is unverified is how a mis-key becomes a wrong submission. Actions
+land once the frame has been used and the focus behaviour is known.
+
+## Everything else still runs through the commands
+
+`panes.py` holds two exceptions, both deliberate: `record_detail` and
+`queue_rows` read the store, because no command produces a
+cursor-addressable list or a single record in this shape. Everything else
+delegates.
 """
 
 from __future__ import annotations
 
-from pathlib import Path
+from vanguard.panes import (
+    ACTIONS,
+    AFTER,
+    INTERACTIVE,
+    MENU,
+    queue_rows,
+    record_detail,
+    render_command,
+)
 
-from vanguard.panes import PANES, Pane, pane_named, render
-
-__all__ = ["run_app", "TEXTUAL_MISSING"]
+__all__ = ["run_app", "TEXTUAL_MISSING", "status_of"]
 
 TEXTUAL_MISSING = (
     "the pane view needs Textual:\n\n"
@@ -43,237 +66,221 @@ TEXTUAL_MISSING = (
 )
 
 
+def status_of(words) -> str:
+    """The queue status a menu entry shows, or nothing.
+
+    A view over the queue is SELECTABLE and drives the record pane. A funnel
+    has nothing to select.
+    """
+    words = tuple(words)
+    if not words or words[0] != "review":
+        return ""
+    for index, word in enumerate(words):
+        if word == "--status" and index + 1 < len(words):
+            return words[index + 1]
+    return "PENDING"
+
+
 def run_app(db: str) -> None:
     """Start the pane view. Raises `ImportError` when Textual is absent."""
     from textual.app import App, ComposeResult
     from textual.binding import Binding
-    from textual.containers import Horizontal, VerticalScroll
-    from textual.widgets import Footer, Header, Input, Static
-
-    class PaneBox(VerticalScroll):
-        """One region. Scrolls, because a pane is always smaller than the
-        output it can be asked to show."""
-
-        def __init__(self, pane: Pane, db_path: str) -> None:
-            super().__init__()
-            self.pane = pane
-            self.db_path = db_path
-            self.border_title = pane.title
-            self.body = Static("loading…")
-
-        def compose(self) -> ComposeResult:
-            yield self.body
-
-        def on_mount(self) -> None:
-            self.refresh_content()
-
-        def refresh_content(self) -> None:
-            width = max(40, self.size.width - 4) if self.size.width else 76
-            self.body.update(render(self.pane, db=self.db_path, width=width))
-
-        def show_command(self, words: list[str], db_path: str) -> None:
-            """Show an arbitrary command's output in this pane.
-
-            The pane keeps its own identity — a refresh puts its own command
-            back — so a query does not permanently repurpose a region.
-            """
-            from vanguard.panes import render_command
-
-            width = max(40, self.size.width - 4) if self.size.width else 76
-            self.border_title = f"{self.pane.title}  ·  {' '.join(words)}"
-            self.body.update(render_command(words, db=db_path, width=width))
+    from textual.containers import Horizontal, Vertical, VerticalScroll
+    from textual.widgets import (
+        Footer, Header, Input, ListItem, ListView, Static,
+    )
 
     class VanguardApp(App):
+        TITLE = "Vanguard"
+
         CSS = """
-        Screen { layout: vertical; }
-        #top { height: 1fr; }
-        #bottom { height: 1fr; }
-        PaneBox {
-            border: round $primary;
-            padding: 0 1;
-            width: 1fr;
-        }
-        PaneBox:focus-within { border: round $accent; }
+        Screen { layout: horizontal; }
+        #menu { width: 18; border-right: solid $primary; }
+        #right { width: 1fr; }
+        #input { height: 5; border: round $primary; padding: 0 1; }
+        #result { height: 1fr; border: round $primary; padding: 0 1; }
+        #lower { height: 1fr; }
+        #list { width: 1fr; border: round $primary; padding: 0 1; }
+        #progress { width: 1fr; border: round $primary; padding: 0 1; }
+        #list:focus-within, #result:focus-within { border: round $accent; }
         #bar { dock: bottom; border: tall $accent; height: 3; }
-        #hint { dock: bottom; height: 1; color: $text-muted; padding: 0 1; }
         """
 
-        # Plain keys with no modifier. `:` and `!` need Shift and are
-        # reported differently by different terminals, and a binding that
-        # silently does not fire is worse than a duller key — the operator
-        # pressed `:`, saw nothing happen, and had no way to tell whether the
-        # feature existed.
+        # Function keys and Ctrl combinations only.
+        #
+        # A plain letter is swallowed the moment the command bar has focus,
+        # and `:` and `!` are reported differently by different terminals — a
+        # binding that silently does not fire leaves nothing on screen to
+        # diagnose, which is what happened.
         BINDINGS = [
             Binding("ctrl+q", "quit", "Quit"),
             Binding("ctrl+r", "refresh", "Refresh"),
-            Binding("f2", "full", "Enlarge / restore"),
-            Binding("escape", "restore", "Restore", show=False),
+            Binding("f1", "help", "Help"),
+            Binding("f2", "full", "Enlarge"),
             Binding("f3", "shell", "Shell"),
-            Binding("f5", "refresh", "Refresh", show=False),
-            Binding("tab", "focus_next", "Next pane", show=False),
+            Binding("escape", "restore", "Restore", show=False),
         ]
 
         def __init__(self, db_path: str) -> None:
             super().__init__()
             self.db_path = db_path
-            self.boxes: list[PaneBox] = []
-            #: Which pane is enlarged, or None. Held so `f` can TOGGLE —
-            #: the first version hid every other pane and had no way back.
-            self.enlarged: PaneBox | None = None
+            self.view = MENU[0]
+            self.rows = []
+            self.enlarged = None
+
+        # -- layout ---------------------------------------------------------
 
         def compose(self) -> ComposeResult:
-            yield Header(show_clock=True)
+            yield Header()
 
-            # The sketch: input and result above, what-needs-doing and
-            # progress below. `status` stands in for the input pane until
-            # the panes can act.
-            top = [pane_named("s"), pane_named("t")]
-            bottom = [pane_named("q"), pane_named("r"), pane_named("p")]
+            with Vertical(id="menu"):
+                yield Static(" VIEW")
+                self.menu = ListView(
+                    *[ListItem(Static(f" {name}")) for name, _, _ in MENU])
+                yield self.menu
 
-            with Horizontal(id="top"):
-                for pane in top:
-                    box = PaneBox(pane, self.db_path)
-                    self.boxes.append(box)
-                    yield box
+            with Vertical(id="right"):
+                self.input = Static(self._input_text(), id="input")
+                self.input.border_title = "INPUT"
+                yield self.input
 
-            with Horizontal(id="bottom"):
-                for pane in bottom:
-                    box = PaneBox(pane, self.db_path)
-                    self.boxes.append(box)
-                    yield box
+                self.result = VerticalScroll(id="result")
+                self.result.border_title = "RESULT"
+                yield self.result
 
-            # ALWAYS VISIBLE, deliberately.
-            #
-            # The first version hid it behind `:`. That binding did not fire,
-            # and because the bar was hidden there was nothing to show the
-            # operator the feature existed at all — they pressed a key,
-            # nothing happened, and no diagnosis was possible from the
-            # screen.
-            #
-            # A bar you can see cannot fail that way. Click it or Tab to it.
+                with Horizontal(id="lower"):
+                    self.listing = VerticalScroll(id="list")
+                    self.listing.border_title = MENU[0][0].upper()
+                    yield self.listing
+
+                    self.progress = VerticalScroll(id="progress")
+                    self.progress.border_title = "PROGRESS"
+                    yield self.progress
+
             self.bar = Input(
-                placeholder="type a command here and press Enter — "
-                            "e.g. review --status DISPATCHED",
+                placeholder="type a command and press Enter — "
+                            "e.g. review --status DISPATCHED, or run",
                 id="bar")
             yield self.bar
-
-            yield Static(
-                "  F2 enlarge · F3 shell · Ctrl+R refresh · Ctrl+Q quit",
-                id="hint")
             yield Footer()
 
+        def on_mount(self) -> None:
+            self.result_body = Static("(select a row)")
+            self.result.mount(self.result_body)
+
+            self.list_view = ListView()
+            self.listing.mount(self.list_view)
+
+            self.progress_body = Static("loading…")
+            self.progress.mount(self.progress_body)
+
+            self.action_refresh()
+
+        # -- content --------------------------------------------------------
+
+        def _input_text(self) -> str:
+            actions = "   ".join(f"[{key}] {name}" for key, name, _ in ACTIONS)
+            return (f"{actions}\n\n"
+                    "type any command in the bar below — F1 for help")
+
+        def _pane_width(self, widget) -> int:
+            size = getattr(widget, "size", None)
+            return max(40, (size.width - 4) if size and size.width else 70)
+
         def action_refresh(self) -> None:
-            for box in self.boxes:
-                box.refresh_content()
+            self._load_view(self.view)
+            self.progress_body.update(
+                render_command(["funnel"], db=self.db_path,
+                               width=self._pane_width(self.progress)))
 
-        # -- enlarging ------------------------------------------------------
+        def _load_view(self, entry) -> None:
+            name, _hint, words = entry
+            self.view = entry
+            self.listing.border_title = name.upper()
 
-        def _focused_box(self) -> PaneBox | None:
-            focused = self.focused
-            if isinstance(focused, PaneBox):
-                return focused
-            return next((b for b in self.boxes if b.has_focus_within), None)
+            status = status_of(words)
+            if status:
+                self.rows = queue_rows(status, db=self.db_path)
+                self.list_view.clear()
+                for _vacancy_id, label in self.rows:
+                    self.list_view.append(ListItem(Static(label)))
+                if self.rows:
+                    self.list_view.index = 0
+                    self._show_record(0)
+                else:
+                    self.result_body.update(f"(nothing with status {status})")
+            else:
+                self.rows = []
+                self.list_view.clear()
+                self.result_body.update(
+                    render_command(list(words), db=self.db_path,
+                                   width=self._pane_width(self.result)))
 
-        def action_full(self) -> None:
-            """Toggle the focused pane between full screen and the grid.
-
-            A TOGGLE, not a one-way trip. The first version hid every other
-            pane with no way back, which made `f` a mistake you could not
-            undo without quitting.
-            """
-            if self.enlarged is not None:
-                self.action_restore()
+        def _show_record(self, index: int) -> None:
+            if not (0 <= index < len(self.rows)):
                 return
+            vacancy_id, _label = self.rows[index]
+            self.result.border_title = f"RESULT  ·  {vacancy_id}"
+            self.result_body.update(
+                record_detail(vacancy_id, db=self.db_path,
+                              width=self._pane_width(self.result)))
 
-            box = self._focused_box()
-            if box is None:
-                return
+        # -- events ---------------------------------------------------------
 
-            for other in self.boxes:
-                other.display = other is box
-            self.enlarged = box
-            box.refresh_content()
-            self._set_hint(f"  F2 or Esc to restore · full: {box.pane.full}")
-
-        def action_restore(self) -> None:
-            """Back to the grid. Bound to Escape as well as `f`, because
-            Escape is what people press when a screen has swallowed them."""
-            if self.enlarged is None:
-                return
-            for box in self.boxes:
-                box.display = True
-                box.refresh_content()
-            self.enlarged = None
-            self._set_hint("  F2 enlarge · F3 shell · Ctrl+R refresh · "
-                           "Ctrl+Q quit")
-
-        def on_key(self, event) -> None:
-            """A fallback for the shifted keys.
-
-            `:` and `!` are natural and were the first choice. Whether a
-            terminal reports them as `colon` and `exclamation_mark` varies,
-            and a binding that does not fire leaves no trace on screen. So
-            they are handled here by CHARACTER, which is reported
-            consistently, and the function keys remain as the documented
-            route.
-            """
-            character = getattr(event, "character", None)
-            if character == ":" and not self.bar.has_focus:
-                self.bar.focus()
-                event.prevent_default()
-            elif character == "!" and not self.bar.has_focus:
-                self.action_shell()
-                event.prevent_default()
-
-        def _set_hint(self, text: str) -> None:
-            try:
-                self.query_one("#hint", Static).update(text)
-            except Exception:                      # pragma: no cover - defensive
-                pass
-
-        # -- running commands -----------------------------------------------
+        def on_list_view_highlighted(self, event) -> None:
+            """The cursor moved. This is the point of the redesign: a row
+            says a vacancy scored 0.62; the record says which seven terms it
+            missed, which is what decides whether to apply."""
+            if event.list_view is self.menu:
+                index = event.list_view.index or 0
+                if 0 <= index < len(MENU):
+                    self._load_view(MENU[index])
+            elif event.list_view is self.list_view:
+                self._show_record(event.list_view.index or 0)
 
         def on_input_submitted(self, event) -> None:
             typed = (event.value or "").strip()
             self.bar.value = ""
-
-            # Where output goes. The focused pane if one is focused —
-            # otherwise the largest, because the bar itself holds focus while
-            # typing and "nowhere" is not a useful answer.
-            box = self._focused_box()
-            if box is None:
-                box = self.enlarged or (self.boxes[0] if self.boxes else None)
-            if not typed or box is None:
+            if not typed:
                 return
 
-            # `vanguard` is optional — nobody types the program name twice.
             words = typed.split()
-            if words and words[0] == "vanguard":
+            if words[0] == "vanguard":
                 words = words[1:]
             if not words:
                 return
-
-            # A command that streams or asks is RUN, not refused.
-            #
-            # Refusing was the first design and it was the wrong call: the
-            # operator typed `run`, which is the single most useful thing to
-            # type, and got told to press another key and type it again.
-            # Suspending and running it is what they meant.
-            from vanguard.panes import INTERACTIVE
 
             if words[0] in INTERACTIVE:
                 self.run_in_terminal(words)
                 return
 
-            box.show_command(words, self.db_path)
+            self.result.border_title = f"RESULT  ·  {' '.join(words)}"
+            self.result_body.update(
+                render_command(words, db=self.db_path,
+                               width=self._pane_width(self.result)))
 
-        def run_in_terminal(self, words: list[str]) -> None:
-            """Suspend the panes and run a command for real.
+        def on_key(self, event) -> None:
+            """Single-key actions, ignored while the bar has focus.
 
-            For anything that streams progress or asks a question. Output
-            goes to the terminal as it happens, which is the whole point —
-            captured into a pane the operator would see nothing until it
-            finished.
+            `r` for run is natural, and typing `r` inside a command must not
+            launch one — so the check is on focus rather than on the key.
+            """
+            if getattr(self.bar, "has_focus", False):
+                return
+            character = getattr(event, "character", None)
+            for key, name, _hint in ACTIONS:
+                if character == key:
+                    self.run_in_terminal([name])
+                    event.prevent_default()
+                    return
+
+        # -- running --------------------------------------------------------
+
+        def run_in_terminal(self, words) -> None:
+            """Suspend and run for real.
+
+            Captured into a pane the operator sees nothing until it finishes,
+            and a prompt they cannot answer hangs it.
             """
             import subprocess
             import sys
@@ -290,44 +297,72 @@ def run_app(db: str) -> None:
                 except (EOFError, KeyboardInterrupt):
                     pass
 
-            # Every pane re-reads the store, so new records appear.
             self.action_refresh()
 
-            # And the focused pane shows what the command DID.
-            #
-            # Without this the output scrolled past and was gone: the run
-            # said what it had fetched and scored, the panes came back
-            # looking much as before, and there was no way to see what had
-            # happened. The run table holds the record — this surfaces it.
-            box = self._focused_box() or (self.boxes[0] if self.boxes else None)
-            if box is not None:
-                from vanguard.panes import AFTER
+            # And show what it DID. Without this the output scrolled past and
+            # was gone: the panes came back looking much as before.
+            after = AFTER.get(words[0])
+            if after:
+                self.result.border_title = f"RESULT  ·  after {words[0]}"
+                self.result_body.update(
+                    render_command(list(after), db=self.db_path,
+                                   width=self._pane_width(self.result)))
 
-                after = AFTER.get(words[0])
-                if after:
-                    box.show_command(list(after), self.db_path)
+        # -- enlarging ------------------------------------------------------
+
+        def action_full(self) -> None:
+            """Toggle. Not a one-way trip — the first version hid every other
+            pane with no way back."""
+            targets = (self.input, self.result, self.listing, self.progress)
+            if self.enlarged is not None:
+                self.action_restore()
+                return
+
+            box = next((t for t in targets
+                        if getattr(t, "has_focus_within", False)), self.result)
+            for other in targets:
+                other.display = other is box
+            self.enlarged = box
+
+        def action_restore(self) -> None:
+            if self.enlarged is None:
+                return
+            for widget in (self.input, self.result, self.listing,
+                           self.progress):
+                widget.display = True
+            self.enlarged = None
 
         def action_shell(self) -> None:
-            """Drop to the real terminal, then come back.
+            import os
+            import subprocess
 
-            `vanguard run` streams progress for minutes; `vanguard session`
-            asks questions. Neither works captured into a pane, and pretending
-            otherwise would give a worse version of something the shell
-            already does well.
-            """
             with self.suspend():
-                print("\nBack to the shell. Type `exit` to return to the panes.\n")
-                import os
-                import subprocess
-
+                print("\nType `exit` to return to the panes.\n")
                 shell = os.environ.get("COMSPEC") or os.environ.get(
                     "SHELL", "/bin/sh")
                 try:
                     subprocess.call([shell])
                 except Exception as exc:
                     print(f"could not start a shell: {exc}")
-
             self.action_refresh()
+
+        def action_help(self) -> None:
+            lines = ["KEYS", ""]
+            lines += [f"  [{key}]  {name:<8} {hint}"
+                      for key, name, hint in ACTIONS]
+            lines += [
+                "",
+                "  F2      enlarge the focused pane, again to restore",
+                "  F3      drop to a shell, `exit` to come back",
+                "  Ctrl+R  refresh",
+                "  Ctrl+Q  quit",
+                "  Tab     move between the menu, the list and the bar",
+                "",
+                "The bar takes any command. Anything that streams or asks —",
+                "run, poll, session — suspends the panes and runs for real.",
+            ]
+            self.result.border_title = "RESULT  ·  help"
+            self.result_body.update("\n".join(lines))
 
         def action_quit(self) -> None:
             self.exit()

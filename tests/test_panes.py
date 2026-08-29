@@ -40,12 +40,25 @@ def test_every_pane_names_a_real_command() -> None:
         assert pane.command in main.commands, f"{pane.title}: {pane.command}"
 
 
-def test_no_pane_computes_anything() -> None:
+#: The only two functions permitted to read the store directly.
+#:
+#: `record_detail` and `queue_rows` exist because no command produces a
+#: cursor-addressable list or a single record in the shape a pane needs, and
+#: a pane running three commands and stitching the output together would be
+#: doing the work it is meant to delegate.
+#:
+#: Named, so a THIRD is a deliberate decision rather than a drift.
+_MAY_READ_THE_STORE = ("record_detail", "queue_rows")
+
+
+def test_no_pane_reimplements_a_command() -> None:
     """The risk in a second interface is not the building — it is the
     drifting. A filter added to `review` and forgotten on the queue pane
     means the two disagree and nobody knows which to trust.
 
-    Asserted structurally: nothing in `panes.py` touches the store.
+    Two functions read the store, by name. Everything else delegates, and
+    nothing anywhere reimplements SCORING or CLASSIFICATION, which is where
+    a divergence would actually matter.
     """
     import vanguard.panes as module
 
@@ -53,11 +66,34 @@ def test_no_pane_computes_anything() -> None:
     code = "\n".join(line.split("#")[0] for line in source.splitlines()
                      if not line.strip().startswith("#"))
 
-    for forbidden in ("Store(", "sqlite3", "SELECT ", "build_lifecycle",
-                      "classify(", "compute_coverage"):
+    # Never, anywhere. A pane that classified a message or computed coverage
+    # could disagree with the pipeline about the thing that matters.
+    for forbidden in ("sqlite3", "SELECT ", "build_lifecycle", "classify(",
+                      "compute_coverage", "resolve_term"):
         assert forbidden not in code, (
             f"{forbidden} in panes.py — a pane must run a command, not "
             "reimplement one")
+
+    # Store access only inside the two named functions.
+    #
+    # Checked on IMPORTS, not on the text `Store`: `ctx=Store()` is Python's
+    # own AST marker for assigning to a name, and matching it flagged a
+    # string-wrapping helper that has never touched a database.
+    import ast
+
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.FunctionDef):
+            continue
+        if node.name in _MAY_READ_THE_STORE:
+            continue
+
+        for inner in ast.walk(node):
+            if isinstance(inner, ast.ImportFrom):
+                assert "store" not in (inner.module or ""), (
+                    f"{node.name} imports the store. Only "
+                    f"{', '.join(_MAY_READ_THE_STORE)} may — a third is a "
+                    "decision, not a drift")
 
 
 def test_every_pane_names_its_full_command() -> None:
@@ -273,3 +309,127 @@ def test_a_run_is_followed_by_its_record(populated: str) -> None:
     from vanguard.panes import AFTER
 
     assert AFTER["run"][0] == "logs"
+
+
+# ---------------------------------------------------------------------------
+# The redesign
+#
+# The first version was a viewer: five panes of command output, a hidden
+# command bar, and no menu — so nine views were reachable only by knowing
+# their command name, which is the problem a pane view exists to solve.
+#
+# And the region the sketch labelled INPUT held `status`. The one section
+# that gave the layout a purpose was missing.
+# ---------------------------------------------------------------------------
+
+def test_the_menu_covers_the_views() -> None:
+    """Nine views reachable by name, not by memory."""
+    from vanguard.panes import MENU
+
+    names = [name for name, _, _ in MENU]
+    assert len(names) == len(set(names))
+    for expected in ("Queue", "Flagged", "Replies", "Progress"):
+        assert expected in names
+
+
+def test_every_menu_entry_names_a_real_command() -> None:
+    from vanguard.panes import MENU
+
+    for name, hint, words in MENU:
+        assert words and words[0] in main.commands, name
+        assert hint, f"{name} does not say what it shows"
+
+
+def test_the_input_region_has_actions() -> None:
+    """The sketch's INPUT region. Four things an operator starts with."""
+    from vanguard.panes import ACTIONS
+
+    names = {name for _, name, _ in ACTIONS}
+    assert {"run", "search", "paste", "poll"} <= names
+    for key, name, hint in ACTIONS:
+        assert len(key) == 1, f"{name}: {key!r} is not a single key"
+        assert name in main.commands, name
+        assert hint
+
+
+def test_action_keys_are_unique() -> None:
+    from vanguard.panes import ACTIONS
+
+    keys = [key for key, _, _ in ACTIONS]
+    assert len(keys) == len(set(keys))
+
+
+@pytest.mark.parametrize(
+    "words, status",
+    [
+        (("review", "--status", "PENDING", "--limit", "30"), "PENDING"),
+        (("review", "--status", "FLAGGED"), "FLAGGED"),
+        (("review",), "PENDING"),
+        (("funnel",), ""),
+        (("responses", "--limit", "30"), ""),
+        ((), ""),
+    ],
+)
+def test_selectable_views_are_identified(words, status: str) -> None:
+    """A view over the queue drives the record pane. A funnel has nothing to
+    select."""
+    from vanguard.tui import status_of
+
+    assert status_of(words) == status
+
+
+# --- the record that follows the cursor ------------------------------------
+
+def test_queue_rows_are_addressable(populated: str) -> None:
+    """A list a cursor moves through needs to know which row is which."""
+    from vanguard.panes import queue_rows
+
+    rows = queue_rows("PENDING", db=populated)
+    assert rows
+    for vacancy_id, label in rows:
+        assert vacancy_id.startswith("reed:")
+        assert label.strip()
+
+
+def test_a_record_shows_more_than_the_row(populated: str) -> None:
+    """The point of the redesign. A row says a vacancy scored 0.62; the
+    record says which terms it missed, which is what decides whether to
+    apply."""
+    from vanguard.panes import queue_rows, record_detail
+
+    vacancy_id, _label = queue_rows("PENDING", db=populated)[0]
+    text = record_detail(vacancy_id, db=populated, width=60)
+    assert "Employer" in text
+
+
+def test_a_record_fits_its_pane(populated: str) -> None:
+    """Requirement terms are not always words — extraction produces whole
+    competency phrases, and one of those is wider than any pane."""
+    from vanguard.panes import queue_rows, record_detail
+
+    vacancy_id, _label = queue_rows("PENDING", db=populated)[0]
+    for width in (44, 60, 100):
+        text = record_detail(vacancy_id, db=populated, width=width)
+        assert max(len(line) for line in text.splitlines()) <= width
+
+
+def test_no_selection_says_so(populated: str) -> None:
+    from vanguard.panes import record_detail
+
+    assert "select a row" in record_detail("", db=populated, width=60)
+
+
+def test_an_unknown_record_is_reported(populated: str) -> None:
+    from vanguard.panes import record_detail
+
+    assert "no record" in record_detail("reed:nothere", db=populated, width=60)
+
+
+def test_a_broken_store_does_not_raise(tmp_path: Path) -> None:
+    """A traceback taking down the screen because one pane could not read is
+    worse than one pane saying so."""
+    from vanguard.panes import queue_rows, record_detail
+
+    nowhere = str(tmp_path / "nothing" / "x.db")
+    assert queue_rows("PENDING", db=nowhere) == []
+    assert record_detail("reed:1", db=nowhere, width=60)

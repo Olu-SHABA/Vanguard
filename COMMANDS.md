@@ -594,7 +594,7 @@ with their reasons.
 
 ## `vanguard panes`
 
-The pane view — everything on one screen.
+The pane view — a menu, four regions, and a record that follows the cursor.
 
 ```bash
 vanguard panes
@@ -602,105 +602,80 @@ vanguard panes --list
 ```
 
 ```
-┌─ STATUS ──────────────────┬─ WAITING ON YOU ──────────────┐
-│ Pending      6            │ review 6      vanguard session│
-│ Dispatched  20            │ resolve 9     ...             │
-├─ QUEUE ──────┬─ RESPONSES ┴─┬─ PROGRESS ──────────────────┤
-│ ...          │ Decline 4    │ nothing past CV stage       │
-└──────────────┴──────────────┴─────────────────────────────┘
-  f enlarge · r refresh · q back to the shell
+┌ MENU ────┬ INPUT ─────────────────────────────────┐
+│ ▸ Queue  │  [r]un  [s]earch  [p]aste  [o] poll    │
+│   Flagged├────────────────────────────────────────┤
+│   Replies│  RESULT — the record under the cursor  │
+│   Progres│  coverage 0.48   10 of 21 terms        │
+│   Gaps   │  unmet: AWS, CI/CD, SDLC, pytest…      │
+│   Boards ├──────────────────┬─────────────────────┤
+│          │  QUEUE           │  PROGRESS           │
+│          │  0.62 Sanderson  │  20 dispatched      │
+│          │  0.58 Acme       │  nothing past CV    │
+└──────────┴──────────────────┴─────────────────────┘
 ```
 
-### Running a command
+**RESULT follows the cursor.** Move through the queue and the record appears
+above it — coverage, which terms went unmet, which were blocked by the alias
+table, and the link. A row says a vacancy scored 0.62; the record says which
+seven terms it missed, which is what decides whether to apply.
 
-**There is a command bar at the bottom. Click it, or press Tab until it has
-focus, and type.**
+That is the one thing a page of command output cannot do, and the reason the
+pane view exists.
 
-```
-review --status DISPATCHED
-sql "SELECT status, COUNT(*) FROM queue GROUP BY status"
-run
-poll
-```
+### The menu
 
-The leading `vanguard` is optional. Anything the CLI accepts works, including
-options — it **is** the CLI.
+Nine views, reachable without knowing a command name: Queue, Flagged,
+Dispatched, Replies, Interviews, Progress, Gaps, Boards, Awaiting.
 
-**What happens next depends on the command.**
+The three queue views are **selectable** — the cursor drives the record. The
+rest are command output, because a funnel has nothing to select.
 
-Anything that prints — `review`, `responses`, `sql`, `funnel`, `stats` —
-appears in the focused pane. `Ctrl+R` puts the pane back to its own command.
+### INPUT
 
-Anything that streams or asks — `run`, `poll`, `session`, `adverts ingest` —
-**suspends the panes and runs for real** in the terminal, with live output.
-Press Enter when it finishes to come back.
+Four single keys: `r` run, `s` search, `p` paste, `o` poll. Each suspends the
+panes and runs for real, then shows what it did.
 
-**And the pane then shows what it did.** That output scrolled past and was
-gone: you ran something, came back, and the panes looked much as before with
-no way to see what had happened. Each of those commands leaves a record, and
-the pane shows it:
+Ignored while the command bar has focus, so typing `r` inside a command does
+not launch one.
 
-| After | The pane shows |
-|---|---|
-| `run` | `logs --limit 3` — what was fetched and scored |
-| `poll` | `responses` — what came back |
-| `session`, `apply` | `todo` |
-| `adverts ingest` | the PENDING queue |
-| `dispatch` | the DISPATCHED queue |
-| `discover` | what still needs its advert text |
+### The command bar
 
-That second case is why the bar exists. `run` is the most useful thing to
-type, and an interface that told you to press another key and type it again
-would not be an interface.
+Always visible at the bottom. Any command, options and all — it **is** the
+CLI. Anything that prints appears in RESULT; anything that streams or asks
+suspends the panes.
 
 | Key | Does |
 |---|---|
-| `F2` | Enlarge the focused pane — **press again to restore** |
-| `Esc` | Restore, from an enlarged pane |
-| `F3` | Drop to a shell, `exit` to come back |
-| `Ctrl+R` | Refresh every pane |
-| `Tab` | Move between panes and the command bar |
+| `F1` | Help |
+| `F2` | Enlarge the focused pane — again to restore |
+| `F3` | Shell, `exit` to come back |
+| `Ctrl+R` | Refresh |
 | `Ctrl+Q` | Quit |
+| `Tab` | Move between the menu, the list and the bar |
 
-**Function keys, not letters.** A letter key would be swallowed the moment
-the command bar had focus. `:` and `!` still work as shortcuts where the
-terminal reports them, but they are not the documented route — a binding that
-silently does not fire leaves nothing on screen to diagnose.
+### Read-only
 
-### No pane computes anything
+Approving from the keyboard is the obvious next step and is deliberately
+absent. Both defects found in the first version were in the layout layer, and
+adding a keystroke that dispatches an application to a UI whose focus
+behaviour is unverified is how a mis-key becomes a wrong submission.
 
-Each runs the command it corresponds to and shows what comes back. **Adding
-an option to a command gives the pane that option for free**, because the
-pane is not doing the work.
+### Two functions read the store
 
-That matters more than it sounds. The risk in a second interface is not
-building it — it is the drifting: a filter added to `review` and forgotten on
-the queue pane, and six weeks later the two disagree and nobody knows which
-to trust. A test asserts nothing in `panes.py` touches the store.
+`record_detail` and `queue_rows`, by name. No command produces a
+cursor-addressable list or a single record in this shape, and a pane running
+three commands and stitching the output together would be doing the work it
+is meant to delegate.
 
-The cost is that panes look like command output rather than bespoke widgets.
-Slightly less polished, and unable to be wrong.
-
-### Read-only, for now
-
-Approving from the keyboard roughly doubles the work — every action needs a
-confirmation and a way to undo a mis-key. Worth adding once it is clear which
-actions get reached for.
-
-Every pane names the command behind it, so acting is one keystroke to the
-shell. `vanguard panes --list` shows the full mapping.
-
-### Long output belongs in the terminal
-
-A pane is always smaller than what it can be asked to show. An advert, a
-rejection email, a query result — those want a terminal you can scroll,
-search and copy from. **The commands are unaffected**: the panes are an extra
-way in, not a replacement.
+**A third would be a drift.** A test walks every function in `panes.py` and
+fails if any other imports the store — and asserts that nothing anywhere
+reimplements scoring or classification, which is where a divergence would
+actually matter.
 
 ### Textual is optional
 
-`pip install textual`. Without it, `vanguard panes` says so and exits;
-nothing else changes.
+`pip install textual`. Without it the command says so and exits.
 
 ---
 

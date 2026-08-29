@@ -27,8 +27,9 @@ from contextlib import redirect_stderr, redirect_stdout
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
-__all__ = ["Pane", "PANES", "render", "render_command", "pane_named",
-           "INTERACTIVE", "AFTER"]
+__all__ = ["Pane", "PANES", "MENU", "ACTIONS", "render", "render_command",
+           "record_detail", "pane_named", "INTERACTIVE", "AFTER",
+           "queue_rows"]
 
 
 @dataclass(frozen=True)
@@ -83,6 +84,134 @@ PANES: tuple[Pane, ...] = (
          hint="which sources are read, and how",
          full="vanguard boards"),
 )
+
+
+#: The menu, in the order it is shown.
+#:
+#: Nine views were reachable only by knowing their command name, which is the
+#: problem a pane view exists to solve. A menu is not decoration here.
+MENU: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    ("Queue",     "what is waiting to be reviewed",
+     ("review", "--status", "PENDING", "--limit", "30")),
+    ("Flagged",   "what could not be measured",
+     ("review", "--status", "FLAGGED", "--limit", "30")),
+    ("Dispatched", "applications sent",
+     ("review", "--status", "DISPATCHED", "--limit", "30")),
+    ("Replies",   "what employers sent back",
+     ("responses", "--limit", "30")),
+    ("Interviews", "active processes and their rounds",
+     ("interviews",)),
+    ("Progress",  "how far applications get",
+     ("funnel",)),
+    ("Gaps",      "coverage and recurring gaps",
+     ("stats",)),
+    ("Boards",    "which sources are read",
+     ("boards",)),
+    ("Awaiting",  "discovered, needing their advert text",
+     ("discover", "--list")),
+)
+
+#: The INPUT region. Four things an operator actually starts with.
+#:
+#: The first version had no input region at all — `status` sat where the
+#: sketch said INPUT, which removed the one section that gave the layout a
+#: purpose.
+ACTIONS: tuple[tuple[str, str, str], ...] = (
+    ("r", "run",    "fetch and score from the enabled boards"),
+    ("s", "search", "build search links to open in a browser"),
+    ("p", "paste",  "add one advert by hand"),
+    ("o", "poll",   "read the mailbox for replies"),
+)
+
+
+def record_detail(vacancy_id: str, *, db: str = "", width: int = 80) -> str:
+    """One vacancy, in full: what it scored, and what it did not match.
+
+    The RESULT region of the sketch. A list of queue rows says a vacancy
+    scored 0.62; this says which seven terms it missed, which is the part
+    that decides whether to apply.
+
+    Built from the store rather than from a command, because no command
+    shows exactly this — and a pane that has to run three commands and
+    stitch them together would be doing the work it is meant to delegate.
+    """
+    from vanguard.store import Store
+
+    if not vacancy_id:
+        return "(select a row to see its record)"
+
+    try:
+        store = Store(db) if db else Store()
+        vacancy = store.vacancy(vacancy_id)
+    except Exception as exc:
+        return f"(could not read {vacancy_id}: {exc})"
+
+    if vacancy is None:
+        return f"(no record for {vacancy_id})"
+
+    lines = [
+        f"{vacancy['employer'] or '(unknown)'}  ·  {vacancy['title'] or ''}",
+    ]
+    if vacancy["location"] or vacancy["salary_band"]:
+        lines.append("  ".join(
+            x for x in (vacancy["location"], vacancy["salary_band"]) if x))
+
+    score = store.latest_score(vacancy_id)
+    if score is None:
+        lines += ["", "not scored"]
+    else:
+        coverage = score["coverage"]
+        matched, total = score["terms_matched"], score["terms_total"]
+        lines += [
+            "",
+            f"coverage {coverage:.2f}   {matched} of {total} terms"
+            if coverage is not None else "coverage not measured",
+        ]
+
+    gaps = [g for g in store.gaps_for(vacancy_id) if g["outcome"] != "HIT"]
+    if gaps:
+        unmet = [g["term"] for g in gaps][:14]
+        lines += ["", "unmet:"]
+        for line in _wrap_terms(unmet, width - 4):
+            lines.append(f"  {line}")
+
+        excluded = [g for g in gaps if g["exclusion"]]
+        if excluded:
+            lines += ["", f"{len(excluded)} blocked by the alias table — "
+                          "no CV edit permitted"]
+
+    if vacancy["url"]:
+        lines += ["", vacancy["url"]]
+
+    return "\n".join(lines)
+
+
+def _wrap_terms(terms: list[str], width: int) -> list[str]:
+    """Terms packed onto as few lines as fit, comma-separated.
+
+    A requirement term is not always a word. Extraction produces whole
+    competency phrases — "working with data users to understand and translate
+    their needs into technical requirements" — and one of those is wider than
+    any pane. Each is clipped to fit before packing, so a long phrase costs a
+    line rather than the layout.
+    """
+    limit = max(20, width)
+    clipped = [t if len(t) <= limit else t[:limit - 1].rstrip() + "…"
+               for t in terms]
+
+    out: list[str] = []
+    current = ""
+    for term in clipped:
+        candidate = f"{current}, {term}" if current else term
+        if len(candidate) > limit:
+            if current:
+                out.append(current)
+            current = term
+        else:
+            current = candidate
+    if current:
+        out.append(current)
+    return out
 
 
 def pane_named(key: str) -> Pane | None:
@@ -200,6 +329,32 @@ def render_command(words: Sequence[str], *, db: str = "",
         return text or "(no output)"
     except Exception as exc:                       # pragma: no cover - defensive
         return f"({name} could not run: {exc})"
+
+
+def queue_rows(status: str = "PENDING", *, db: str = "",
+               limit: int = 60) -> list[tuple[str, str]]:
+    """`(vacancy_id, label)` for a selectable list.
+
+    The queue as DATA rather than as formatted output, because a pane the
+    cursor moves through needs to know which row is which. Everything else
+    still goes through the commands.
+    """
+    from vanguard.store import Store
+
+    try:
+        store = Store(db) if db else Store()
+        rows = store.list_queue(status, limit=limit, order="date")
+    except Exception:
+        return []
+
+    out: list[tuple[str, str]] = []
+    for row in rows:
+        coverage = row["coverage"] if "coverage" in row.keys() else None
+        shown = f"{coverage:.2f}" if isinstance(coverage, float) else "  —  "
+        employer = (row["employer"] or "")[:22]
+        title = (row["title"] or "")[:26]
+        out.append((row["vacancy_id"], f"{shown}  {employer:<22}  {title}"))
+    return out
 
 
 def _accepts_db(command: str) -> bool:
