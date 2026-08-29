@@ -594,84 +594,100 @@ with their reasons.
 
 ## `vanguard panes`
 
-The pane view — a menu, four regions, and a record that follows the cursor.
+The pane view — a menu of stages, four regions, and a console.
 
 ```bash
 vanguard panes
-vanguard panes --list
 ```
 
 ```
-┌ MENU ────┬ INPUT ─────────────────────────────────┐
-│ ▸ Queue  │  [r]un  [s]earch  [p]aste  [o] poll    │
-│   Flagged├────────────────────────────────────────┤
-│   Replies│  RESULT — the record under the cursor  │
-│   Progres│  coverage 0.48   10 of 21 terms        │
-│   Gaps   │  unmet: AWS, CI/CD, SDLC, pytest…      │
-│   Boards ├──────────────────┬─────────────────────┤
-│          │  QUEUE           │  PROGRESS           │
-│          │  0.62 Sanderson  │  20 dispatched      │
-│          │  0.58 Acme       │  nothing past CV    │
-└──────────┴──────────────────┴─────────────────────┘
+┌ MENU ────┬ INPUT · Find ──────────────────────────────┐
+│ ▸ Find   │  [r] run  [s] search  [p] paste  [d] disc… │
+│   Set up ├────────────────────────┬───────────────────┤
+│   Assess │  QUEUE · all states    │  PROGRESS         │
+│   Decide │  0.62 Sanderson PEND   │  20 dispatched    │
+│   Apply  │  0.58 Acme      PEND   │  none past CV     │
+│   Track  ├────────────────────────┴───────────────────┤
+│  ──────  │  RESULT · the row under the cursor         │
+│   Analyse│  coverage 0.62 · unmet: Azure, Docker…     │
+│   Account├────────────────────────────────────────────┤
+│   System │  CONSOLE · grows when used · `cls` clears  │
+└──────────┴────────────────────────────────────────────┘
 ```
 
-**RESULT follows the cursor.** Move through the queue and the record appears
-above it — coverage, which terms went unmet, which were blocked by the alias
-table, and the link. A row says a vacancy scored 0.62; the record says which
-seven terms it missed, which is what decides whether to apply.
+### The order
 
-That is the one thing a page of command output cannot do, and the reason the
-pane view exists.
+**Do something, see what you got, look at one of them.**
+
+RESULT sits *below* the queue because it is downstream of it — the cursor
+produces the record, so cause reads above effect, and the two are adjacent
+when arrowing down a list.
 
 ### The menu
 
-Nine views, reachable without knowing a command name: Queue, Flagged,
-Dispatched, Replies, Interviews, Progress, Gaps, Boards, Awaiting.
+Six pipeline stages, then a rule, then three reachable any time. The order is
+a hint, not a path.
 
-The three queue views are **selectable** — the cursor drives the record. The
-rest are command output, because a funnel has nothing to select.
+| Stage | INPUT offers |
+|---|---|
+| **Find** | `run` `search` `paste` `discover` |
+| **Set up** | `boards` `diagnose` |
+| **Assess** | `resolve` `rescore` `evidence` |
+| **Decide** | `session` `approve` `reject` `override` |
+| **Apply** | `draft` `apply` `dispatch` |
+| **Track** | `poll` `responses` `feedback` `interviews` |
+| Analyse | `stats` `funnel` `sql` |
+| Accounts | `registrations` |
+| System | `logs` `archive` |
 
-### INPUT
+### Keys belong to the stage that owns them
 
-Four single keys: `r` run, `s` search, `p` paste, `o` poll. Each suspends the
-panes and runs for real, then shows what it did.
+**`r` runs on Find and does nothing on Track.**
 
-Ignored while the command bar has focus, so typing `r` inside a command does
-not launch one.
+The alternative — reserving a couple of keys globally so `run` and `poll` are
+always one keystroke — means a key does different things depending on where
+you are. Pressing `r` on Decide meaning `reject` would start a run. Anything
+is reachable from the console regardless.
 
-### The command bar
+### QUEUE always shows every state
 
-Always visible at the bottom. Any command, options and all — it **is** the
-CLI. Anything that prints appears in RESULT; anything that streams or asks
-suspends the panes.
+Filtering it by the selected stage would be convenient and wrong: deciding
+whether something is worth applying to needs the overview, not a slice of it.
+Each row carries its state, since a FLAGGED record must be distinguishable
+from an unscored PENDING one.
+
+### The console
+
+Always visible, four rows when idle, growing when it has output and
+collapsing on `cls`.
+
+**Output appears where you typed it.** The previous version typed at the
+bottom and answered in RESULT, so a query destroyed whatever record was being
+read — and a shell that answers somewhere else is not a shell.
+
+Any command works, options and all. Anything that streams or asks suspends
+the panes and runs for real.
+
+### Nothing changes state without its confirmation
+
+`approve`, `reject`, `override` and `dispatch` all run in a suspended
+terminal, so **the confirmation an operator would see at the CLI is the one
+they see here.** No keystroke silently changes a state.
 
 | Key | Does |
 |---|---|
-| `F1` | Help |
+| `F1` | Help, into the console |
 | `F2` | Enlarge the focused pane — again to restore |
 | `F3` | Shell, `exit` to come back |
 | `Ctrl+R` | Refresh |
 | `Ctrl+Q` | Quit |
-| `Tab` | Move between the menu, the list and the bar |
+| `Tab` | Move between the menu, the queue and the console |
 
-### Read-only
+### `review` and `status` have no menu entry
 
-Approving from the keyboard is the obvious next step and is deliberately
-absent. Both defects found in the first version were in the layout layer, and
-adding a keystroke that dispatches an application to a UI whose focus
-behaviour is unverified is how a mis-key becomes a wrong submission.
-
-### Two functions read the store
-
-`record_detail` and `queue_rows`, by name. No command produces a
-cursor-addressable list or a single record in this shape, and a pane running
-three commands and stitching the output together would be doing the work it
-is meant to delegate.
-
-**A third would be a drift.** A test walks every function in `panes.py` and
-fails if any other imports the store — and asserts that nothing anywhere
-reimplements scoring or classification, which is where a divergence would
-actually matter.
+They are not things to invoke. **QUEUE is `review`; the pane view as a whole
+is `status`.** Two commands turn out to be the interface rather than items in
+it.
 
 ### Textual is optional
 

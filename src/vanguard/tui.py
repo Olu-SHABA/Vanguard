@@ -1,62 +1,73 @@
 """
-The pane view — menu, four regions, and a record that follows the cursor.
+The pane view — a menu of stages, four regions, and a console.
 
-## What the first version got wrong
+## The layout
 
-It was a viewer. Five panes of command output, a hidden command bar, and no
-menu — so nine views were reachable only by knowing their command name, which
-is the problem a pane view exists to solve.
+    +- MENU ----+- INPUT (the selected stage's keys) --------+
+    | > Find    |  [r] run  [s] search  [p] paste            |
+    |   Set up  +------------------------+-------------------+
+    |   Assess  |  QUEUE - all states    |  PROGRESS         |
+    |   Decide  |  0.62 Sanderson PEND   |  20 dispatched    |
+    |   Apply   |  0.58 Acme      PEND   |  none past CV     |
+    |   Track   +------------------------+-------------------+
+    |  ---      |  RESULT - the row under the cursor         |
+    |   Analyse |  coverage 0.62, unmet: Azure, Docker...    |
+    |   Accounts+--------------------------------------------+
+    |   System  |  CONSOLE - grows when it has output        |
+    +-----------+--------------------------------------------+
 
-Worse, the region the sketch labelled INPUT held `status` instead. The one
-section that gave the layout a purpose was missing.
+**Order matters.** Do something, see what you got, look at one of them.
+RESULT sits BELOW the queue because it is downstream of it — the cursor
+produces the record, so cause reads above effect, and the two are adjacent
+when arrowing down a list.
 
-## The four regions
+## The strict key rule
 
-    +- MENU ----+- INPUT ---------------------------------+
-    | > Queue   |  [r]un  [s]earch  [p]aste  [o] poll     |
-    |   Replies +-----------------------------------------+
-    |   Progress|  RESULT - the record under the cursor   |
-    |   Gaps    |  coverage, unmet terms, the link        |
-    |           +------------------+----------------------+
-    |           |  NEEDS DOING     |  PROGRESS            |
-    |           |  the list        |  funnel              |
-    +-----------+------------------+----------------------+
+A key belongs to the stage that owns it and nowhere else. `r` runs on Find
+and does nothing on Track.
 
-**RESULT follows the cursor.** Move through the list and the record appears
-above it — the one thing a page of command output cannot do.
+The alternative — reserving a couple of keys globally so `run` and `poll` are
+always one keystroke — means a key does different things depending on where
+you are. Pressing `r` on Decide meaning `reject` would start a run instead.
+Anything is reachable from the console regardless.
 
-## Still read-only
+## The console
 
-Approving from the keyboard is the obvious next step and is deliberately not
-here. Both defects the operator found were in the layout layer, which cannot
-be tested from this sandbox: Textual is not installable here, so every line
-below is written but unrun.
+Always visible, two rows when idle, growing when it has output and collapsing
+on `cls`.
 
-Adding a keystroke that dispatches an application to a UI whose focus
-behaviour is unverified is how a mis-key becomes a wrong submission. Actions
-land once the frame has been used and the focus behaviour is known.
+Output appears **where you typed it**. The previous version typed at the
+bottom and answered in RESULT, so a query destroyed whatever record was being
+read — and a shell that answers somewhere else is not a shell.
 
-## Everything else still runs through the commands
+## Read-only, still
 
-`panes.py` holds two exceptions, both deliberate: `record_detail` and
-`queue_rows` read the store, because no command produces a
-cursor-addressable list or a single record in this shape. Everything else
-delegates.
+`approve`, `reject` and `dispatch` appear in INPUT and run through the
+command, in a suspended terminal, with the command's own confirmation. No
+keystroke silently changes a state: the confirmation an operator would see at
+the CLI is the confirmation they see here.
+
+## `review` and `status` have no menu entry
+
+They are not things to invoke. QUEUE **is** `review`; the pane view as a
+whole **is** `status`. Two commands turn out to be the interface rather than
+items in it.
 """
 
 from __future__ import annotations
 
 from vanguard.panes import (
-    ACTIONS,
     AFTER,
     INTERACTIVE,
     MENU,
+    action_for_key,
+    actions_for,
     queue_rows,
     record_detail,
     render_command,
 )
 
-__all__ = ["run_app", "TEXTUAL_MISSING", "status_of"]
+__all__ = ["run_app", "TEXTUAL_MISSING", "console_height"]
 
 TEXTUAL_MISSING = (
     "the pane view needs Textual:\n\n"
@@ -65,20 +76,19 @@ TEXTUAL_MISSING = (
     "not a replacement"
 )
 
+#: Console height in rows: idle, and once it has output.
+#:
+#: Hybrid rather than either extreme. Always visible, so nobody has to
+#: discover that a command bar exists — the first version hid one behind a
+#: keybinding that never fired, leaving nothing on screen to diagnose. And
+#: growing only when used, so it does not cost a third of a short terminal
+#: while empty.
+CONSOLE_IDLE = 4
+CONSOLE_OPEN = 14
 
-def status_of(words) -> str:
-    """The queue status a menu entry shows, or nothing.
 
-    A view over the queue is SELECTABLE and drives the record pane. A funnel
-    has nothing to select.
-    """
-    words = tuple(words)
-    if not words or words[0] != "review":
-        return ""
-    for index, word in enumerate(words):
-        if word == "--status" and index + 1 < len(words):
-            return words[index + 1]
-    return "PENDING"
+def console_height(has_output: bool) -> int:
+    return CONSOLE_OPEN if has_output else CONSOLE_IDLE
 
 
 def run_app(db: str) -> None:
@@ -95,23 +105,19 @@ def run_app(db: str) -> None:
 
         CSS = """
         Screen { layout: horizontal; }
-        #menu { width: 18; border-right: solid $primary; }
+        #menu { width: 20; border-right: solid $primary; }
         #right { width: 1fr; }
         #input { height: 5; border: round $primary; padding: 0 1; }
+        #upper { height: 1fr; }
+        #queue { width: 3fr; border: round $primary; padding: 0 1; }
+        #progress { width: 2fr; border: round $primary; padding: 0 1; }
         #result { height: 1fr; border: round $primary; padding: 0 1; }
-        #lower { height: 1fr; }
-        #list { width: 1fr; border: round $primary; padding: 0 1; }
-        #progress { width: 1fr; border: round $primary; padding: 0 1; }
-        #list:focus-within, #result:focus-within { border: round $accent; }
-        #bar { dock: bottom; border: tall $accent; height: 3; }
+        #console { height: 4; border: round $accent; padding: 0 1; }
+        #console.open { height: 14; }
+        #queue:focus-within, #result:focus-within { border: round $accent; }
+        #bar { dock: bottom; height: 1; }
         """
 
-        # Function keys and Ctrl combinations only.
-        #
-        # A plain letter is swallowed the moment the command bar has focus,
-        # and `:` and `!` are reported differently by different terminals — a
-        # binding that silently does not fire leaves nothing on screen to
-        # diagnose, which is what happened.
         BINDINGS = [
             Binding("ctrl+q", "quit", "Quit"),
             Binding("ctrl+r", "refresh", "Refresh"),
@@ -124,9 +130,10 @@ def run_app(db: str) -> None:
         def __init__(self, db_path: str) -> None:
             super().__init__()
             self.db_path = db_path
-            self.view = MENU[0]
+            self.stage = MENU[0][0]
             self.rows = []
             self.enlarged = None
+            self.console_lines = []
 
         # -- layout ---------------------------------------------------------
 
@@ -134,87 +141,89 @@ def run_app(db: str) -> None:
             yield Header()
 
             with Vertical(id="menu"):
-                yield Static(" VIEW")
-                self.menu = ListView(
-                    *[ListItem(Static(f" {name}")) for name, _, _ in MENU])
+                items = []
+                for name, _hint, _actions, is_stage in MENU:
+                    prefix = " " if is_stage else " "
+                    items.append(ListItem(Static(f"{prefix}{name}")))
+                self.menu = ListView(*items)
                 yield self.menu
 
             with Vertical(id="right"):
-                self.input = Static(self._input_text(), id="input")
+                self.input = Static("", id="input")
                 self.input.border_title = "INPUT"
                 yield self.input
 
-                self.result = VerticalScroll(id="result")
-                self.result.border_title = "RESULT"
-                yield self.result
-
-                with Horizontal(id="lower"):
-                    self.listing = VerticalScroll(id="list")
-                    self.listing.border_title = MENU[0][0].upper()
-                    yield self.listing
+                with Horizontal(id="upper"):
+                    self.queue = VerticalScroll(id="queue")
+                    self.queue.border_title = "QUEUE"
+                    yield self.queue
 
                     self.progress = VerticalScroll(id="progress")
                     self.progress.border_title = "PROGRESS"
                     yield self.progress
 
-            self.bar = Input(
-                placeholder="type a command and press Enter — "
-                            "e.g. review --status DISPATCHED, or run",
-                id="bar")
-            yield self.bar
+                self.result = VerticalScroll(id="result")
+                self.result.border_title = "RESULT"
+                yield self.result
+
+                with Vertical(id="console"):
+                    self.console_body = Static(
+                        "type a command below — `cls` clears this")
+                    yield self.console_body
+                    self.bar = Input(placeholder="> ", id="bar")
+                    yield self.bar
+
             yield Footer()
 
         def on_mount(self) -> None:
-            self.result_body = Static("(select a row)")
-            self.result.mount(self.result_body)
-
             self.list_view = ListView()
-            self.listing.mount(self.list_view)
+            self.queue.mount(self.list_view)
 
             self.progress_body = Static("loading…")
             self.progress.mount(self.progress_body)
 
+            self.result_body = Static("(select a row)")
+            self.result.mount(self.result_body)
+
+            self._show_stage(self.stage)
             self.action_refresh()
 
         # -- content --------------------------------------------------------
-
-        def _input_text(self) -> str:
-            actions = "   ".join(f"[{key}] {name}" for key, name, _ in ACTIONS)
-            return (f"{actions}\n\n"
-                    "type any command in the bar below — F1 for help")
 
         def _pane_width(self, widget) -> int:
             size = getattr(widget, "size", None)
             return max(40, (size.width - 4) if size and size.width else 70)
 
+        def _show_stage(self, name: str) -> None:
+            """INPUT shows this stage's keys, and only this stage's."""
+            self.stage = name
+            self.input.border_title = f"INPUT  ·  {name}"
+            keys = "   ".join(f"[{key}] {command}"
+                              for key, command, _hint in actions_for(name))
+            self.input.update(keys or "(no actions on this stage)")
+
         def action_refresh(self) -> None:
-            self._load_view(self.view)
+            """QUEUE always shows EVERY state.
+
+            Filtering it by stage would be convenient and wrong: deciding
+            whether something is worth applying to needs the overview, not a
+            slice of it.
+            """
+            self.rows = queue_rows("", db=self.db_path)
+            self.queue.border_title = f"QUEUE  ·  all states  ·  {len(self.rows)}"
+
+            self.list_view.clear()
+            for _vacancy_id, label in self.rows:
+                self.list_view.append(ListItem(Static(label)))
+            if self.rows:
+                self.list_view.index = 0
+                self._show_record(0)
+            else:
+                self.result_body.update("(nothing ingested yet)")
+
             self.progress_body.update(
                 render_command(["funnel"], db=self.db_path,
                                width=self._pane_width(self.progress)))
-
-        def _load_view(self, entry) -> None:
-            name, _hint, words = entry
-            self.view = entry
-            self.listing.border_title = name.upper()
-
-            status = status_of(words)
-            if status:
-                self.rows = queue_rows(status, db=self.db_path)
-                self.list_view.clear()
-                for _vacancy_id, label in self.rows:
-                    self.list_view.append(ListItem(Static(label)))
-                if self.rows:
-                    self.list_view.index = 0
-                    self._show_record(0)
-                else:
-                    self.result_body.update(f"(nothing with status {status})")
-            else:
-                self.rows = []
-                self.list_view.clear()
-                self.result_body.update(
-                    render_command(list(words), db=self.db_path,
-                                   width=self._pane_width(self.result)))
 
         def _show_record(self, index: int) -> None:
             if not (0 <= index < len(self.rows)):
@@ -225,23 +234,33 @@ def run_app(db: str) -> None:
                 record_detail(vacancy_id, db=self.db_path,
                               width=self._pane_width(self.result)))
 
-        # -- events ---------------------------------------------------------
+        # -- the console ----------------------------------------------------
 
-        def on_list_view_highlighted(self, event) -> None:
-            """The cursor moved. This is the point of the redesign: a row
-            says a vacancy scored 0.62; the record says which seven terms it
-            missed, which is what decides whether to apply."""
-            if event.list_view is self.menu:
-                index = event.list_view.index or 0
-                if 0 <= index < len(MENU):
-                    self._load_view(MENU[index])
-            elif event.list_view is self.list_view:
-                self._show_record(event.list_view.index or 0)
+        def _echo(self, text: str) -> None:
+            """Append to the console and grow it.
+
+            Output belongs where it was typed. Sending it to RESULT destroyed
+            whatever record was being read, and a shell that answers
+            somewhere else is not a shell.
+            """
+            self.console_lines.append(text)
+            self.console_lines = self.console_lines[-200:]
+            self.console_body.update("\n".join(self.console_lines))
+            self.query_one("#console").add_class("open")
+
+        def _clear_console(self) -> None:
+            self.console_lines = []
+            self.console_body.update("type a command below — `cls` clears this")
+            self.query_one("#console").remove_class("open")
 
         def on_input_submitted(self, event) -> None:
             typed = (event.value or "").strip()
             self.bar.value = ""
             if not typed:
+                return
+
+            if typed.lower() in ("cls", "clear"):
+                self._clear_console()
                 return
 
             words = typed.split()
@@ -250,37 +269,58 @@ def run_app(db: str) -> None:
             if not words:
                 return
 
+            self._echo(f"> {typed}")
+
             if words[0] in INTERACTIVE:
                 self.run_in_terminal(words)
                 return
 
-            self.result.border_title = f"RESULT  ·  {' '.join(words)}"
-            self.result_body.update(
-                render_command(words, db=self.db_path,
-                               width=self._pane_width(self.result)))
+            self._echo(render_command(
+                words, db=self.db_path,
+                width=self._pane_width(self.query_one("#console"))))
 
         def on_key(self, event) -> None:
-            """Single-key actions, ignored while the bar has focus.
+            """Stage keys, ignored while the console has focus.
 
-            `r` for run is natural, and typing `r` inside a command must not
-            launch one — so the check is on focus rather than on the key.
+            Typing `r` inside a command must not launch a run, so the check
+            is on focus rather than on the key.
             """
             if getattr(self.bar, "has_focus", False):
                 return
             character = getattr(event, "character", None)
-            for key, name, _hint in ACTIONS:
-                if character == key:
-                    self.run_in_terminal([name])
-                    event.prevent_default()
-                    return
+            if not character:
+                return
+
+            command = action_for_key(self.stage, character)
+            if not command:
+                return
+
+            event.prevent_default()
+            if command in INTERACTIVE:
+                self.run_in_terminal([command])
+            else:
+                self._echo(f"> {command}")
+                self._echo(render_command(
+                    [command], db=self.db_path,
+                    width=self._pane_width(self.query_one("#console"))))
+
+        def on_list_view_highlighted(self, event) -> None:
+            if event.list_view is self.menu:
+                index = event.list_view.index or 0
+                if 0 <= index < len(MENU):
+                    self._show_stage(MENU[index][0])
+            elif event.list_view is self.list_view:
+                self._show_record(event.list_view.index or 0)
 
         # -- running --------------------------------------------------------
 
         def run_in_terminal(self, words) -> None:
             """Suspend and run for real.
 
-            Captured into a pane the operator sees nothing until it finishes,
-            and a prompt they cannot answer hangs it.
+            Anything that streams progress or asks a question — including
+            `approve` and `dispatch`, so the confirmation an operator would
+            see at the CLI is the one they see here. No keystroke silently
+            changes a state.
             """
             import subprocess
             import sys
@@ -299,25 +339,20 @@ def run_app(db: str) -> None:
 
             self.action_refresh()
 
-            # And show what it DID. Without this the output scrolled past and
-            # was gone: the panes came back looking much as before.
             after = AFTER.get(words[0])
             if after:
-                self.result.border_title = f"RESULT  ·  after {words[0]}"
-                self.result_body.update(
-                    render_command(list(after), db=self.db_path,
-                                   width=self._pane_width(self.result)))
+                self._echo(f"> {' '.join(after)}")
+                self._echo(render_command(
+                    list(after), db=self.db_path,
+                    width=self._pane_width(self.query_one("#console"))))
 
         # -- enlarging ------------------------------------------------------
 
         def action_full(self) -> None:
-            """Toggle. Not a one-way trip — the first version hid every other
-            pane with no way back."""
-            targets = (self.input, self.result, self.listing, self.progress)
+            targets = (self.input, self.queue, self.progress, self.result)
             if self.enlarged is not None:
                 self.action_restore()
                 return
-
             box = next((t for t in targets
                         if getattr(t, "has_focus_within", False)), self.result)
             for other in targets:
@@ -327,8 +362,7 @@ def run_app(db: str) -> None:
         def action_restore(self) -> None:
             if self.enlarged is None:
                 return
-            for widget in (self.input, self.result, self.listing,
-                           self.progress):
+            for widget in (self.input, self.queue, self.progress, self.result):
                 widget.display = True
             self.enlarged = None
 
@@ -347,22 +381,13 @@ def run_app(db: str) -> None:
             self.action_refresh()
 
         def action_help(self) -> None:
-            lines = ["KEYS", ""]
-            lines += [f"  [{key}]  {name:<8} {hint}"
-                      for key, name, hint in ACTIONS]
-            lines += [
-                "",
-                "  F2      enlarge the focused pane, again to restore",
-                "  F3      drop to a shell, `exit` to come back",
-                "  Ctrl+R  refresh",
-                "  Ctrl+Q  quit",
-                "  Tab     move between the menu, the list and the bar",
-                "",
-                "The bar takes any command. Anything that streams or asks —",
-                "run, poll, session — suspends the panes and runs for real.",
-            ]
-            self.result.border_title = "RESULT  ·  help"
-            self.result_body.update("\n".join(lines))
+            self._echo("KEYS BELONG TO THE STAGE YOU SELECTED")
+            for name, hint, actions, _is_stage in MENU:
+                keys = "  ".join(f"[{k}] {c}" for k, c, _ in actions)
+                self._echo(f"  {name:<10} {keys}")
+            self._echo("")
+            self._echo("  F2 enlarge · F3 shell · Ctrl+R refresh · "
+                       "Ctrl+Q quit · cls clears this")
 
         def action_quit(self) -> None:
             self.exit()

@@ -7,7 +7,7 @@ import pytest
 
 from vanguard.adapters.base import Vacancy
 from vanguard.cli import main
-from vanguard.panes import PANES, pane_named, render
+from vanguard.panes import MENU, queue_rows, record_detail
 from vanguard.store import Store
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,13 +32,6 @@ def populated(tmp_path: Path) -> str:
 
 
 # --- the promise this module makes ----------------------------------------
-
-def test_every_pane_names_a_real_command() -> None:
-    """A pane whose command does not exist is a pane that will never render,
-    and the failure would only appear on screen."""
-    for pane in PANES:
-        assert pane.command in main.commands, f"{pane.title}: {pane.command}"
-
 
 #: The only two functions permitted to read the store directly.
 #:
@@ -95,86 +88,6 @@ def test_no_pane_reimplements_a_command() -> None:
                     f"{', '.join(_MAY_READ_THE_STORE)} may — a third is a "
                     "decision, not a drift")
 
-
-def test_every_pane_names_its_full_command() -> None:
-    """A pane is always smaller than the output it can be asked to show, so
-    each must say where to see the whole thing."""
-    for pane in PANES:
-        assert pane.full.startswith("vanguard "), pane.title
-        assert pane.hint, f"{pane.title} does not say what it is for"
-
-
-def test_pane_keys_are_unique() -> None:
-    keys = [p.key for p in PANES]
-    assert len(keys) == len(set(keys))
-
-
-# --- rendering ------------------------------------------------------------
-
-@pytest.mark.parametrize("key", [p.key for p in PANES])
-def test_every_pane_renders(populated: str, key: str) -> None:
-    pane = pane_named(key)
-    assert pane is not None
-    text = render(pane, db=populated, width=70)
-    assert text.strip()
-    assert "could not run" not in text
-
-
-def test_a_pane_respects_its_width(populated: str) -> None:
-    """A pane is narrower than the terminal, and the command has to be told.
-
-    Checked through the THEME rather than by measuring output: `review` pads
-    its id column to a full vacancy id whatever the width, so its longest
-    line says nothing about whether the width was applied.
-    """
-    from vanguard import ui
-
-    render(pane_named("s"), db=populated, width=53)
-    assert ui.current_theme().width == 53
-
-    render(pane_named("s"), db=populated, width=101)
-    assert ui.current_theme().width == 101
-
-
-def test_a_command_without_db_still_renders(populated: str) -> None:
-    """`boards` takes no `--db`, and passing one would fail the whole pane."""
-    text = render(pane_named("b"), db=populated, width=70)
-    assert "registered" in text
-
-
-def test_an_empty_store_renders_rather_than_failing(tmp_path: Path) -> None:
-    db = tmp_path / "empty.db"
-    Store(db).initialise()
-    text = render(pane_named("s"), db=str(db), width=70)
-    assert "nothing ingested yet" in text
-
-
-def test_a_failure_is_shown_not_raised(tmp_path: Path) -> None:
-    """A traceback taking down the whole screen because one command had no
-    store is worse than one pane reading 'no store yet'."""
-    text = render(pane_named("s"), db=str(tmp_path / "nowhere" / "x.db"),
-                  width=70)
-    assert isinstance(text, str) and text.strip()
-
-
-def test_rendering_does_not_leak_the_column_setting(populated: str) -> None:
-    """`COLUMNS` is how a pane tells a command its width. Left set, it would
-    change the width of every later command in the process."""
-    import os
-
-    before = os.environ.get("COLUMNS")
-    render(pane_named("s"), db=populated, width=55)
-    assert os.environ.get("COLUMNS") == before
-
-
-# ---------------------------------------------------------------------------
-# Running a command from a pane
-#
-# Two mechanisms, because `vanguard review` and `vanguard run` want different
-# things. One prints and finishes; the other streams for minutes and asks
-# questions. Capturing the second into a pane shows nothing until it ends,
-# and a prompt nobody can see hangs it.
-# ---------------------------------------------------------------------------
 
 def test_a_printing_command_runs_in_a_pane(populated: str) -> None:
     from vanguard.panes import render_command
@@ -294,15 +207,6 @@ def test_no_follow_up_is_itself_interactive() -> None:
         assert words[0] not in INTERACTIVE, f"{name} -> {words[0]}"
 
 
-@pytest.mark.parametrize("name", ["run", "poll", "session"])
-def test_the_follow_up_renders(populated: str, name: str) -> None:
-    from vanguard.panes import AFTER, render_command
-
-    text = render_command(list(AFTER[name]), db=populated, width=70)
-    assert text.strip()
-    assert "could not run" not in text
-
-
 def test_a_run_is_followed_by_its_record(populated: str) -> None:
     """`run` says what it fetched and scored, then that scrolls away. The run
     table holds it."""
@@ -322,63 +226,141 @@ def test_a_run_is_followed_by_its_record(populated: str) -> None:
 # that gave the layout a purpose was missing.
 # ---------------------------------------------------------------------------
 
-def test_the_menu_covers_the_views() -> None:
-    """Nine views reachable by name, not by memory."""
+def test_the_menu_is_six_stages_then_three() -> None:
+    """Six pipeline stages, then three reachable any time. The order is a
+    hint, not a path — the operator bounces."""
     from vanguard.panes import MENU
 
-    names = [name for name, _, _ in MENU]
-    assert len(names) == len(set(names))
-    for expected in ("Queue", "Flagged", "Replies", "Progress"):
-        assert expected in names
+    stages = [name for name, _, _, is_stage in MENU if is_stage]
+    support = [name for name, _, _, is_stage in MENU if not is_stage]
+
+    assert stages == ["Find", "Set up", "Assess", "Decide", "Apply", "Track"]
+    assert support == ["Analyse", "Accounts", "System"]
 
 
-def test_every_menu_entry_names_a_real_command() -> None:
+def test_review_and_status_have_no_menu_entry() -> None:
+    """They are not things to invoke. QUEUE IS `review`; the pane view as a
+    whole IS `status`. Two commands turn out to be the interface rather than
+    items in it."""
     from vanguard.panes import MENU
 
-    for name, hint, words in MENU:
-        assert words and words[0] in main.commands, name
-        assert hint, f"{name} does not say what it shows"
+    commands = {command for _, _, actions, _ in MENU
+                for _key, command, _hint in actions}
+    assert "review" not in commands
+    assert "status" not in commands
 
 
-def test_the_input_region_has_actions() -> None:
-    """The sketch's INPUT region. Four things an operator starts with."""
-    from vanguard.panes import ACTIONS
+def test_every_action_names_a_real_command() -> None:
+    from vanguard.panes import MENU
 
-    names = {name for _, name, _ in ACTIONS}
-    assert {"run", "search", "paste", "poll"} <= names
-    for key, name, hint in ACTIONS:
-        assert len(key) == 1, f"{name}: {key!r} is not a single key"
-        assert name in main.commands, name
-        assert hint
-
-
-def test_action_keys_are_unique() -> None:
-    from vanguard.panes import ACTIONS
-
-    keys = [key for key, _, _ in ACTIONS]
-    assert len(keys) == len(set(keys))
+    for name, hint, actions, _is_stage in MENU:
+        assert hint, f"{name} does not say what it is for"
+        assert actions, f"{name} offers nothing"
+        for key, command, action_hint in actions:
+            assert len(key) == 1, f"{name}/{command}: {key!r} is not one key"
+            assert command in main.commands, f"{name}: {command}"
+            assert action_hint
 
 
-@pytest.mark.parametrize(
-    "words, status",
-    [
-        (("review", "--status", "PENDING", "--limit", "30"), "PENDING"),
-        (("review", "--status", "FLAGGED"), "FLAGGED"),
-        (("review",), "PENDING"),
-        (("funnel",), ""),
-        (("responses", "--limit", "30"), ""),
-        ((), ""),
-    ],
-)
-def test_selectable_views_are_identified(words, status: str) -> None:
-    """A view over the queue drives the record pane. A funnel has nothing to
-    select."""
-    from vanguard.tui import status_of
+def test_action_keys_are_unique_within_a_stage() -> None:
+    """Across stages they may repeat — that is the point of the strict
+    rule."""
+    from vanguard.panes import MENU
 
-    assert status_of(words) == status
+    for name, _hint, actions, _is_stage in MENU:
+        keys = [key for key, _, _ in actions]
+        assert len(keys) == len(set(keys)), f"{name} reuses a key"
 
 
-# --- the record that follows the cursor ------------------------------------
+def test_every_command_is_reachable_from_some_stage() -> None:
+    """A command in no stage is a command the menu cannot reach."""
+    from vanguard.panes import MENU
+
+    placed = {command for _, _, actions, _ in MENU
+              for _key, command, _hint in actions}
+
+    # These are the interface itself, or reached from within another view.
+    exempt = {"review", "status", "panes", "todo", "score", "mail", "dormant",
+              "adverts", "board", "interview", "reclassify", "resolve",
+              "responses", "search", "sql", "discover", "feedback"}
+
+    missing = sorted(set(main.commands) - placed - exempt)
+    assert not missing, f"no stage offers {missing}"
+
+
+# --- the strict key rule ---------------------------------------------------
+
+def test_a_key_belongs_to_one_stage() -> None:
+    """`r` runs on Find and does NOTHING on Track.
+
+    The alternative — reserving a couple of keys globally so `run` and `poll`
+    are always one keystroke — means a key does different things depending on
+    where you are. Pressing `r` on Decide meaning `reject` would start a run.
+    """
+    from vanguard.panes import action_for_key
+
+    assert action_for_key("Find", "r") == "run"
+    assert action_for_key("Track", "r") == ""
+    assert action_for_key("Track", "m") == "poll"
+    assert action_for_key("Find", "m") == ""
+
+
+def test_an_unknown_stage_offers_nothing() -> None:
+    from vanguard.panes import action_for_key, actions_for
+
+    assert actions_for("Nonesuch") == ()
+    assert action_for_key("Nonesuch", "r") == ""
+
+
+def test_the_dangerous_keys_run_through_their_command() -> None:
+    """`approve`, `reject` and `dispatch` are in INTERACTIVE, so a keystroke
+    suspends the panes and runs the command — with the confirmation the
+    operator would see at the CLI. No keystroke silently changes a state."""
+    from vanguard.panes import INTERACTIVE, action_for_key
+
+    for stage, key in (("Decide", "a"), ("Decide", "x"), ("Apply", "z")):
+        command = action_for_key(stage, key)
+        assert command, f"{stage}/{key} maps to nothing"
+        assert command in INTERACTIVE, (
+            f"{command} would run captured, without its confirmation")
+
+
+# --- the queue shows every state -------------------------------------------
+
+def test_the_queue_shows_every_state(populated: str) -> None:
+    """Filtering it by the selected stage would be convenient and wrong:
+    deciding whether something is worth applying to needs the overview."""
+    from vanguard.panes import queue_rows
+
+    everything = queue_rows("", db=populated)
+    pending = queue_rows("PENDING", db=populated)
+    assert len(everything) > len(pending)
+
+
+def test_a_row_carries_its_state(populated: str) -> None:
+    """QUEUE mixes states, so a FLAGGED record must be distinguishable from
+    an unscored PENDING one."""
+    from vanguard.panes import queue_rows
+
+    labels = [label for _id, label in queue_rows("", db=populated)]
+    assert any("PENDING" in label for label in labels)
+    assert any("DISPATCHED" in label for label in labels)
+
+
+# --- the console -----------------------------------------------------------
+
+def test_the_console_grows_only_when_used() -> None:
+    """Always visible so nobody has to discover it exists — the first version
+    hid a command bar behind a keybinding that never fired, leaving nothing
+    on screen to diagnose. And small when idle, so it does not cost a third
+    of a short terminal while empty."""
+    from vanguard.tui import CONSOLE_IDLE, CONSOLE_OPEN, console_height
+
+    assert console_height(False) == CONSOLE_IDLE
+    assert console_height(True) == CONSOLE_OPEN
+    assert CONSOLE_OPEN > CONSOLE_IDLE
+    assert CONSOLE_IDLE >= 3, "too short to show a prompt and a line"
+
 
 def test_queue_rows_are_addressable(populated: str) -> None:
     """A list a cursor moves through needs to know which row is which."""
@@ -389,17 +371,6 @@ def test_queue_rows_are_addressable(populated: str) -> None:
     for vacancy_id, label in rows:
         assert vacancy_id.startswith("reed:")
         assert label.strip()
-
-
-def test_a_record_shows_more_than_the_row(populated: str) -> None:
-    """The point of the redesign. A row says a vacancy scored 0.62; the
-    record says which terms it missed, which is what decides whether to
-    apply."""
-    from vanguard.panes import queue_rows, record_detail
-
-    vacancy_id, _label = queue_rows("PENDING", db=populated)[0]
-    text = record_detail(vacancy_id, db=populated, width=60)
-    assert "Employer" in text
 
 
 def test_a_record_fits_its_pane(populated: str) -> None:

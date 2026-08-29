@@ -244,7 +244,8 @@ learned. That is a table entry, not a reason to ignore the score.
 ## Daily
 
 ```
-[ ] vanguard status                    where everything is
+[ ] vanguard panes                     everything on one screen
+[ ] vanguard status                    or the same as one command
 [ ] vanguard run
 [ ] vanguard todo                      everything waiting on you
 [ ] vanguard session                   work through PENDING in one invocation
