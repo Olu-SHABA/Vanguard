@@ -592,6 +592,69 @@ with their reasons.
 
 ---
 
+## `vanguard panes`
+
+The pane view — everything on one screen.
+
+```bash
+vanguard panes
+vanguard panes --list
+```
+
+```
+┌─ STATUS ──────────────────┬─ WAITING ON YOU ──────────────┐
+│ Pending      6            │ review 6      vanguard session│
+│ Dispatched  20            │ resolve 9     ...             │
+├─ QUEUE ──────┬─ RESPONSES ┴─┬─ PROGRESS ──────────────────┤
+│ ...          │ Decline 4    │ nothing past CV stage       │
+└──────────────┴──────────────┴─────────────────────────────┘
+  f enlarge · r refresh · q back to the shell
+```
+
+| Key | Does |
+|---|---|
+| `f` | Enlarge the focused pane |
+| `r` | Refresh every pane |
+| `Tab` | Move between panes |
+| `q` | Back to the shell |
+
+### No pane computes anything
+
+Each runs the command it corresponds to and shows what comes back. **Adding
+an option to a command gives the pane that option for free**, because the
+pane is not doing the work.
+
+That matters more than it sounds. The risk in a second interface is not
+building it — it is the drifting: a filter added to `review` and forgotten on
+the queue pane, and six weeks later the two disagree and nobody knows which
+to trust. A test asserts nothing in `panes.py` touches the store.
+
+The cost is that panes look like command output rather than bespoke widgets.
+Slightly less polished, and unable to be wrong.
+
+### Read-only, for now
+
+Approving from the keyboard roughly doubles the work — every action needs a
+confirmation and a way to undo a mis-key. Worth adding once it is clear which
+actions get reached for.
+
+Every pane names the command behind it, so acting is one keystroke to the
+shell. `vanguard panes --list` shows the full mapping.
+
+### Long output belongs in the terminal
+
+A pane is always smaller than what it can be asked to show. An advert, a
+rejection email, a query result — those want a terminal you can scroll,
+search and copy from. **The commands are unaffected**: the panes are an extra
+way in, not a replacement.
+
+### Textual is optional
+
+`pip install textual`. Without it, `vanguard panes` says so and exits;
+nothing else changes.
+
+---
+
 ## `vanguard status`
 
 Everything at once. **Start here.**

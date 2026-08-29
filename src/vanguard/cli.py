@@ -3972,6 +3972,47 @@ def status_cmd(db) -> None:
         click.echo("  or `vanguard search data scientist --within 24h` for more")
 
 
+@main.command("panes")
+@click.option("--db", default=DEFAULTS["db"])
+@click.option("--list", "list_only", is_flag=True,
+              help="Show the panes and the command behind each.")
+def panes_cmd(db, list_only) -> None:
+    """The pane view — everything on one screen.
+
+    Four regions: where things stand, what needs doing, what came back, and
+    how far applications get. Press `f` to enlarge a pane, `r` to refresh,
+    `q` to drop back to the shell.
+
+    **The commands are unaffected.** This is an extra way in, not a
+    replacement — and no pane computes anything. Each runs the command it
+    corresponds to and shows what comes back, so the two can never disagree.
+
+    Long output belongs in a terminal you can scroll and search, so every
+    pane names the command behind it.
+    """
+    from vanguard.panes import PANES
+    from vanguard.tui import TEXTUAL_MISSING, run_app
+
+    if list_only:
+        click.echo(ui.rule(f"PANES  ·  {len(PANES)}"))
+        click.echo(ui.table(
+            [
+                ui.Column("KEY", 0.2, 4),
+                ui.Column("PANE", 0.6, 12),
+                ui.Column("SHOWS", 1.0, 16, tone=ui.Tone.MUTED),
+                ui.Column("COMMAND", 1.0, 14),
+            ],
+            [[p.key, p.title, p.hint, p.full] for p in PANES],
+        ))
+        return
+
+    try:
+        run_app(db)
+    except ImportError:
+        click.echo(TEXTUAL_MISSING)
+        raise SystemExit(1)
+
+
 # ---------------------------------------------------------------------------
 # Response loop (Route 5) — classify only. Never sends.
 # ---------------------------------------------------------------------------

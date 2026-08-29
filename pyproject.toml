@@ -16,6 +16,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# The pane view. Optional because the commands are unaffected without it —
+# the panes are an extra way in, not a replacement.
+panes = [
+    "textual>=0.50",
+]
+
 # Installed at Milestone 2. Pulls torch (~2GB) — deliberately not a base dep,
 # so M1 remains installable without it.
 scoring = [
