@@ -604,15 +604,24 @@ vanguard panes
 ┌ MENU ────┬ INPUT · Find ──────────────────────────────┐
 │ ▸ Find   │  [r] run  [s] search  [p] paste  [d] disc… │
 │   Set up ├────────────────────────┬───────────────────┤
-│   Assess │  QUEUE · all states    │  PROGRESS         │
+│   Assess │ QUEUE · all states · 41│ PROGRESS          │
 │   Decide │  0.62 Sanderson PEND   │  20 dispatched    │
 │   Apply  │  0.58 Acme      PEND   │  none past CV     │
 │   Track  ├────────────────────────┴───────────────────┤
-│  ──────  │  RESULT · the row under the cursor         │
+│ ──────── │ RESULT · linkedin:a2d5                     │
 │   Analyse│  coverage 0.62 · unmet: Azure, Docker…     │
 │   Account├────────────────────────────────────────────┤
-│   System │  CONSOLE · grows when used · `cls` clears  │
+│   System │ CONSOLE · 12 line(s)                       │
+│          │  > stats                                   │
+│          │  > _                                       │
 └──────────┴────────────────────────────────────────────┘
+
+**Five regions, all named**, and each title carries what it currently shows —
+`QUEUE · all states · 41`, `RESULT · linkedin:a2d5`, `CONSOLE · 12 line(s)`.
+
+**The menu is drawn as two groups**, separated by a rule: six pipeline stages
+above it, three reachable any time below. The rule is a plain widget rather
+than a list item, so it cannot be selected and select nothing.
 ```
 
 ### The order

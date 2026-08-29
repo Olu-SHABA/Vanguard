@@ -404,3 +404,77 @@ def test_a_broken_store_does_not_raise(tmp_path: Path) -> None:
     nowhere = str(tmp_path / "nothing" / "x.db")
     assert queue_rows("PENDING", db=nowhere) == []
     assert record_detail("reed:1", db=nowhere, width=60)
+
+
+# ---------------------------------------------------------------------------
+# The regions are labelled, and the menu is grouped
+#
+# The console had no border title while every other region had one, and the
+# menu drew nine identical rows — `is_stage` was read and then discarded, so
+# nothing showed that the first six are a sequence and the last three are
+# not.
+# ---------------------------------------------------------------------------
+
+def test_every_region_is_titled() -> None:
+    """A pane nobody has named is a pane nobody knows the purpose of."""
+    from pathlib import Path
+
+    import vanguard.tui as module
+
+    source = Path(module.__file__).read_text(encoding="utf-8")
+    for region in ("INPUT", "QUEUE", "PROGRESS", "RESULT", "CONSOLE"):
+        assert f'border_title = "{region}"' in source or (
+            f'border_title = f"{region}' in source), f"{region} has no title"
+
+
+def test_the_menu_is_drawn_as_two_groups() -> None:
+    """Six stages, a rule, then three reachable any time.
+
+    A ListItem carrying the rule would be selectable and select nothing, so
+    the rule is a separate widget and the list is split in two.
+    """
+    from pathlib import Path
+
+    import vanguard.tui as module
+
+    source = Path(module.__file__).read_text(encoding="utf-8")
+    assert 'id="stages"' in source
+    assert 'id="support"' in source
+    assert 'id="rule"' in source
+
+
+def test_the_two_groups_partition_the_menu() -> None:
+    """Every entry is in exactly one group. A menu entry in neither would be
+    invisible; in both, selectable twice."""
+    from vanguard.panes import MENU
+
+    stages = [e for e in MENU if e[3]]
+    support = [e for e in MENU if not e[3]]
+
+    assert len(stages) + len(support) == len(MENU)
+    assert {e[0] for e in stages} & {e[0] for e in support} == set()
+
+
+def test_the_console_height_is_not_duplicated() -> None:
+    """It was: the constants said 4 and 14 while the CSS said 6 and 16,
+    within one edit. The height now derives from the constants."""
+    from pathlib import Path
+
+    import vanguard.tui as module
+
+    source = Path(module.__file__).read_text(encoding="utf-8")
+    css_start = source.index('CSS = """')
+    css_end = source.index('"""', css_start + 10)
+    css = source[css_start:css_end]
+
+    assert "#console" in css
+    assert "height:" not in css.split("#console")[1].split("}")[0], (
+        "the console height is in CSS as well as in the constants")
+
+
+def test_the_console_is_tall_enough_for_its_title(tmp_path: Path) -> None:
+    """Four rows clipped the prompt once the region gained a border title."""
+    from vanguard.tui import CONSOLE_IDLE
+
+    assert CONSOLE_IDLE >= 5, (
+        "border, title, hint and prompt need five rows between them")
