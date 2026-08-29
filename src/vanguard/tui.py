@@ -86,24 +86,30 @@ def run_app(db: str) -> None:
     class VanguardApp(App):
         CSS = """
         Screen { layout: vertical; }
-        #top { height: 55%; }
-        #bottom { height: 45%; }
+        #top { height: 1fr; }
+        #bottom { height: 1fr; }
         PaneBox {
             border: round $primary;
             padding: 0 1;
             width: 1fr;
         }
         PaneBox:focus-within { border: round $accent; }
-        #hint { height: 1; color: $text-muted; padding: 0 1; }
+        #bar { dock: bottom; border: tall $accent; height: 3; }
+        #hint { dock: bottom; height: 1; color: $text-muted; padding: 0 1; }
         """
 
+        # Plain keys with no modifier. `:` and `!` need Shift and are
+        # reported differently by different terminals, and a binding that
+        # silently does not fire is worse than a duller key — the operator
+        # pressed `:`, saw nothing happen, and had no way to tell whether the
+        # feature existed.
         BINDINGS = [
-            Binding("q", "quit", "Quit"),
-            Binding("r", "refresh", "Refresh"),
-            Binding("f", "full", "Enlarge / restore"),
+            Binding("ctrl+q", "quit", "Quit"),
+            Binding("ctrl+r", "refresh", "Refresh"),
+            Binding("f2", "full", "Enlarge / restore"),
             Binding("escape", "restore", "Restore", show=False),
-            Binding("colon", "command", "Run a command"),
-            Binding("exclamation_mark", "shell", "Drop to shell"),
+            Binding("f3", "shell", "Shell"),
+            Binding("f5", "refresh", "Refresh", show=False),
             Binding("tab", "focus_next", "Next pane", show=False),
         ]
 
@@ -136,16 +142,24 @@ def run_app(db: str) -> None:
                     self.boxes.append(box)
                     yield box
 
-            yield Static(
-                "  f enlarge · : run a command · ! drop to the shell · q quit",
-                id="hint")
-
-            # Hidden until `:`. A command bar rather than a menu, because the
-            # commands are the interface — a menu would be a second one.
-            self.bar = Input(placeholder="vanguard …", id="bar")
-            self.bar.display = False
+            # ALWAYS VISIBLE, deliberately.
+            #
+            # The first version hid it behind `:`. That binding did not fire,
+            # and because the bar was hidden there was nothing to show the
+            # operator the feature existed at all — they pressed a key,
+            # nothing happened, and no diagnosis was possible from the
+            # screen.
+            #
+            # A bar you can see cannot fail that way. Click it or Tab to it.
+            self.bar = Input(
+                placeholder="type a command here and press Enter — "
+                            "e.g. review --status DISPATCHED",
+                id="bar")
             yield self.bar
 
+            yield Static(
+                "  F2 enlarge · F3 shell · Ctrl+R refresh · Ctrl+Q quit",
+                id="hint")
             yield Footer()
 
         def action_refresh(self) -> None:
@@ -179,8 +193,7 @@ def run_app(db: str) -> None:
                 other.display = other is box
             self.enlarged = box
             box.refresh_content()
-            self._set_hint("  f or Esc to restore · : run a command · "
-                           f"! shell · full: {box.pane.full}")
+            self._set_hint(f"  F2 or Esc to restore · full: {box.pane.full}")
 
         def action_restore(self) -> None:
             """Back to the grid. Bound to Escape as well as `f`, because
@@ -191,8 +204,26 @@ def run_app(db: str) -> None:
                 box.display = True
                 box.refresh_content()
             self.enlarged = None
-            self._set_hint("  f enlarge · : run a command · "
-                           "! drop to the shell · q quit")
+            self._set_hint("  F2 enlarge · F3 shell · Ctrl+R refresh · "
+                           "Ctrl+Q quit")
+
+        def on_key(self, event) -> None:
+            """A fallback for the shifted keys.
+
+            `:` and `!` are natural and were the first choice. Whether a
+            terminal reports them as `colon` and `exclamation_mark` varies,
+            and a binding that does not fire leaves no trace on screen. So
+            they are handled here by CHARACTER, which is reported
+            consistently, and the function keys remain as the documented
+            route.
+            """
+            character = getattr(event, "character", None)
+            if character == ":" and not self.bar.has_focus:
+                self.bar.focus()
+                event.prevent_default()
+            elif character == "!" and not self.bar.has_focus:
+                self.action_shell()
+                event.prevent_default()
 
         def _set_hint(self, text: str) -> None:
             try:
@@ -202,26 +233,16 @@ def run_app(db: str) -> None:
 
         # -- running commands -----------------------------------------------
 
-        def action_command(self) -> None:
-            """Type a command and see it in the focused pane.
-
-            For anything that PRINTS — `review`, `responses`, `sql`, `funnel`.
-            Output is captured, so a command that takes a minute or asks a
-            question is the wrong tool here; that is what `!` is for.
-            """
-            box = self._focused_box() or (self.boxes[0] if self.boxes else None)
-            if box is None:
-                return
-            self.bar.display = True
-            self.bar.value = ""
-            self.bar.placeholder = f"vanguard …   (shown in {box.pane.title})"
-            self.bar.focus()
-
         def on_input_submitted(self, event) -> None:
             typed = (event.value or "").strip()
-            self.bar.display = False
+            self.bar.value = ""
 
-            box = self._focused_box() or (self.boxes[0] if self.boxes else None)
+            # Where output goes. The focused pane if one is focused —
+            # otherwise the largest, because the bar itself holds focus while
+            # typing and "nowhere" is not a useful answer.
+            box = self._focused_box()
+            if box is None:
+                box = self.enlarged or (self.boxes[0] if self.boxes else None)
             if not typed or box is None:
                 return
 
@@ -232,7 +253,59 @@ def run_app(db: str) -> None:
             if not words:
                 return
 
+            # A command that streams or asks is RUN, not refused.
+            #
+            # Refusing was the first design and it was the wrong call: the
+            # operator typed `run`, which is the single most useful thing to
+            # type, and got told to press another key and type it again.
+            # Suspending and running it is what they meant.
+            from vanguard.panes import INTERACTIVE
+
+            if words[0] in INTERACTIVE:
+                self.run_in_terminal(words)
+                return
+
             box.show_command(words, self.db_path)
+
+        def run_in_terminal(self, words: list[str]) -> None:
+            """Suspend the panes and run a command for real.
+
+            For anything that streams progress or asks a question. Output
+            goes to the terminal as it happens, which is the whole point —
+            captured into a pane the operator would see nothing until it
+            finished.
+            """
+            import subprocess
+            import sys
+
+            with self.suspend():
+                print()
+                try:
+                    subprocess.call(
+                        [sys.executable, "-m", "vanguard.cli", *words])
+                except Exception as exc:
+                    print(f"could not run: {exc}")
+                try:
+                    input("\n[Enter] to return to the panes ")
+                except (EOFError, KeyboardInterrupt):
+                    pass
+
+            # Every pane re-reads the store, so new records appear.
+            self.action_refresh()
+
+            # And the focused pane shows what the command DID.
+            #
+            # Without this the output scrolled past and was gone: the run
+            # said what it had fetched and scored, the panes came back
+            # looking much as before, and there was no way to see what had
+            # happened. The run table holds the record — this surfaces it.
+            box = self._focused_box() or (self.boxes[0] if self.boxes else None)
+            if box is not None:
+                from vanguard.panes import AFTER
+
+                after = AFTER.get(words[0])
+                if after:
+                    box.show_command(list(after), self.db_path)
 
         def action_shell(self) -> None:
             """Drop to the real terminal, then come back.

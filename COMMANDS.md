@@ -611,42 +611,61 @@ vanguard panes --list
   f enlarge · r refresh · q back to the shell
 ```
 
-| Key | Does |
-|---|---|
-| `f` | Enlarge the focused pane — **press again to restore** |
-| `Esc` | Restore, from an enlarged pane |
-| `:` | Type a command; its output replaces the focused pane |
-| `!` | Drop to the shell, `exit` to come back |
-| `r` | Refresh every pane |
-| `Tab` | Move between panes |
-| `q` | Quit |
-
 ### Running a command
 
-Two ways, because commands differ.
-
-**`:` for anything that prints** — `review --status DISPATCHED`,
-`responses --sort state`, `sql "SELECT ..."`, `funnel --reasons`. The output
-appears in the focused pane, options and all. It **is** the CLI, invoked
-in-process, so anything the CLI accepts works. `r` puts the pane back to its
-own command.
-
-**`!` for anything that streams or asks** — `run`, `poll`, `session`,
-`adverts ingest`. Those print progress for minutes or wait for an answer, and
-a pane can show neither. `!` suspends the panes, gives you a real shell, and
-returns when you type `exit`.
-
-A command that needs a terminal says so rather than hanging:
+**There is a command bar at the bottom. Click it, or press Tab until it has
+focus, and type.**
 
 ```
-`run` needs a terminal — it streams output or asks questions,
-and a pane can show neither.
-
-    press ! to drop to the shell, then:
-        vanguard run
+review --status DISPATCHED
+sql "SELECT status, COUNT(*) FROM queue GROUP BY status"
+run
+poll
 ```
 
-A hung pane looks like a slow one, which is why the refusal is explicit.
+The leading `vanguard` is optional. Anything the CLI accepts works, including
+options — it **is** the CLI.
+
+**What happens next depends on the command.**
+
+Anything that prints — `review`, `responses`, `sql`, `funnel`, `stats` —
+appears in the focused pane. `Ctrl+R` puts the pane back to its own command.
+
+Anything that streams or asks — `run`, `poll`, `session`, `adverts ingest` —
+**suspends the panes and runs for real** in the terminal, with live output.
+Press Enter when it finishes to come back.
+
+**And the pane then shows what it did.** That output scrolled past and was
+gone: you ran something, came back, and the panes looked much as before with
+no way to see what had happened. Each of those commands leaves a record, and
+the pane shows it:
+
+| After | The pane shows |
+|---|---|
+| `run` | `logs --limit 3` — what was fetched and scored |
+| `poll` | `responses` — what came back |
+| `session`, `apply` | `todo` |
+| `adverts ingest` | the PENDING queue |
+| `dispatch` | the DISPATCHED queue |
+| `discover` | what still needs its advert text |
+
+That second case is why the bar exists. `run` is the most useful thing to
+type, and an interface that told you to press another key and type it again
+would not be an interface.
+
+| Key | Does |
+|---|---|
+| `F2` | Enlarge the focused pane — **press again to restore** |
+| `Esc` | Restore, from an enlarged pane |
+| `F3` | Drop to a shell, `exit` to come back |
+| `Ctrl+R` | Refresh every pane |
+| `Tab` | Move between panes and the command bar |
+| `Ctrl+Q` | Quit |
+
+**Function keys, not letters.** A letter key would be swallowed the moment
+the command bar had focus. `:` and `!` still work as shortcuts where the
+terminal reports them, but they are not the documented route — a binding that
+silently does not fire leaves nothing on screen to diagnose.
 
 ### No pane computes anything
 

@@ -149,15 +149,20 @@ def test_a_printing_command_runs_in_a_pane(populated: str) -> None:
     assert "PENDING" in text
 
 
-def test_a_command_needing_a_terminal_is_refused(populated: str) -> None:
-    """A hung pane looks like a slow one, so the refusal has to be explicit
-    and say where to go instead."""
+def test_a_command_needing_a_terminal_is_not_captured(populated: str) -> None:
+    """A hung pane looks like a slow one.
+
+    The pane view SUSPENDS and runs these for real — refusing was the first
+    design and it was wrong, because `run` is the single most useful thing to
+    type and being told to press another key and type it again is not help.
+    This message is only reached outside the pane view.
+    """
     from vanguard.panes import INTERACTIVE, render_command
 
     for name in sorted(INTERACTIVE):
         text = render_command([name], db=populated, width=60)
         assert "needs a terminal" in text, name
-        assert "press ! to drop to the shell" in text
+        assert f"vanguard {name}" in text
 
 
 def test_every_interactive_command_exists() -> None:
@@ -214,3 +219,57 @@ def test_nothing_typed_is_handled(populated: str) -> None:
     from vanguard.panes import render_command
 
     assert render_command([], db=populated, width=60)
+
+
+# ---------------------------------------------------------------------------
+# After a suspended command
+#
+# `run` streams to the terminal, and when the panes come back that output is
+# gone. The operator ran something, returned, and could not tell what it had
+# done — the panes looked much as before.
+#
+# Every one of these leaves a record. This is where each is found.
+# ---------------------------------------------------------------------------
+
+def test_every_interactive_command_has_a_follow_up() -> None:
+    """A command with nowhere to look afterwards leaves the operator with
+    nothing, which is the defect this fixes."""
+    from vanguard.panes import AFTER, INTERACTIVE
+
+    missing = sorted(INTERACTIVE - set(AFTER))
+    assert not missing, f"no follow-up view for {missing}"
+
+
+def test_every_follow_up_names_a_real_command() -> None:
+    from vanguard.panes import AFTER
+
+    for name, words in AFTER.items():
+        assert words, name
+        assert words[0] in main.commands, f"{name} -> {words[0]}"
+
+
+def test_no_follow_up_is_itself_interactive() -> None:
+    """A follow-up that streams would suspend the panes again, immediately."""
+    from vanguard.panes import AFTER, INTERACTIVE
+
+    for name, words in AFTER.items():
+        if name == words[0]:
+            continue          # `discover --list` is the read-only form
+        assert words[0] not in INTERACTIVE, f"{name} -> {words[0]}"
+
+
+@pytest.mark.parametrize("name", ["run", "poll", "session"])
+def test_the_follow_up_renders(populated: str, name: str) -> None:
+    from vanguard.panes import AFTER, render_command
+
+    text = render_command(list(AFTER[name]), db=populated, width=70)
+    assert text.strip()
+    assert "could not run" not in text
+
+
+def test_a_run_is_followed_by_its_record(populated: str) -> None:
+    """`run` says what it fetched and scored, then that scrolls away. The run
+    table holds it."""
+    from vanguard.panes import AFTER
+
+    assert AFTER["run"][0] == "logs"

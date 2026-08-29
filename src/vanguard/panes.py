@@ -28,7 +28,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 __all__ = ["Pane", "PANES", "render", "render_command", "pane_named",
-           "INTERACTIVE"]
+           "INTERACTIVE", "AFTER"]
 
 
 @dataclass(frozen=True)
@@ -139,6 +139,24 @@ INTERACTIVE: frozenset[str] = frozenset({
     "evidence", "dispatch", "apply",
 })
 
+#: What to show in the pane once one of those returns.
+#:
+#: Their own output goes to the terminal and is gone. Each leaves a record
+#: somewhere, and this names where — otherwise the operator runs something,
+#: comes back, and cannot tell what it did.
+AFTER: dict[str, tuple[str, ...]] = {
+    "run": ("logs", "--limit", "3"),
+    "poll": ("responses", "--limit", "20"),
+    "session": ("todo",),
+    "adverts": ("review", "--status", "PENDING", "--limit", "20"),
+    "discover": ("discover", "--list"),
+    "dispatch": ("review", "--status", "DISPATCHED", "--limit", "20"),
+    "apply": ("todo",),
+    "resolve": ("review", "--status", "FLAGGED", "--limit", "20"),
+    "evidence": ("stats",),
+    "interview": ("interviews",),
+}
+
 
 def render_command(words: Sequence[str], *, db: str = "",
                    width: int = 80) -> str:
@@ -164,10 +182,11 @@ def render_command(words: Sequence[str], *, db: str = "",
         return f"no command {name!r}\n{suggestion}"
 
     if name in INTERACTIVE:
-        return (f"`{name}` needs a terminal — it streams output or asks "
-                f"questions,\nand a pane can show neither.\n\n"
-                f"    press ! to drop to the shell, then:\n"
-                f"        vanguard {' '.join(words)}\n")
+        # The pane view runs these in a suspended terminal rather than
+        # capturing them. This message is only reached when `render_command`
+        # is called outside the pane view.
+        return (f"`{name}` streams output or asks questions, so it needs a "
+                f"terminal.\n\n    vanguard {' '.join(words)}\n")
 
     args = ["--width", str(max(40, width)), *words]
     if db and _accepts_db(name) and "--db" not in words:
