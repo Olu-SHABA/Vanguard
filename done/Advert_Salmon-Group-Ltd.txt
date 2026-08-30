@@ -1,0 +1,34 @@
+Data Science (Credit Risk)
+
+About the job
+
+As a Data Scientist in our Credit Risk team, you’ll work on improving both application scoring (to enhance onboarding decisions) and behavioral scoring (to increase portfolio profitability). You’ll be responsible for the full modeling cycle: from exploring data and identifying meaningful patterns, to building and validating models, assessing their business impact, writing clear implementation requirements, and monitoring production performance.
+
+The role goes beyond modeling - you’ll collaborate with product managers, analysts, and engineers to understand business context, generate and test hypotheses, and continuously refine our decision-making strategy. We operate in a modern, data-driven environment where models and statistics drive key decisions, and the infrastructure supports fast iteration and deployment.
+
+Each task is evaluated through the lens of business value - there’s no such thing as work “for the drawer.” This is a high-responsibility, high-impact role for someone ready to influence strategy, own results, and gain deep exposure to credit data, user behavior, and market dynamics.
+
+Your Future Responsibilities Await
+
+    Own the full modeling cycle — from exploring raw data to preparing production-ready specs
+    Use metrics like AUC, KS, bad rate, and stability index to validate model quality
+    Track how models perform after launch and know when it’s time to retrain or adapt
+    Evaluate value through NPV, backtesting, and real-world portfolio performance
+    Translate insights into decisions — you’ll help evolve our credit strategy, not just build models
+    Contribute ideas that change how we approve, price, and manage credit — our internal tools are flexible and data-driven
+    Work closely with product and data to align every model with real business goals
+    Step in beyond your scope when needed — we value ownership over rigid roles
+    Every task is evaluated through the lens of business value — no "models for the drawer" here
+
+What We Expect From Candidate
+
+    2+ years of hands-on experience in data analytics or data science
+    Deep knowledge of statistics, probability, and machine learning algorithms
+    Proficiency in Python (pandas, scikit-learn) and SQL for data exploration and modeling
+    Experience working specifically with credit scoring models — building or validating models for application or behavioral risk
+    Hands-on experience with the full model lifecycle: from data analysis and feature design to deployment and post-production monitoring
+    Ability to translate modeling logic into implementation-ready specs
+    Prior work with credit products is a strong plus, especially in fintech
+    Experience assessing business impact of models (e.g. NPV, backtesting) is a plus
+    Exposure to cross-functional collaboration (e.g. with product or engineering teams) is a plus
+    Willingness to relocate to our Manila HQ is a strong advantage

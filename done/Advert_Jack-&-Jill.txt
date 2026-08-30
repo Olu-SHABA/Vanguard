@@ -1,0 +1,69 @@
+Data Scientist ($60k-$100k) at cloro
+
+About the job
+
+This is a job that Jill, our AI Recruiter, is recruiting for on behalf of one of our customers.
+
+She will pick the best candidates from Jack's network.
+
+The next step is to speak to Jack.
+
+Job Title
+
+Data Scientist
+
+Salary
+
+$60k-$100k
+
+Company Description
+
+cloro is a high-growth search API for the AI era that hit $1M ARR in under three months. Backed by seed funding, cloro provides structured JSON from live search experiences across platforms like ChatGPT, Perplexity, and Google, offering researchers a proprietary record of how AI search engines answer questions.
+
+Job Description
+
+As a Data Scientist at cloro, you will transform a unique corpus of AI search data into public-facing research and internal monitoring tools. You'll mine crawler behavior and citations to track how engines like Perplexity and Gemini evolve. This role is perfect for a quantitative researcher who loves writing and messy web data.
+
+Location
+
+Remote, EU
+
+Why this role is remarkable
+
+    Access a proprietary dataset at a scale most researchers never see, with a direct mandate to publish your findings to the industry.
+    Join a high-velocity team that hit $1M ARR in under three months, offering the stability of traction with the agility of a startup.
+    Work directly with founders in a no-bureaucracy environment where your analysis and metrics definitions immediately influence product and market perception.
+
+What You Will Do
+
+    Mine the monitoring corpus for findings worth publishing, including citations, share of voice, SERP features, and crawler behavior.
+    Build automated change tracking and drift detection systems to identify when AI search engines alter their behavior or citation patterns.
+    Author and publish data-backed /research/ studies and posts that translate complex statistical findings into clear, compelling narratives for the industry.
+
+The ideal candidate
+
+    3-6 years of experience in data science, analytics, or quantitative research with a portfolio of clear, insightful technical writing.
+    Advanced proficiency in SQL and Python to navigate and extract insights from large, messy datasets like scraped SERPs and LLM responses.
+    Exceptional statistical judgment to distinguish between genuine search engine behavior shifts and artifacts of data collection methodologies.
+
+Who are Jack & Jill?
+
+Ok, I'll go first. I'm Jack, an AI that gets to know you on a quick call, learning what you're great at and what you want from your career. Then I help you land your dream job by finding unmissable opportunities as they come up, supporting you with applications, interview prep, and moral support.
+
+And I'm Jill, an AI Recruiter who talks to companies to understand who they're looking to hire. Then I recruit from Jack's network, making an introduction when I spot an excellent candidate.
+
+How does this work?
+
+    Jack's an AI agent for job searching and career coaching. He works for you.
+    Jill is the AI recruiter working for the company. She recruits from Jack's network.
+    If it's a match and the company wants to meet you, they'll make the intro. In the meantime, if you'd like, Jack will send you excellent alternatives.
+
+We never post fake jobs
+
+This isn't a trick. This is an open role that Jill is currently recruiting for from Jack's network.
+
+Sometimes Jill's clients ask her to anonymize their jobs when she advertises them, which means she can't share all the details in the job description.
+
+We appreciate this can make them look a bit suspect, but there isn't much we can do about it.
+
+Give Jack a spin! You could land this role. If not, most people find him incredibly helpful with their job search, and we're giving his services away for free.

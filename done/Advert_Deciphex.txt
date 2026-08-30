@@ -1,0 +1,81 @@
+Data Scientist
+
+About the job
+
+ole Type and Location
+
+    Remote role - based full time in Ireland
+
+
+Eligibility to work 
+
+    Unfortunately we cannot offer Irish work permits or Visa sponsorship
+
+
+There are very few places outside academia where you get to run your own research. This is one of them.
+
+
+Deciphex builds AI for digital pathology. We're hiring a Data Scientist into our AI R&D team to take ownership of research that is currently waiting for someone to own it — including building the preclinical pathology benchmark datasets that don't yet exist anywhere publicly, and the scientific work behind virtual control groups for animal studies. You'll have access to millions of whole-slide images and the resources to do something serious with them, working alongside pathologists and AI researchers who know the domain deeply.
+
+
+Some of this work sits within two major EU-funded research partnerships, BIGPICTURE and VICT3R, so your results reach well beyond Deciphex — and contribute directly to the 3Rs in animal research.
+
+
+What you'll be doing
+
+    Building benchmark datasets and evaluation tasks for pathology foundation models, in a space where no public benchmarks currently exist
+    Statistical characterisation of control datasets — trend analysis, confounders, and batch effects across sites and scanners
+    Curating and quality-controlling large whole-slide image datasets and their associated study metadata
+    Validating downstream pathology AI models and building the evidence to stand behind them
+    Working directly with pathologists to ground your datasets and results in real tissue morphology
+    Publishing and presenting your work
+
+
+What we're looking for
+
+    A real research track record — a PhD in a quantitative or biomedical field, or equivalent hands-on research experience in industry
+    Machine learning applied to biomedical data, ideally biomedical imaging
+    Confidence with scientific literature: you can read into a new area and turn what you find into something you can test
+    The full research workflow — scientific question, dataset, analysis, validation, and presenting the result
+    Solid applied statistics and reproducible analysis practice
+    Python and/or R, plus SQL
+    Clear scientific communication: you can explain methods, limitations and conclusions to pathologists, engineers and external partners alike
+
+
+Nice to have
+
+Computational pathology or whole-slide imaging experience; preclinical toxicology study design; pathology foundation models or self-supervised learning; SEND/CDISC or GLP familiarity; previous work in EU-funded consortia.
+
+
+About the Company
+
+Through the work that we do, the team at Deciphex helps pharma to accelerate the process of essential drug development and helps patients to get timely and accurate diagnosis. 
+
+
+Founded in Dublin in 2017, Deciphex has scaled rapidly to a team of over 230 people and counting who are providing software solutions to address the pathology gap in research pathology and clinical areas. We have offices in Dublin, Exeter, Oxford, Toronto and Chicago and are expanding our team throughout the world. 
+
+
+We are software developers, clinical specialists, AI engineers, operations professionals and so much more, all working as one team to support our customers and patients. Our team culture is built on trust. We give our team the space they need to deliver results and the environment to ensure they can enjoy doing it.
+
+
+We are looking for highly motivated individuals who are excited to take on challenges and value making a difference in their day-to-day work. This is a unique opportunity to make a difference in the emerging Digital Pathology field. 
+
+
+Read more about Deciphex here and more about our incredible team on our Careers Page here
+
+
+What are the benefits of working with Deciphex? 
+
+    Healthcare benefits
+    Competitive annual leave 
+    A true sense of meaning in your work by contributing to better patient outcomes. 
+    The opportunity to work alongside a world-class high performing team in a hyper-growth startup environment. 
+    A chance to work on exciting,challenging and unique projects. 
+    Regular performance feedback and significant career growth opportunities.
+    A highly collaborative and supportive multi cultural team. 
+
+
+Deciphex is an equal opportunities employer and we are committed to the principle of equality. All qualified applicants will be considered for employment without regard to age, race, religious beliefs, political views, gender identity, affectional or sexual orientation, national origin, family or marital status (including pregnancy), disability, membership of the travelling community or any other classification protected by applicable law.
+
+
+A copy of our Privacy Policy can be viewed here

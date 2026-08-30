@@ -1,0 +1,52 @@
+Lead Data Scientist
+
+We are looking for a Lead Data Scientist to lead the design and delivery of machine learning, statistical modelling and experimentation solutions that solve complex business problems and drive measurable outcomes across our client base. You will combine strong hands-on technical expertise with consulting, delivery leadership and stakeholder management skills, guiding project teams and translating data into clear, actionable insight.
+
+The role focuses on leading end-to-end data science delivery, developing scalable data science solutions, validating performance through robust experimentation, supporting technical best practice and partnering with client stakeholders to ensure analytical outputs deliver clear commercial impact.
+About Us
+
+Optima Partners is a fast-growing professional services firm helping leading organisations transform customer engagement at the intersection of marketing, technology and data. We work with major brands including Lloyds Banking Group, NatWest, Nationwide, Aviva, Virgin Media O2, BT, Centrica, and GSK. As we scale from 80 to 200 people we’re growing our Advanced Data team.
+
+We are collaborative, curious and focused on delivering practical insight that helps organisations make better decisions and grow sustainably. You will join a practitioner-led business with a strong data science community, working alongside people who are passionate about applying analytical thinking to real-world business problems.
+About the Role
+
+As a Lead Data Scientist, you will be a hands-on technical leader responsible for leading the development of machine learning and statistical solutions that deliver meaningful value for our clients. You will work closely with stakeholders to understand complex business challenges, shape analytical approaches, guide technical delivery and turn sophisticated outputs into clear, actionable recommendations.
+
+This is a great opportunity for an experienced data scientist to take ownership of high-impact project delivery across multiple commercial sectors, lead small teams and play a visible role in strengthening our Advanced Data capability.
+What You Will Be Doing
+
+    Leading the development and implementation of machine learning and statistical models to solve practical, high-value business problems
+    Partnering with client stakeholders to understand objectives, shape analytical approaches, influence decisions and communicate findings with confidence and clarity
+    Translating complex technical outputs into clear, transparent and commercially relevant recommendations that support effective decision-making
+    Identifying opportunities to create customer, operational and commercial value through advanced analytics, experimentation and data-driven innovation
+    Leading small multi-disciplinary teams across data science, engineering, strategy and design to deliver high-quality, scalable outcomes
+    Applying emerging data science techniques, including practical applications of Large Language Models, and helping translate them into robust, client-ready solutions
+    Mentoring and coaching data scientists, reviewing analytical work and helping embed best practice across the Advanced Data team
+
+What We Would Like You to Have
+
+    Strong academic background in mathematics, statistics, science, engineering or another numerate discipline
+    Minimum 2:1 degree in a STEM subject, with a postgraduate qualification in a quantitative field considered beneficial
+    Strong knowledge of statistics, including experimental design, uncertainty quantification, causal inference and predictive modelling
+    Significant experience applying supervised and unsupervised machine learning techniques in commercial or client-facing environments
+    Advanced proficiency in Python and/or R, with experience operationalising data science solutions and working with modern data science tooling
+    Excellent communication and consulting skills, with the ability to explain complex analysis clearly and credibly to technical and non-technical audiences
+    Strong problem-solving skills, commercial judgement and the ability to lead project delivery while supporting high-performing teams
+    Strong understanding of commercial value drivers such as revenue, cost, profitability, customer behaviour and operational performance, and how data science can influence them
+    Experience mentoring data scientists, reviewing analytical approaches and contributing to technical standards and reusable assets
+
+Why Join Us
+
+At Optima, you will work on varied, meaningful projects for well-known organisations while helping strengthen the technical delivery of our Advanced Data capability. You will be part of a supportive data science community with a strong culture of continuous learning, knowledge sharing and collaboration.
+
+You will have the opportunity to lead analytical delivery across different sectors, mentor and develop others, contribute to practice growth and build a career path with clear opportunities for further senior progression.
+What’s on Offer
+
+    Competitive salary + bonus up to 15%
+    37 days holiday (incl. Christmas shutdown)
+    Private medical insurance, life & income protection
+    Pension scheme
+    1,000+ employee perks
+    Dedicated learning, training, and certification support
+
+If you’re ready to take a lead role in a practitioner-led consultancy where data science is applied to meaningful, real-world problems, we’d love to hear from you.

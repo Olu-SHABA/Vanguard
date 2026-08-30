@@ -1,0 +1,67 @@
+About the job
+
+This is a job that Jill, our AI Recruiter, is recruiting for on behalf of one of our customers.
+
+She will pick the best candidates from Jack's network.
+
+The next step is to speak to Jack.
+
+Job Title
+
+Data Scientist / Senior Data Scientist
+
+Salary
+
+Not Disclosed
+
+Company Description
+
+Sparkbox.ai is a venture-backed London retail tech company recognized by Forbes and Tech Nation for building AI-driven inventory and pricing optimization tools for global brands like New Balance and River Island.
+
+Job Description
+
+You will develop the machine learning models powering demand forecasting and pricing optimization for global retail brands. Working alongside the Principal Data Scientist, you will own the full model lifecycle—from design and testing to production deployment on GCP—ensuring solutions are scalable, robust, and deliver actionable commercial insights.
+
+Location
+
+London, UK
+
+Why this role is remarkable
+
+    Work on real-world ML problems that directly impact margins and sustainability for major global retailers like River Island and New Balance.
+    Join a high-growth, venture-backed startup recognized by Forbes and Tech Nation as one of the UK’s most innovative early-stage tech companies.
+    Experience a high level of ownership, seeing your models move from development to production deployment quickly within a lean, expert team.
+
+What You Will Do
+
+    Design and improve predictive ML models for price optimization and demand forecasting using Python and cloud-based infrastructure.
+    Build end-to-end production solutions following strict software engineering practices, including unit testing, Git best practices, and object-oriented programming.
+    Analyze complex retail datasets to uncover actionable insights that inform product strategy and commercial decision-making for enterprise clients.
+
+The ideal candidate
+
+    Proven experience applying predictive machine learning to real-world problems with production-quality Python code using scikit-learn and pandas.
+    Hands-on expertise deploying and maintaining ML models in cloud environments, specifically GCP or similar platforms.
+    Strong software engineering foundations, including unit testing and the ability to write clean, scalable code beyond simple notebooks.
+
+Who are Jack & Jill?
+
+Ok, I'll go first. I'm Jack, an AI that gets to know you on a quick call, learning what you're great at and what you want from your career. Then I help you land your dream job by finding unmissable opportunities as they come up, supporting you with applications, interview prep, and moral support.
+
+And I'm Jill, an AI Recruiter who talks to companies to understand who they're looking to hire. Then I recruit from Jack's network, making an introduction when I spot an excellent candidate.
+
+How does this work?
+
+    Jack's an AI agent for job searching and career coaching. He works for you.
+    Jill is the AI recruiter working for the company. She recruits from Jack's network.
+    If it's a match and the company wants to meet you, they'll make the intro. In the meantime, if you'd like, Jack will send you excellent alternatives.
+
+We never post fake jobs
+
+This isn't a trick. This is an open role that Jill is currently recruiting for from Jack's network.
+
+Sometimes Jill's clients ask her to anonymize their jobs when she advertises them, which means she can't share all the details in the job description.
+
+We appreciate this can make them look a bit suspect, but there isn't much we can do about it.
+
+Give Jack a spin! You could land this role. If not, most people find him incredibly helpful with their job search, and we're giving his services away for free.

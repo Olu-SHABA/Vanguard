@@ -1,0 +1,56 @@
+Lead Data Engineer
+
+Salary Range: £92,701 - £109,060
+
+Location: Edinburgh, Leeds, Manchester, Bristol
+
+Hours: Full time (35 hours)
+
+Working Pattern: Hybrid Working, Job Share
+Job Description Summary
+
+At Lloyds Banking Group, we are transforming how we protect our customers, colleagues and services in an increasingly sophisticated threat landscape. The Security Data and AI lab within the Chief Security Office is at the forefront of this transformation - engineering data platforms and AI-driven capabilities that enable intelligent, proactive defence.
+
+We're looking for a Lead Data Engineer to shape and lead the lab’s data engineering capability. This is a senior role combining deep technical expertise with leadership, influencing direction and delivering high-impact outcomes across a complex enterprise environment. You’ll operate at the intersection of data engineering, security and AI, defining and driving the data engineering strategy and roadmap, owning scalable data pipelines, embedding secure-by-design principles, and enabling production-grade data foundations for AI, machine learning and advanced analytics. You’ll also partner across Security, Cloud, Architecture and Product teams while mentoring engineers and building a high-performing engineering culture.
+What we're looking for?
+
+    Proven experience leading technical delivery and mentoring engineers in a senior or lead capacity
+    Strong experience designing, building and operating scalable data platforms and pipelines in complex environments
+    Experience with cloud-native data platforms across Azure, AWS, GCP or similar enterprise environments
+    Deep understanding of data modelling, data quality, metadata, lineage and governance principles
+    Ability to make pragmatic, risk-aware technical decisions balancing resilience, pace and long-term maintainability
+    Experience embedding engineering best practices such as CI/CD, automated testing, observability and version control
+    Strong collaboration skills, working across engineering, security, data science and product teams
+
+And it would be great if you had any of the following...
+
+    Exposure to MLOps or SMLOps tooling and model lifecycle management
+    Experience supporting AI/ML pipelines, feature engineering or analytics platforms
+    Knowledge of AI governance and secure adoption of generative or agentic AI
+    Experience working in security-focused or regulated environments
+    Familiarity with event-driven or streaming data architectures
+
+Benefits
+
+    A generous pension contribution of up to 15%
+    An annual bonus award, subject to Group performance
+    Share schemes including free shares
+    Benefits you can adapt to your lifestyle, such as discounted shopping
+    30 days’ holiday, with bank holidays on top
+    A range of wellbeing initiatives and generous parental leave policies
+
+About Lloyds Banking Group
+
+Our ambition is to be the leading UK business for diversity, equity and inclusion, supporting our customers, colleagues and communities. We are committed to creating an environment in which everyone can thrive, learn and develop. We were one of the first major organisations to set goals on diversity in senior roles, create a menopause health package, and launch a dedicated Working with Cancer initiative.
+
+We offer reasonable workplace adjustments for colleagues with disabilities, including flexibility in office attendance, location and working patterns. As a Disability Confident Leader, we guarantee interviews for a fair and proportionate number of applicants who meet the minimum criteria for the role and have a disability, long-term health or neurodivergent condition, through the Disability Confident Scheme.
+
+We provide reasonable adjustments throughout the recruitment process to reduce or remove barriers - just let us know what you need.
+
+At Lloyds Banking Group, we're driven by a clear purpose; to help Britain prosper. Across the Group, our colleagues are focused on making a difference to customers, businesses and communities. With us you'll have a key role to play in shaping the financial services of the future, whilst the scale and reach of our Group means you'll have many opportunities to learn, grow and develop.
+
+We keep your data safe. So, we'll only ever ask you to provide confidential or sensitive information once you have formally been invited along to an interview or accepted a verbal offer to join us which is when we run our background checks. We'll always explain what we need and why, with any request coming from a trusted Lloyds Banking Group person.
+
+We're focused on creating a values-led culture and are committed to building a workforce which reflects the diversity of the customers and communities we serve. Together we’re building a truly inclusive workplace where all of our colleagues have the opportunity to make a real difference.
+
+End Date: Wednesday 16 September 2026

@@ -1,0 +1,117 @@
+Data Scientist
+
+About the job
+
+Technology
+
+     London, Oxford, Remote
+     Fully Remote
+
+Data Scientist
+
+You will be working directly with Hedge Fund partners and an experienced technical team of data scientist and engineers.
+
+We are looking for a full-time data scientist to work with us on the following areas:
+
+    Product deployment – creating, deploying, and maintaining new KPI trackers.
+    Research – finding, collecting, and evaluating new data sources, developing new experimental product features for end-users, improving our methodology.
+
+Reporting To The Data Science Manager You Will
+
+    Write robust, commented scripts to collect, clean, process, and save data.
+    Analyze data, build, validate, and test prototype models in Jupyter.
+    Construct automated pipelines for moving and processing data between different sources.
+    Produce data visualisations and dashboards in Python and/or PowerBI.
+    Deploying new jobs using Docker and AWS technologies.
+    Monitoring, debugging and maintaining production code.
+
+To Be Successful In The Role You Should Have
+
+    Proficiency in Python:
+        Ability to write functional, reproducible, and well documented code. 
+        Proficient with typical data scientist modules (pandas, numpy, matplotlib, scikit-learn). 
+
+Strong Statistical Knowledge
+
+    Good understanding of fundamental statistical concepts (e.g. bias, variance, R-squared). 
+    Good understanding of the theory and practice of linear regression. 
+
+Self-motivated and autonomous individual.
+
+    Significant training and support will be provided; however, we expect a successful candidate to quickly take full ownership of their work and proactively make an impact in ODP.
+
+Some experience working with databases and using SQL.
+
+Strong Excel skills.
+
+Experience with Git.
+
+Interest in finance.
+
+Desirable Skills
+
+Proficient in web-scraping – at least with requests, ideally with selenium or other web-scraping packages.
+
+Software development – experience in managing installable python packages is very valuable.
+
+Proficient SQL and database knowledge and experience.
+
+Advanced knowledge of time-series modelling or Bayesian statistics.
+
+Experience working with AWS.
+
+Experience creating visualisations with Power BI.
+
+Proficiency with Git.
+
+Experience/proficiency with Docker.
+
+Good experience/knowledge of the finance sector.
+
+Applicants should be fluent in English and have an interest in Finance and Data Science.
+
+Department Technology Role Data Scientist Locations London, Oxford, Remote Remote status Fully Remote
+
+About Oxford DataPlan
+
+The Home of Alternative Data. We use alternative data and data science to deliver near real-time estimates of revenue and other key performance indicators for 200+ publicly listed companies globally — updating daily.
+
+Founded in 2022
+
+Co-workers 70+
+
+jobs--overlay#unobserveClickOutside common--modal:closed->jobs--overlay#observeClickOutside " data-jobs--overlay-overlay-value="false" data-jobs--overlay-dialog-label-value="Apply for this job" data-jobs--overlay-overlay-class="!fixed flex flex-col inset-0 rounded-t-6 shadow-job-form-overlay z-career-job-application-form-overlay" data-jobs--overlay-minimize-button-hidden-class="hidden" data-careersite--jobs--form-overlay-target="form" style="--topOffset: 40px; --overlayDuration: 300ms;">
+
+Technology
+
+     London, Oxford, Remote
+     Fully Remote
+
+Data Scientist
+
+You will be working directly with Hedge Fund partners and an experienced technical team of data scientist and engineers.
+
+Loading application form
+
+
+
+Dear Oxford DataPlan Team,
+
+I am writing to apply for the Data Scientist position. Your focus on delivering near real-time revenue estimates and KPI trackers for publicly listed companies matches exactly what I build. I have extensive experience collecting messy datasets, engineering fast pipelines, and automating data workflows.
+
+A few concrete examples from my background that directly fit your technical requirements include:
+
+- KPI Tracking and Automation: At Amdari Inc., I built interactive dashboards in Tableau and Power BI to track metrics like revenue, churn, and operational trends. I also wrote a custom python engine during my career that compressed a manual, 90-minute data transformation cycle down to under 2 seconds on annual datasets with over 800,000 rows. I understand how to make data move quickly and reliably.
+
+- Data Cleaning and Pipeline Rigour: I write functional, reproducible Python code. In my previous work, I implemented strict data validation and null-handling logic into data cycles, making sure missing values were imputed using time-based defaults rather than dropped, preserving dataset integrity. I am highly comfortable building and testing prototype models inside Jupyter.
+
+- Web Scraping and Engineering instincts: I have built configuration-driven harvesting engines handling REST APIs, token pagination, and schema validation. My public GitHub repositories demonstrate my clean code, version control practices, and experience managing asynchronous processing pipelines.
+
+I am a self-motivated professional based in Stirling with a postgraduate dependent visa, giving me full and unrestricted right to work in the UK. I am highly interested in the finance sector and looking forward to an environment where I can take immediate ownership of data collection and deployment tasks.
+
+You can look at my code, commit histories, and documentation directly on my public profile at https://github.com/Olu-SHABA.
+
+I would welcome a brief conversation to discuss how my pipeline automation and data tracking experience can support your work for hedge fund partners. Thank you for your time.
+
+Best regards,
+Olumide Shaba

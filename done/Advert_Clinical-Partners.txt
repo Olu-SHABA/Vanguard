@@ -1,0 +1,177 @@
+Clinical Data Scientist 
+
+About the job
+
+Clinical Partners- one of the UK’s fastest growing Mental Health providers- is building a modern
+
+data capability to become a genuinely data-driven organisation.
+
+We now have a data warehouse, a semantic layer, automated reporting and a growing analyst
+
+community. What we do not yet have is a dedicated scientific function to interrogate our clinical data in
+
+the deep, investigative ways that generate new understanding rather than restate what we already
+
+report.
+
+This is a research-oriented Data Scientist role. The purpose is to ask, and rigorously answer, the
+
+harder questions in our data: how patients move through pathways, what drives clinical outcomes,
+
+which presentations cluster together, where risk concentrates, and what we could measure but
+
+currently don’t. You will bring advanced statistical and machine-learning methods to bear on clinical,
+
+outcomes and operational data, and surface insight that changes how we understand our patients and
+
+services.
+
+You will work closely with the central data team, Clinical Informatics, and clinical leadership to turn
+
+ambiguous clinical questions into well-formed analytical studies. This is a hands-on, hypothesis-driven
+
+role for someone who is as comfortable with study design, causal reasoning and psychometrics as
+
+they are with code. It is a foundational hire: you will help define what scientific rigour looks like at
+
+Clinical Partners and build a reusable body of methods, models and evidence over time.
+
+Our data landscape is complex, longitudinal and imperfect. Much of the value is latent - held in free-
+
+text assessment notes, repeated outcome measures, and messy pathway histories. A core part of this
+
+role is designing the analysis you wish you could run today, working within real-world data quality and
+
+clinical governance constraints.
+
+Key Responsibilities
+
+Deep interrogation of clinical data
+
+     Investigate clinical outcomes and operational data to answer high-value questions we cannot
+
+currently answer - forming hypotheses, designing studies, and delivering defensible, reproducible
+
+findings.
+
+     Interrogate longitudinal patient data to characterise symptom trajectories, treatment response and
+
+drop-out, going well beyond descriptive reporting.
+
+     Identify what we could and should be measuring but currently don’t, and make the case for new
+
+data capture, instruments or derived measures.
+
+Advanced modelling and clinical insight
+
+Apply advanced data science techniques with a clinical focus, including (but not limited to):
+
+     Survival / time-to-event analysis - e.g. time-to-treatment, waiting-list and pathway survival, with
+
+competing risks.
+
+     Causal inference - propensity score matching, difference-in-differences, instrumental variables,
+
+and uplift/ heterogeneous treatment-effect modelling to estimate what actually drives outcomes.
+
+     Bayesian and hierarchical / multilevel modelling - partial pooling across services, clinicians and
+
+cohorts to produce stable estimates from sparse data.
+
+     Longitudinal and trajectory modelling - mixed-effects models, growth mixture / latent class
+
+trajectory models of symptom change over time.
+
+     Psychometrics and latent-variable modelling - factor analysis, item response theory (IRT), reliable
+
+change and minimal clinically important difference (MCID) on measures such as HADS, RCADS,
+
+PHQ-9 and GAD-7.
+
+     Unsupervised learning and phenotyping - clustering and latent class analysis to identify patient
+
+subtypes and presentation patterns.
+
+     Clinical NLP - topic modelling, embeddings, named-entity recognition and negation detection over assessment letters and free-text notes to unlock latent information.
+     Predictive risk modelling - deterioration, relapse, disengagement and DNA/no-show models, with proper calibration and validation.
+     Principled handling of missing and biased data - multiple imputation, sensitivity analysis, and reasoning about MNAR mechanisms.
+     Model explainability, fairness and bias auditing - SHAP and subgroup analysis across protected characteristics to ensure equitable, trustworthy insight.
+
+Study design and scientific rigour 
+
+     Translate ambiguous clinical questions into well-specified analytical studies with clear hypotheses, endpoints, confounders and success criteria.
+     Set the standard for methodological rigour: pre-specified analysis plans, validation, uncertainty quantification, and honest communication of limitations.
+     Ensure work is reproducible and peer-reviewable - version-controlled code, documented assumptions, and auditable methods.
+
+Collaboration and translation 
+
+     Partner with Clinical Informatics and clinical leadership to ensure questions and findings are clinically meaningful and safe to act on.
+     Work with the Data Engineering team to source, shape and productionise the datasets and features your work depends on.
+     Communicate complex findings clearly to clinical and executive audiences, distinguishing signal from noise and correlation from cause.
+
+Capability building 
+
+     Build a reusable library of methods, models and evidence that raises the analytical ceiling of the whole data function.
+     Coach analysts on statistical thinking, study design and responsible interpretation of data.
+     Support the organisation’s move towards trustworthy AI/ML by laying rigorous, well-evaluated scientific foundations.
+
+Requirements
+
+Essential
+
+     Advanced degree (MSc/PhD) in a quantitative discipline - statistics, biostatistics, epidemiology, data science,
+
+computational/ quantitative psychology, or equivalent research experience.
+
+     Strong grounding in statistical inference and study design (not just predictive ML):
+
+hypothesis testing, confounding, bias, uncertainty and validity.
+
+     Demonstrable experience of several advanced techniques above - e.g. survival analysis, causal inference,
+
+Bayesian/hierarchical modelling, longitudinal or latent-variable methods.
+
+     Strong Python and/or R for statistical modelling, with SQL for working across complex, multi-source datasets.
+     Experience working with messy, real-world, longitudinal data and still producing defensible, decision-grade findings.
+     Ability to translate ambiguous questions into rigorous, reproducible analyses and explain them to non-technical audiences.
+
+Desirable
+
+     Experience with healthcare, clinical, mental-health or other sensitive data, and comfort working within clinical governance and information-governance constraints.
+     Psychometrics / clinical outcome measures experience (e.g. IRT, reliable change, HADS/RCADS/PHQ-9).
+     Clinical NLP experience on free-text records.
+     Familiarity with the modern data stack (dbt, Airflow, Git) and reproducible-research tooling (notebooks, environments, experiment tracking).
+     Awareness of model fairness, explainability and safe deployment in a clinical context.
+
+Nice To Have
+
+     Peer-reviewed publications or a track record of original quantitative research.
+     Experience establishing a data science/ research analytics capability from scratch.
+     Understanding of health economics, service operations or unit economics.
+     Experience designing or evaluating quasi-experiments in real-world service settings.
+
+Renumeration and benefits
+
+This primarily home-based role requires occasional travel to London for meetings and team collaboration.
+
+    Competitive salary 
+    25 days paid holiday (increasing with service to 28 days) plus bank holidays.
+    A day off for your birthday.
+    Healthcare Cash Plan
+    Company pension 
+    Benefits Platform
+    Life Assurance
+    Discount Vouchers
+    Flexible working opportunities to suit your personal needs
+    Opportunities to take part in charitable events
+    Access to a Wellbeing portal and Employee Assistance Programme (EAP)
+
+Remote-first position; however, you must be based in the United Kingdom and have the right to work to be considered.
+
+Equal Opportunities Employer
+
+At Clinical Partners we are committed to creating an inclusive and diverse workplace. We believe that everyone deserves an equal opportunity to succeed, regardless of their background, race, gender, age, disability, sexual orientation, or any other characteristic. We welcome applications from all qualified candidates and strive to provide a supportive and respectful environment for all employees.
+
+DBS Check Requirement
+
+Please note that this position requires a Disclosure and Barring Service (DBS) check as part of our commitment to safeguarding and ensuring the safety of our clients and staff. The successful candidate will be required to undergo a DBS check before commencing employment.

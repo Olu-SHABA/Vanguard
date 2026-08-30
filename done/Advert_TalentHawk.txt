@@ -1,0 +1,34 @@
+Data Scientist - Machine Learning
+
+About the job
+
+Data Scientist | Machine Learning & Financial Engineering | Permanent | London 3 days a week | up to £100k per annum
+
+Experience Level: 2+ Years Technical Stack: Python, AWS, Machine Learning
+
+The Opportunity
+
+We are seeking a proactive and analytically-driven Data Scientist to revolutionise the way our client process and validate complex financial data.
+
+In this role, you will lead the transition from a manual, prototype-based cleaning process to a fully automated, scalable Machine Learning pipeline. You will be responsible for identifying outliers within large-scale datasets, ensuring the accuracy of consensus pricing for financial derivatives, and building a system that learns and improves through a continuous human-in-the-loop feedback mechanism.
+
+Key Responsibilities
+
+    Model Design & Development: Design, build, train, and validate sophisticated ML models (including Random Forests and Boosted models) to automatically flag "bad" valuations across multiple dimensions. 
+    Pipeline Automation (AWS): Build robust, production-ready data pipelines within the AWS ecosystem (S3, Lambda, etc.) to process high daily volumes of valuation data within tight windows. 
+    Explain ability & Confidence: Develop methods to measure model confidence and provide clear reasoning for valuation decisions. You will ensure the system flags borderline cases for expert review to maintain high integrity. 
+    Continuous Learning: Implement feedback loops where human corrections are automatically integrated into training data, allowing the model to evolve and improve accuracy over time. 
+    Collaborative Innovation: Generate and test hypotheses to drive incremental progress, working closely with both technical teams and business stakeholders. 
+
+Required Skills & Experience
+
+    Commercial Experience: 2–5 years in a quantitative or data science role. Focus on Machine learning during this period 
+    Technical Proficiency: Strong mastery of Python and demonstrable experience deploying/monitoring models in an AWS production environment. 
+    ML Expertise: Deep statistical understanding of machine learning techniques, specifically classification and optimisation techniques to manage trade-offs between related data points. 
+    Analytical Mindset: Proven ability to surface features that drive decisions even when they are not directly observable from raw training data. 
+    Communication: Ability to collaborate across technical and business functions, with the potential to grow into a client-facing capacity. 
+
+Preferred Qualifications
+
+    Education: Masters or Ph.D. in a highly quantitative field (Statistics, Financial Engineering, Computer Science, or Mathematics). 
+    Industry Background: Any industry is considered but financial services would be a plus

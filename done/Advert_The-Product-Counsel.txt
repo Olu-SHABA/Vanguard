@@ -1,0 +1,65 @@
+Data Scientist
+
+About the job
+
+Role Requirements
+
+We are seeking a pragmatic and skilled Data Scientist to join The Product Counsel team, working remotely with a preference for candidates based in London or Cambridge. In this role, you'll harness the power of vast advertising datasets to develop, evaluate, and deploy machine learning models that drive real business impact. You'll collaborate closely with a dedicated data engineer, allowing you to focus on modelling, mathematics, and delivering actionable insights—but if you’re eager to get hands-on across the stack, we encourage and support that, too!
+
+What You’ll Do
+
+Analyze large-scale advertising datasets to uncover trends, patterns, and actionable insights
+
+    Select, train, and evaluate machine learning models tailored to business and performance outcomes
+    Leverage Python (and PyTorch) in notebooks to extract, explore, and model data
+    Collaborate with engineers to hand off models and support production deployment
+    Translate model outputs into clear, actionable business intelligence for stakeholders
+    Optionally: Get hands-on with data engineering tasks (pipelines, ETL, infrastructure) if desired
+
+What We’re Looking For
+
+Strong background in data science, statistics, and machine learning
+
+    Hands-on experience with Python and PyTorch
+    Proficient with large datasets, ideally on GCP (Google Cloud Platform) and BigQuery
+    Comfortable working in notebooks and writing reproducible, clear code
+    Experience with advertising or marketing data (ideal, but not required)
+    Experience working at an SSP (Supply Side Platform), DSP (Demand Side Platform), or DMP (Data Management Platform) is highly desirable. These platforms are integral to the digital advertising ecosystem, enabling automated buying, selling, and management of ad inventory and data
+    Bonus: Data engineering skills (pipelines, infrastructure, ETL) and an interest in using them
+    Able to work independently and communicate complex ideas clearly to both technical and non-technical audiences
+
+Location & Benefits
+
+Remote role with a preference for candidates based in London or Cambridge
+
+    Flexible working hours and a collaborative, supportive team culture
+    Opportunity to work on impactful, high-visibility projects in the advertising technology space
+
+
+Hiring Team,
+The Product Counsel
+
+Dear The Product Counsel Team,
+
+I am writing to apply for the Data Scientist position. I like your pragmatic approach to modeling and the fact that you support data scientists who want to get hands-on across the whole stack. I have extensive experience building data pipelines and deploying machine learning models, and I want to bring that background to your team.
+
+While my primary sector experience is in telecommunications rather than AdTech, the underlying data challenges are identical. I have spent years handling massive, messy infrastructure datasets to find patterns and automate outcomes.
+
+A few recent examples of my work that fit your requirements include:
+
+- Modeling and Prototyping: I built and open-sourced Vanguard, a semi-autonomous application pipeline. It uses Python, sentence-transformers, and vector databases to parse and match profile data. I am highly comfortable working in notebooks to build clear, reproducible code from scratch.
+
+- Cross-Stack Data Engineering: You mentioned an appreciation for data engineering skills. I do not tolerate slow pipelines. I previously wrote a custom python ETL engine that compressed a manual, 90-minute data cycle down to under 2 seconds on annual datasets with over 800,000 rows, utilizing strict validation checks to protect data quality.
+
+- Business Translation: I am used to working independently and translating complex data outputs into clear options for leadership. At Amdari Inc., my work focused on customer lifetime value and churn analytics, which maps directly to your focus on tracking trends, user behavior, and performance outcomes across digital advertising datasets and user inventories.
+
+I currently live in Stirling, have a postgraduate dependent visa with a full and unrestricted right to work in the UK, and am fully set up to work remotely. You can review my code, data architectures, and engineering history directly on my public GitHub profile at https://github.com/Olu-SHABA.
+
+I would welcome a quick conversation to discuss how my pipeline optimization and machine learning background can support your current advertising datasets. Thank you for your time.
+
+Best regards,
+Olumide Shaba
+
+Why I used the word "AdTech"
+
+AdTech (Advertising Technology) is the universal industry shorthand for the exact ecosystem described by those acronyms (SSPs, DSPs, and DMPs).Because my goal was to adapt your profile to their industry, I used the umbrella term "AdTech" to summarize that entire requirement block. However, because the job description itself did not explicitly use the exact word "AdTech", using it in the cover letter might make it look like an external assumption.

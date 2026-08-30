@@ -1,0 +1,68 @@
+Data Scientist - Supply Chain Optimisation
+
+About the job
+
+As the global leader in high-speed connectivity, Ciena is committed to a people-first approach. Our teams enjoy a culture focused on prioritizing a flexible work environment that empowers individual growth, well-being, and belonging. We’re a technology company that leads with our humanity—driving our business priorities alongside meaningful social, community, and societal impact.
+
+Data Scientist – Supply Chain Optimisation
+
+As a Data Scientist within Ciena’s Supply Chain Optimisation team, this role applies advanced analytics to complex, global supply chain challenges that directly impact cost, service performance, and sustainability outcomes. The position contributes to data‑driven decision making across procurement, planning, engineering, operations, and logistics functions. This role supports scalable optimization solutions aligned with Ciena’s operational priorities.
+
+How You Will Make An Impact
+
+    Design and implement optimization models addressing network design, inventory positioning, demand forecasting, and transportation efficiency.
+    Apply advanced analytics techniques to improve supply chain performance, cost efficiency, service levels, and sustainability outcomes.
+    Analyze, cleanse, and transform large, imperfect datasets to generate actionable insights.
+    Develop algorithms using optimization, machine learning, and statistical modeling techniques to solve complex supply chain problems.
+    Implement production‑ready analytical solutions using Python, R, or comparable programming languages.
+    Build dashboards and analytical outputs that communicate insights to technical and non‑technical stakeholders.
+    Collaborate with data scientists, analysts, and architects to ensure scalable and aligned analytical solutions.
+
+The Must Haves
+
+    Education: Degree in Data Science, Statistics, Mathematics, Operations Research, Computer Science, Engineering, or a related quantitative discipline.
+    Experience: 5+ years of experience in data science, analytics, or optimization roles, including exposure to supply chain problem domains.
+    Application of programming languages such as Python or R for analytical and modeling solutions.
+    Application of machine learning and statistical modeling techniques within supply chain contexts.
+    Utilization of optimization libraries such as OR‑Tools, Pyomo, or Gurobi.
+    Application of SQL or similar tools for data manipulation and analysis.
+    Translation of business problems into analytical approaches that deliver actionable outcomes.
+
+Nice To Haves
+
+    Background working with modern data platforms such as Snowflake and transformation tools such as dbt.
+    Exposure to geospatial analytics or network visualization tools.
+    Experience supporting global supply chain environments or complex organizational structures.
+    Background using Dataiku or Alteryx One.
+
+At Ciena, we are committed to building and fostering an environment in which our employees feel respected, valued, and heard. Ciena values the diversity of its workforce and respects its employees as individuals. We do not tolerate any form of discrimination.
+
+Ciena is an Equal Opportunity Employer, including disability and protected veteran status.
+
+If contacted in relation to a job opportunity, please advise Ciena of any accommodation measures you may require.
+
+
+Hiring Team,
+Ciena
+
+Dear Ciena Team,
+
+I am writing to express my interest in the Data Scientist – Supply Chain Optimisation position. I am drawn to Ciena because of your position in high-speed connectivity. Having spent over a decade in global telecommunications infrastructure and data analytics, I understand the technical foundation of your business and want to apply my optimization experience to your global supply chain challenges.
+
+My engineering background and data science experience directly align with your requirements for managing large, imperfect datasets and building production-grade automation:
+
+- Supply Chain Domain Exposure: At Amdari Inc., I developed and deployed machine learning models that increased demand forecasting accuracy by 20%, directly optimizing inventory control and resource allocation choices. I have also built optimization engines focused on predictive allocation decisions.
+
+- Data Cleansing and Pipeline Rigour: I write clean, reproducible Python and SQL code designed to handle messy data. For instance, I engineered a vectorized data engine that cut down a manual 90-minute data cycle to under 2 seconds on datasets exceeding 800,000 rows. I built specific input validation and null-handling logic into this pipeline, ensuring missing values were imputed via time-based defaults rather than dropped, maintaining total record completeness.
+
+- Analytics and Dashboards: I am highly comfortable translating complex analytical models into clear business tools. I have designed and maintained interactive dashboards in Tableau and Power BI to track key operational trends, allowing non-technical stakeholders to make data-driven decisions that improved operational efficiency by 30%.
+
+I hold a B.Sc. in Civil Engineering, which gave me a strong foundation in mathematical optimization and network design principles. I live in Stirling, hold a postgraduate dependent visa with a full, unrestricted right to work in the UK, and am comfortable collaborating across remote, cross-functional teams.
+
+You can inspect my code, data pipeline architectures, and commit histories directly on my public GitHub profile at github.com.
+
+I would welcome a brief conversation to discuss how my combination of telecom domain knowledge and pipeline optimization skills can support your supply chain team. Thank you for your time.
+
+Best regards,
+
+Olumide Shaba

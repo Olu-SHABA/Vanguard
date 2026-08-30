@@ -1,0 +1,105 @@
+About the job
+
+We're Capital on Tap 👋
+
+💳 Capital on Tap started because small businesses were underserved. Big banks were slow, their products weren't fit for purpose, and small business owners often couldn't access what they needed. We set out to fix that.
+
+Today we're a financial platform - not just a credit card company. We offer a best-in-class business credit card, SME-focused spend management platform, a savings product that hit £1 billion in funds within its first year, and a growing suite of tools and financial products that make running a small business easier.
+
+1,000+ employees, £20bn in annual card spend, 200,000+ customers, 17,000+ Trustpilot reviews averaging 4.7 stars, and we're profitable. We've done a pretty good job so far, but we're just getting started!
+
+🏢 This is a Hybrid role, working from our London (Moorgate) offices 3 days per week.
+
+Finance at Capital on Tap
+
+Our Finance team sits at the heart of everything we do, working across our UK and US entities and collaborating closely with the rest of the business to keep our financial foundations solid as we grow. We're a lean, high-ownership team - you'll get real breadth across the finance function and plenty of room to shape how things are done as we scale.
+
+What You'll Be Doing
+
+We're hiring a Senior Data Scientist to join Capital on Tap, reporting to the Head of FP&A.
+
+You'll own two linked workstreams - IFRS9 Expected Credit Loss (ECL), and portfolio modelling that feeds the financial model to produce forecasts. The work spans the UK and US revolving credit books, sitting close to Finance, Risk and Data Science.
+
+Tech stack: Snowflake, dbt, Fivetran, Python, JupyterLab, Omni, and Kubernetes on Azure.
+
+ECL
+
+    Build, calibrate, implement and monitor IFRS9 models (PD, LGD, EAD), including staging/SICR logic and macroeconomic overlays.
+    Run and harden month-end ECL production - scenario runs, combined outputs, and result checks into Snowflake.
+
+Portfolio Modelling
+
+    Develop and maintain the portfolio model that feeds the financial model - active customers, balances, funding, repayments, finance charges and bad debt.
+    Diagnose drift, recalibrate assumptions and overlays, and deliver forecast inputs Finance can trust.
+
+Across Both
+
+    Partner with FP&A, Risk and other stakeholders so model outputs land cleanly in the financial forecast, without unnecessary process or IT complexity.
+    Use AI tools confidently across the workflow, and help the team adopt practical AI-assisted ways of working.
+
+We're Looking For
+
+    2-5+ years building statistical/credit risk models in Python, and extracting and shaping data in SQL.
+    Credit risk modelling experience, ideally IFRS9 ECL (PD/LGD/EAD), staging and model monitoring - or a clear desire to build that expertise quickly.
+    Commercial understanding of revolving credit economics (utilisation, arrears, default, recoveries, portfolio growth).
+    Comfort working end-to-end - from analysis and calibration through to production runs and stakeholder-ready forecast inputs.
+    Curiosity and judgement in applying AI to modelling and engineering work, while keeping outputs explainable and controlled.
+    Ability to work autonomously with strong judgement and proactivity in a small team.
+
+Nice to Have
+
+    Experience with some of our stack is helpful - Snowflake, dbt, Fivetran, Python, JupyterLab, Omni, Kubernetes on Azure.
+    Experience feeding portfolio/behavioural models into an FP&A or financial planning model.
+    Familiarity with LightGBM or similar gradient-boosted models for behavioural forecasts.
+    Exposure to model change control, independent validation, or year-end ECL disclosure packs.
+    Prior work across both UK and US (or multi-region) credit portfolios.
+
+Diversity & Inclusion 🌈
+
+We welcome, consider and encourage applications from anyone who shares our commitment to inclusivity. Join us in creating a space where authenticity thrives, and everyone can do their best work.
+
+Great Work Deserves Great Perks
+
+We try not to take ourselves too seriously (all the time) so we make sure our office is decked out with a pool table, arcade machine, beer tap, and a couple of office dogs thrown in for good measure. Check out our benefits:
+
+🏥 Private Healthcare including dental and opticians services through Vitality
+
+✈️ Worldwide travel insurance through Vitality
+
+❤️ Access to a reproductive and hormonal health platform via Hertility
+
+🎁 Anniversary Rewards (£250, £500, £750, 4-week fully paid sabbatical)
+
+👛 Salary Sacrifice Pension Scheme up to 7% match
+
+🚘 Octopus EV Salary Sacrifice Scheme
+
+🏖️ 28 days holiday (plus bank holidays)
+
+📖 Annual Learning and Wellbeing Budget
+
+👪 Enhanced Parental Leave
+
+🚲 Cycle to Work Scheme
+
+🚂 Season Ticket Loan
+
+💬 6 free therapy sessions per year
+
+🐶 Dog Friendly Offices
+
+🍫 Free drinks and snacks in our offices
+
+Check out more of our benefits, values and mission here.
+
+Other Info
+
+👍Check out our 'Top Tips' for interviewing.
+
+✔️Keep updated on new job opportunities by following us on Linkedin.
+
+📧Email careers@capitalontap.com if you have any questions.
+
+Excited to work here? Apply!
+
+If you'd like to progress your career within our fast growing, profitable fintech then click apply and we will aim to get back to you within 3 working days (during busy periods this could take up to 5 working days.)

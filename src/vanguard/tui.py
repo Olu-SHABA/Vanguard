@@ -56,6 +56,7 @@ items in it.
 
 from __future__ import annotations
 
+from vanguard.forms import Form, form_for
 from vanguard.panes import (
     AFTER,
     INTERACTIVE,
@@ -95,26 +96,12 @@ def console_height(has_output: bool) -> int:
     return CONSOLE_OPEN if has_output else CONSOLE_IDLE
 
 
-#: Commands a key cannot usefully fire on its own, and what they still need.
-#:
-#: Pressing `s` ran `vanguard search` with no keywords, which errors. `paste`
-#: wants a file, `discover` a board. Prefilling the console with the command
-#: leaves the operator to supply the rest.
-NEEDS_ARGUMENT: dict[str, str] = {
-    "search": "keywords, e.g. search data scientist --within 24h",
-    "paste": "--file path\\to\\advert.txt, or --url",
-    "discover": "--board adzuna",
-    "approve": "a vacancy id, or --status PENDING --min-coverage 0.6",
-    "reject": "a vacancy id, or --status FLAGGED",
-    "override": "a vacancy id and a state",
-    "draft": "a vacancy id",
-    "apply": "a vacancy id",
-    "dispatch": "a vacancy id",
-    "feedback": "a vacancy id, --name and --contact",
-    "evidence": "--repo <path or url>",
-    "interview": "a vacancy id and --phase",
-    "sql": 'a query, e.g. sql "SELECT status, COUNT(*) FROM queue GROUP BY status"',
-}
+# REMOVED 23 Aug 2026: `NEEDS_ARGUMENT`.
+#
+# It listed which commands could not be fired bare and what they still
+# needed, so a key could prefill the console with a hint. The form
+# supersedes it: the schema is derived from the command, so what a command
+# needs is read from the command rather than restated here.
 
 
 def run_app(db: str) -> None:
@@ -123,7 +110,7 @@ def run_app(db: str) -> None:
     from textual.binding import Binding
     from textual.containers import Horizontal, Vertical, VerticalScroll
     from textual.widgets import (
-        Footer, Header, Input, ListItem, ListView, Static,
+        Checkbox, Footer, Header, Input, ListItem, ListView, Select, Static,
     )
 
     class VanguardApp(App):
@@ -134,6 +121,8 @@ def run_app(db: str) -> None:
         #menu { width: 20; border-right: solid $primary; }
         #right { width: 1fr; }
         #input { height: 5; border: round $primary; padding: 0 1; }
+        #input Input, #input Select { margin: 0 0 1 0; }
+        .form-note { color: $text-muted; }
         #upper { height: 1fr; }
         #queue { width: 3fr; border: round $primary; padding: 0 1; }
         #progress { width: 2fr; border: round $primary; padding: 0 1; }
@@ -153,7 +142,7 @@ def run_app(db: str) -> None:
             Binding("f1", "help", "Help"),
             Binding("f2", "full", "Enlarge"),
             Binding("f3", "shell", "Shell"),
-            Binding("escape", "restore", "Restore", show=False),
+            Binding("escape", "cancel", "Cancel", show=False),
         ]
 
         def __init__(self, db_path: str) -> None:
@@ -182,7 +171,7 @@ def run_app(db: str) -> None:
                 yield self.menu
 
             with Vertical(id="right"):
-                self.input = Static("", id="input")
+                self.input = Vertical(id="input")
                 self.input.border_title = "INPUT"
                 yield self.input
 
@@ -212,6 +201,15 @@ def run_app(db: str) -> None:
             yield Footer()
 
         def on_mount(self) -> None:
+            # INPUT holds either the stage's key list, or a form. Both are
+            # mounted here rather than in `compose`, because a widget swapped
+            # in later has to be mounted the same way as one swapped in at
+            # the start — two paths for the same thing is how they diverge.
+            self.keys_label = Static("")
+            self.input.mount(self.keys_label)
+            self.form_fields: dict[str, object] = {}
+            self.form: Form | None = None
+
             self.list_view = ListView()
             self.queue.mount(self.list_view)
 
@@ -233,10 +231,132 @@ def run_app(db: str) -> None:
         def _show_stage(self, name: str) -> None:
             """INPUT shows this stage's keys, and only this stage's."""
             self.stage = name
+            self._close_form()
             self.input.border_title = f"INPUT  ·  {name}"
             keys = "   ".join(f"[{key}] {command}"
                               for key, command, _hint in actions_for(name))
-            self.input.update(keys or "(no actions on this stage)")
+            self.keys_label.update(keys or "(no actions on this stage)")
+
+        # -- forms ----------------------------------------------------------
+
+        def _close_form(self) -> None:
+            """Back to the key list.
+
+            Every form widget is removed rather than hidden. A hidden input
+            still takes Tab and still holds a value, so the next form would
+            open with the last one's answers underneath it.
+            """
+            for widget in list(self.form_fields.values()):
+                try:
+                    widget.remove()
+                except Exception:
+                    pass
+            self.form_fields = {}
+            self.form = None
+            self.keys_label.display = True
+            self.input.styles.height = 5
+
+        def _open_form(self, command: str) -> None:
+            """Draw the command's fields into INPUT.
+
+            The schema is derived from the command itself, so this draws
+            whatever the command declares — a new option appears without any
+            change here.
+            """
+            form = form_for(command)
+            if form is None:
+                self._echo(f"no form for {command}")
+                return
+
+            self._close_form()
+            self.form = form
+            self.keys_label.display = False
+            self.input.border_title = f"INPUT  ·  {form.title}"
+
+            # Room for the fields, the note, and the Enter line.
+            self.input.styles.height = min(20, len(form.fields) + 6)
+
+            if form.note:
+                note = Static(f"  {form.note}", classes="form-note")
+                self.input.mount(note)
+                self.form_fields["__note__"] = note
+
+            for item in form.fields:
+                if item.kind == "choice":
+                    widget = Select(
+                        [(choice, choice) for choice in item.choices],
+                        value=item.default or Select.BLANK,
+                        prompt=item.label,
+                        id=f"f-{item.name}")
+                elif item.kind == "flag":
+                    widget = Checkbox(item.label, id=f"f-{item.name}")
+                else:
+                    widget = Input(
+                        value=item.default,
+                        placeholder=f"{item.label}"
+                                    + (" (required)" if item.required else ""),
+                        id=f"f-{item.name}")
+                self.input.mount(widget)
+                self.form_fields[item.name] = widget
+
+            run_line = Static(
+                "  Enter runs it · Esc cancels", classes="form-note")
+            self.input.mount(run_line)
+            self.form_fields["__run__"] = run_line
+
+            first = next((w for n, w in self.form_fields.items()
+                          if not n.startswith("__")), None)
+            if first is not None:
+                first.focus()
+
+        def on_select_changed(self, event) -> None:
+            """A choice does not submit.
+
+            Changing a dropdown is not the same as saying "go" — the operator
+            may set four fields before running anything.
+            """
+            event.stop()
+
+        def _form_values(self) -> dict:
+            values = {}
+            for name, widget in self.form_fields.items():
+                if name.startswith("__"):
+                    continue
+                value = getattr(widget, "value", "")
+                if value is None or repr(value) == "Select.BLANK":
+                    value = ""
+                if isinstance(value, bool):
+                    value = "yes" if value else ""
+                values[name] = str(value)
+            return values
+
+        def _submit_form(self) -> None:
+            """Validate, then run.
+
+            Missing fields are reported by LABEL and before anything runs, so
+            the error arrives while the operator is still looking at the
+            form.
+            """
+            if self.form is None:
+                return
+
+            values = self._form_values()
+            missing = self.form.missing(values)
+            if missing:
+                self._echo(f"needs: {', '.join(missing)}")
+                return
+
+            words = self.form.command_line(values)
+            self._close_form()
+            self._show_stage(self.stage)
+            self._echo(f"> {' '.join(words)}")
+
+            if words[0] in INTERACTIVE:
+                self.run_in_terminal(words)
+            else:
+                self._echo(render_command(
+                    words, db=self.db_path,
+                    width=self._pane_width(self.query_one("#console"))))
 
         def action_refresh(self) -> None:
             """QUEUE always shows EVERY state.
@@ -290,6 +410,11 @@ def run_app(db: str) -> None:
             self.query_one("#console").remove_class("open")
 
         def on_input_submitted(self, event) -> None:
+            # Enter inside a form submits the FORM, not the console.
+            if self.form is not None and event.input is not self.bar:
+                self._submit_form()
+                return
+
             typed = (event.value or "").strip()
             self.bar.value = ""
             if not typed:
@@ -333,23 +458,16 @@ def run_app(db: str) -> None:
 
             event.prevent_default()
 
-            # PREFILL, do not run.
+            # A FORM, not a prefilled string.
             #
-            # Most of these need arguments — `search` wants keywords, `paste`
-            # a file, `discover` a board — so firing them bare produced an
-            # error and looked broken. Only `run` happened to work without
-            # any, which is why only `run` appeared to.
+            # Firing the command bare failed: `search` wants keywords,
+            # `paste` a file, `discover` a board. Prefilling the console
+            # fixed that but still left the operator typing syntax — and an
+            # option nobody looks up is an option nobody uses.
             #
-            # Prefilling is also honest about what is about to happen: the
-            # command is on screen, editable, and runs when Enter is pressed.
-            # A key that silently dispatched an application would be worse
-            # still.
-            self.bar.value = command + (" " if NEEDS_ARGUMENT.get(command) else "")
-            self.bar.focus()
-
-            hint = NEEDS_ARGUMENT.get(command)
-            if hint:
-                self._echo(f"> {command} — {hint}")
+            # The form shows every option the command declares, with its
+            # default already chosen, and validates before anything runs.
+            self._open_form(command)
 
         def on_list_view_highlighted(self, event) -> None:
             index = event.list_view.index or 0
@@ -419,6 +537,14 @@ def run_app(db: str) -> None:
             for other in targets:
                 other.display = other is box
             self.enlarged = box
+
+        def action_cancel(self) -> None:
+            """Escape closes a form first, then restores an enlarged pane."""
+            if self.form is not None:
+                self._close_form()
+                self._show_stage(self.stage)
+                return
+            self.action_restore()
 
         def action_restore(self) -> None:
             if self.enlarged is None:

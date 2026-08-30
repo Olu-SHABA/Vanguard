@@ -1,0 +1,100 @@
+Data Scientist
+
+About the job
+
+Created in 2016, Free2move simplifies mobility-related uses by offering a wide range of services to satisfy everyone's 🚘 travel needs.
+
+With Free2move, you can rent a city car for shopping or for your stay in Italy or book a car park during your weekend in Paris... all in one click, on our web/mobile platform! 📲
+
+Born from the merger of the Stellantis Group 🚗 and the start-up TravelCar, Free2move, thanks to its agility and its spirit of conquest has managed to establish itself in just few years as a reference player to revolutionize the mobility of all travellers.
+
+Having become the #1 reflex for more than 6 million users, Free2move operates in more than 170 countries across different continents 🌎 and is available in 30 languages and 26 currencies. 5000 partners trust us and several hundred thousand vehicles are available!
+
+If you want to join a team of +650 experts and bold international projects, then you're in the right place! 🎯
+
+You will evolve in an ultra-dynamic, innovative, agile, internationally-focused structure and integrate our talented teams, full of ideas and motivation and with multidisciplinary skills, at the crossroads of the digital eco-system and the fast-changing automotive sector.
+
+At Free2Move, data science and analytics sit at the core of our products and business decision-making. We are looking for a Data Scientist to join our Marketplace team and optimize the dynamic balance between supply and demand, ensuring our cars are perfectly positioned and priced for every journey.
+
+Why Join the Data & AI Team?
+
+    High Impact: Work at the center of product strategy, influencing critical business decisions.
+    Real-World Deployment: Put algorithms into production that directly govern fleet operations.
+    Core Optimization: Solve complex marketplace dynamics across diverse international markets.
+
+Your Next Missions
+
+    Dynamic Pricing: Enrich machine learning models to dynamically adjust rates across all markets.
+    Fleet Optimization: Improve fleet repositioning algorithms to maximize overall rental volume.
+    End-to-End MLOps: Industrialize ML models from initial R&D through to production monitoring.
+    Experimentation Infrastructure: Design scalable data pipelines to power A/B testing and measure algorithm impact.
+    Marketplace Monitoring: Define precise KPIs and build reliable dashboards for real-time visibility.
+
+What You Bring
+
+    Background: Master’s degree in a quantitative field (Engineering, Mathematics, Statistics, Physics, or equivalent).
+    Experience: 3+ years of hands-on data science experience solving real-world business challenges.
+    Engineering Rigor: Expert Python skills (writing production-level code); experience with live production ML systems is a major plus.
+    Data Tech Stack: Strong SQL proficiency (Databricks or equivalent) and experience with BI tools (Tableau or equivalent).
+    Analytical Balance: A passion for statistics, effortlessly toggling between quick back-of-the-envelope estimates and deep analytical deep-dives.
+    Communication: Fluency in English with a proven talent for explaining complex data insights to non-technical stakeholders.
+
+What we offer 🎁
+
+Working at Free2move means becoming part of a tribe in which the culture of performance rhymes with a good atmosphere. It is also:
+
+    A start-up spirit supported by a large Group 
+    The opportunity to revolutionize the uses of mobility with us! 
+    A neat integration to start well 
+    Lots of possibilities for development 
+    Collaboration with multidisciplinary and international teams 
+    International projects to perfect your background!
+    An access to our E-Learning platform 📚 : for the development of languages and other skills
+
+...This list is not exhaustive...
+
+Our Recruitment Process
+
+    Step 1 (30 mins): Intro call with Amélie, Head of Talent Acquisition, to review your path and expectations.
+    Step 2: Technical Test evaluated with 2 Data & AI team members.
+    Step 3 (45 mins): Final Fit interview with Paolo (Director of Data & AI).
+
+Job type:
+
+Permanent
+
+Location : Remotely in France, Spain or italy
+
+Package :
+
+    Annual gross salary package depending of your experience: +/- 45-50K€
+    Company Bonus : 8,33%
+
+
+Hiring Team,
+Free2move
+
+Dear Free2move Team,
+
+I am writing to apply for the Data Scientist position within your Marketplace team. I like your focus on moving machine learning models past the research phase and directly into live fleet operations. I have spent over a decade building low-latency automated pipelines, cleaning imperfect datasets, and deploying models that balance supply and demand.
+
+While my background is rooted in global telecommunications rather than automotive rental fleets, the underlying logic is identical. My experience tracking network topology, traffic engineering, and routing protocols translates directly to the mathematical logic needed for vehicle fleet repositioning and dynamic asset allocation.
+
+A few concrete examples of my work that match your technical needs include:
+
+- Production Code and MLOps: I write functional, production-level Python and SQL. I recently built and open-sourced Vanguard, a semi-autonomous application pipeline that utilizes sentence-transformers and vector databases. I designed it with multi-stage tracking logic to handle end-to-end scheduling and automated monitoring without human intervention.
+
+- High-Throughput Optimization: I do not tolerate slow pipelines. I previously wrote a custom python engine that compressed a manual 90-minute data validation and transformation loop down to under 2 seconds on annual records exceeding 800,000 rows. I built strict validation and time-based null-imputation logic directly into this engine to guarantee data quality before it hits production pipelines.
+
+- Marketplace Analytics and Monitoring: At Amdari Inc., my work centered on customer lifetime value and churn analytics. I am highly comfortable analyzing behavioral funnels to find user drop-offs, setting up clean KPIs, and building reliable dashboards in Tableau and Power BI so non-technical stakeholders can easily measure algorithm impact.
+
+I hold a B.Sc. in Civil Engineering, which provided me with a robust academic grounding in statistical modeling and spatial network distribution. 
+
+I am currently based in Stirling, UK, with full right to work under a postgraduate dependent visa, and I am fully set up to work remotely for international teams across time zones.
+
+You can look at my source code, pipeline architectures, and commit histories directly on my public GitHub profile at github.com.
+
+I would welcome the opportunity to jump on an initial brief call to discuss how my pipeline optimization background can help balance your marketplace dynamics. Thank you for your time.
+
+Best regards,
+Olumide Shaba

@@ -1,0 +1,82 @@
+Data Scientist - Payments 
+
+About the job
+
+About IXOPAY
+
+IXOPAY is the enterprise-grade global payment infrastructure platform built for the era of agentic commerce. We equip merchants and enterprises with AI-driven intelligence, payment orchestration, advanced tokenization, and the tools to optimize every stage of the payments journey.
+
+From intelligent routing and compliance to customizable modules and enterprise-scale orchestration, IXOPAY helps businesses integrate faster, improve payment performance, and expand globally with confidence.
+
+At IXOPAY, our people are our greatest strength. Our collaborative culture is built on shared values that guide how we work, innovate, and support our customers.
+
+What Makes an IXOPAYer?
+
+We are a global team bound by one standard, where every voice matters and initiative drives real change. We thrive on progress over perfection - choosing direction over motion, working smart with modern tech and AI, and constantly learning through continuous iteration. If you are tenaciously curious, empowered to take ownership, and passionate about delivering customer-first solutions in the fast-paced world of global payments, you’ll fit right in.
+
+About The Role
+
+We're looking for a Data Scientist - Payments to help shape the future of IXOPAY's AI Payments Intelligence platform.
+
+As part of our Data Science & Engineering team, you'll develop machine learning models and AI-driven capabilities that transform complex payment data into actionable insights. Working closely with Engineering, Product, and customers, you'll build solutions that help global merchants optimize payment performance, improve conversion rates, detect anomalies, and manage risk.
+
+This is a hands-on role with ownership across the full data science lifecycle—from research and model development through production deployment and ongoing optimization.
+
+What You'll Do
+
+    Design, build, deploy, and maintain machine learning models that improve payment performance and operational efficiency.
+    Develop AI-driven capabilities including anomaly detection, predictive analytics, intelligent routing, and automated decision-making.
+    Own the end-to-end data science lifecycle, including data exploration, feature engineering, model validation, deployment, and monitoring.
+    Work with large-scale payment transaction data from PSPs, acquirers, and gateways to deliver reliable, production-ready insights.
+    Collaborate with Data Engineering and Backend teams to build scalable data pipelines, feature stores, and model-serving infrastructure.
+    Monitor model performance, explainability, and drift to ensure reliable production systems.
+    Partner with Product and Engineering teams to define new AI capabilities and bring them from concept to production.
+    Contribute to data science best practices, technical standards, and the evolution of our AI platform.
+
+What You'll Bring
+
+Required
+
+    3+ years of experience in Data Science, Machine Learning, or Applied AI.
+    Strong Python skills with experience building production machine learning solutions.
+    Proven experience developing, deploying, and maintaining predictive models for anomaly detection, forecasting, optimization, or risk management.
+    Experience with modern machine learning frameworks and libraries such as Pandas, NumPy, SciPy, and gradient boosting frameworks (e.g. LightGBM, XGBoost, or CatBoost).
+    Strong understanding of statistical modelling, forecasting, and data analysis.
+    Experience working with SQL and large-scale analytical databases.
+    Experience collaborating within cross-functional engineering teams to deliver production AI solutions.
+    Excellent communication skills and the ability to explain complex analytical concepts to technical and non-technical stakeholders.
+
+Preferred
+
+    Experience in payments, FinTech, fraud prevention, or financial services.
+    Advanced degree in Computer Science, Mathematics, Physics, Data Science, or a related quantitative discipline.
+    Experience with ClickHouse, DuckDB, Spark, Snowflake, or similar analytical platforms.
+    Experience with cloud platforms such as AWS (including S3, Bedrock, Lambda, DynamoDB, or Cognito).
+    Familiarity with Kubeflow, Vertex AI, Docker, CI/CD pipelines, and containerized deployment.
+    Experience with data visualization and monitoring tools such as Grafana or Streamlit.
+    Experience working in a startup or high-growth technology environment.
+
+Location
+
+This is a remote-friendly position based in Germany. We welcome applications from candidates across Germany or the European Union., with a preference for those located in or near Munich. You'll have the flexibility to work remotely or from our Munich office.
+
+Why Join IXOPAY?
+
+At IXOPAY, you'll help build the AI capabilities powering the next generation of enterprise payments. You'll work on challenging machine learning problems using real-world payment data, collaborate with experienced engineers and product leaders, and have the opportunity to shape a rapidly evolving AI platform.
+
+We Offer
+
+    Competitive salary and benefits
+    Professional growth and development opportunities
+    A collaborative, international team environment
+    Flexible remote working with the option to work from our Munich office
+
+Our Commitment to Inclusion
+
+We know great candidates don't always meet every qualification. If you're excited about this opportunity, we encourage you to apply - we'd love to hear what you can bring to IXOPAY. What Makes an IXOPAYer? We are a global team bound by one standard, where every voice matters and initiative drives real change. We thrive on progress over perfection - choosing direction over motion, working smart with modern tech and AI, and constantly learning through continuous iteration. If you are tenaciously curious, empowered to take ownership, and passionate about delivering customer-first solutions in the fast-paced world of global payments, you’ll fit right in.
+
+Equal Opportunity Employer
+
+IXOPAY is proud to be an Equal Opportunity Employer. We consider all qualified applicants without regard to race, color, religion, sex (including pregnancy, sexual orientation, gender identity, or gender expression), national origin, age, disability, genetic information, veteran status, or any other characteristic protected by applicable law.
+
+IXOPAY participates in E-Verify.

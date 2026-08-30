@@ -1,0 +1,78 @@
+Senior Data Scientist
+
+About the job
+
+Accelerate your development and exposure to high‑performance data platforms and cloud infrastructure. Join Sedona Digital, a fast‑growing scale‑up with the ambition to be recognised as one of the leading technology companies in Romania.
+
+Our global client base needs builders, engineers who enjoy designing and implementing scalable data platforms, have deep expertise in cloud data technologies, and take pride in delivering reliable, well‑governed solutions.
+
+At Sedona, we:
+
+    Obsess about our customers 
+    Build robust, scalable technical solutions 
+    Create an open, collaborative culture 
+    Invest in learning and long‑term careers 
+
+We are looking for a Senior Data Scientist with strong expertise in machine learning, advanced analytics, and statistical modelling to design and deliver data-driven solutions that generate measurable business impact.
+
+The role focuses on translating complex business challenges into analytical and AI-driven solutions, developing robust machine learning models, and communicating insights effectively to stakeholders. Working closely with clients, architects, and data engineers, you will leverage modern cloud-based data and AI platforms to deliver scalable analytics, machine learning, and Generative AI capabilities that support strategic decision-making.
+
+Responsibilities
+
+    Translate business problems into analytical solutions, identifying opportunities for predictive modelling, optimisation, and data-driven decision-making 
+    Design, develop, and deploy machine learning models using techniques such as classification, regression, clustering, and forecasting 
+    Leverage LLM analytical capabilities by engineering prompts to securely hosted AI models 
+    Apply statistical methods and experimentation techniques (hypothesis testing, A/B testing) to validate models and insights 
+    Conduct exploratory data analysis (EDA) to quantify data asset value, identify patterns, trends, and key drivers within large datasets 
+    Engineer features and prepare datasets to improve model performance and robustness 
+    Evaluate and optimize models using appropriate metrics, cross-validation, and tuning strategies 
+    Ensure model explainability and interpretability, communicating results clearly to both technical and non-technical stakeholders 
+    Design and implement MLOps practices including model versioning, monitoring, and retraining strategies 
+    Collaborate with data engineers to access, prepare, and scale datasets from cloud platforms 
+    Present insights and recommendations through compelling storytelling and data visualisation (MI/BI) 
+    Contribute to the design of analytics and AI solutions, focusing on delivering business value rather than infrastructure 
+    Engage with stakeholders and clients during discovery, experimentation, and solution design phases 
+
+Requirements
+
+    5 years' working as a senior data scientist or engineer delivering DS, ML or Advanced Analytics. 
+    2 years' working with GCP data technologies. 
+    Hands-on experience with: 
+    Machine Learning techniques (regression, classification, clustering, time series, etc.) 
+    Statistical analysis and modeling with production deployments 
+    End-to-end ML lifecycle (data preparation, modeling, evaluation, deployment, monitoring) 
+    Model performance tuning and validation techniques 
+    SQL skills and experience working with large datasets 
+    Demonstrable, proven ability to elicit, analyse, and document requirements and processes. 
+    Demonstrable, proven ability with applied data techniques including identification, pipelining/ETL, curation, chunking, modelling, data quality, cataloguing, lineage, package deployment. 
+    Hands-on experience with Agile methodologies and active participation in Agile ceremonies (e.g., sprint planning, retrospectives, backlog grooming). 
+    Self-motivated with the ability to work independently and own activities within a multidisciplinary team. 
+    Strong problem-solving skills and attention to detail with the ability to work independently and make pragmatic decisions 
+    Ability to communicate complex analytical concepts clearly to business stakeholders 
+    Comfortable working in a fast-paced, changing environment. 
+    Bachelor's or Master's degree in Data Science, Computer Science, Mathematics, Statistics, or a related field 
+
+Preferred Skills (Nice To Have)
+
+    Experience with Generative AI, prompt engineering, Retrieval-Augmented Generation (RAG), or Agentic AI solutions. 
+    Experience working within Banking, Financial Services or Insurance is highly preferred. 
+    Experience working with Vertex AI, Gemini, BigQuery ML, or similar cloud-native AI services. 
+    Familiarity with MLOps frameworks and production model monitoring practices. 
+    Experience with data governance, cataloguing, lineage, or metadata management solutions. 
+    Exposure to data visualisation and BI platforms such as Looker or Power BI. 
+    Experience participating in client workshops, discovery sessions, or solution design activities. 
+    Relevant certifications in Data Science, Machine Learning, AI, or Google Cloud technologies. 
+
+Key Tools & Technologies 
+
+    GCP Data & AI Components 
+    Dataflow 
+    Dataproc 
+    BigQuery & ML 
+    Dataplex & Catalogue 
+    Looker 
+    Vertex AI Agents & Search 
+    Gemini 
+    Miro, Figma 
+    Python, SQL 
+    CI/CD with Jira, Azure DevOps, Git Repos

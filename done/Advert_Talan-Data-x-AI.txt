@@ -1,0 +1,66 @@
+Lead Data Scientist (Classical ML, LLMs & AI Agents)
+
+Company Description
+
+Talan Data x AI is a leading Data Management and Analytics consultancy, working closely with leading software vendors and top industry experts across a range of sectors, unlocking value and insight from their data. At Talan Data x AI, innovation is at the heart of our client offerings, and we help companies to further improve their efficiency with modern processes and technologies, such as Machine Learning (ML) and Artificial Intelligence (AI).
+Job Description
+
+We are hiring a Lead Data Scientist to drive the technical delivery of our most demanding AI engagements and to lead a growing team of data scientists and AI engineers. This role is for a practitioner who is equally fluent in the rigour of traditional data science (statistical modelling, machine learning, experimentation) and the fast-moving world of large language models and agentic AI. You understand that the best solutions often combine both.
+
+You will own delivery from problem framing through to deployment, ensuring the work is technically sound, commercially valuable, and aligned to the architectural vision. As a lead, you will mentor the team, raise engineering and modelling standards, and act as a trusted technical partner in client conversations. You will help clients see not just what is possible, but what is practical and worth doing.
+
+This is a delivery-focused leadership role with genuine breadth: one week you might be tuning a forecasting model, the next designing an agentic workflow or evaluating an LLM pipeline for a client pilot. 
+
+Required skills & experience:
+
+    Lead end-to-end delivery of data science and AI projects, owning technical quality and outcomes.
+    Combine classical ML (regression, classification, forecasting, optimisation) with modern GenAI, LLM, and agent-based approaches as the problem demands.
+    Mentor and develop data scientists, AI engineers, and junior consultants, growing the team's capability.
+    Translate business problems into well-scoped analytical and AI solutions and communicate results to non-technical stakeholders.
+    Ensure best practice across the AI lifecycle — experimentation, evaluation, testing, deployment, and monitoring.
+    Act as the bridge between architecture and delivery, ensuring implementation stays faithful to design.
+    Support pre-sales and client discussions with credible technical input and realistic estimation.
+    Champion reproducibility, model governance, and responsible practice in everyday delivery.
+
+Qualifications
+
+To qualify for this role, you must have:
+
+    Minimum 5 years in data science or AI delivery, including hands-on leadership of technical teams or workstreams. 
+    Strong foundations in machine learning and statistics, with demonstrable production experience. 
+    Practical experience with LLMs and generative AI — prompting, RAG, fine-tuning, and evaluation. 
+    Exposure to AI agents and orchestration frameworks, and an appetite to deepen it. 
+    Proficiency in Python and the modern data / ML stack; sound data engineering instincts. 
+    Excellent communication and stakeholder skills, ideally in client-facing or consulting settings. 
+
+Ideally, you’ll also have, but not essential:
+
+    Familiarity with the Azure AI ecosystem (Azure ML, Azure OpenAI, Databricks / Fabric). 
+    Experience supporting business development or pre-sales. 
+    Domain depth in a regulated or data-rich industry. 
+    Contributions to open source, publications, or a visible professional profile. 
+
+You must be:
+
+    Willing to work on client sites, potentially for extended periods.
+    Willing to travel for work purposes and be happy to stay away from home for extended periods.
+    Eligible to work in the UK without restriction.
+
+#TalanUK #LI-HB1
+Additional Information
+
+Compensation & Benefits Package:
+
+    BDP Plus – A reward programme whereby you accrue points to trade against a 3-month paid sabbatical or cash equivalent.
+    25 days holiday + bank holidays.
+    5 days holiday buy/sell option.
+    Private medical insurance.
+    Life cover.  
+    Cycle to work scheme.
+    Eligibility for company pension scheme (5% employer contribution, salary sacrifice option).
+    Employee assistance programme.
+    Bespoke online learning via Udemy for Business.
+
+Why join:
+
+You will lead substantive, end-to-end AI work in a practice that is scaling fast and backing its people to grow with it. You will shape how a team works, influence how clients adopt AI, and keep your own skills at the frontier, bridging proven data science with the most current GenAI and agentic techniques. It is an opportunity to lead, deliver, and keep building.

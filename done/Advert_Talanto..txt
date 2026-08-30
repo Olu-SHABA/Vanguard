@@ -1,0 +1,107 @@
+Data Scientist (Pricing)
+
+About the job
+
+17 hours ago
+
+
+
+Data Scientist (Pricing)
+
+Full time
+
+     Senior
+     Remote
+     Remote, Portugal
+
+AnalyticsData Science
+
+Important: if an employer asks you to log into their system via iCloud or Google, send a code, an SMS or Telegram password, run some code, or install software — refuse. These are signs of fraud.
+
+Job Description
+
+    Engage with the business objectives behind key tasks: pricing for B2B/B2C, forecasting and optimization of financial and operational metrics, incident prioritization, and improving customer journey efficiency (revenue growth, cost savings, business impact).
+    Drive ML projects end-to-end: from problem definition and formalization to modeling, piloting, and presenting results.
+    Collaborate with data engineers to collect the necessary datasets and assess implementation feasibility.
+    Work with analysts on A/B test design: defining metrics, splits, and interpreting results.
+    Develop models (classic ML and DL, time series, uplift modeling), conduct error analysis and performance evaluation.
+    Prepare models and code for transfer to production infrastructure (deployment and releases handled by the technical team).
+    Take ownership of model quality, monitor key metrics, and collaborate with the team on degradation issues and improvement plans.
+
+Requirements
+
+    3+ years of experience as a Data Scientist.
+    Proven experience with end-to-end ML projects (ability to oversee the entire process).
+    Strong knowledge of classical machine learning techniques (feature engineering, classification, regression, boosting, etc.).
+    Hands-on experience with uplift modeling and time series tasks (with real business applications).
+    Experience working with business stakeholders and understanding optimization problems: pricing, B2C, LTV, retention, AB testing, and more.
+    Proficient in Python for DS/ML (writing clean, readable code for models and experiments).
+    Confident SQL user (able to build datasets, write joins, and perform data analysis).
+    Nice to have: experience with MLflow/DVC, pipelines (Airflow or similar), anomaly detection/anti-fraud, deep learning (PyTorch/TensorFlow), and model monitoring.
+
+Benefits
+
+    A fully flexible work schedule — there’s no pressure to start work at exactly 9:00 AM; what matters is achieving results and moving forward;
+    Each person in our team is encouraged to choose their preferred work format. You can work fully remotely, come to the office, or choose a hybrid work model;
+    We are an ambitious and supportive team who love what they do, appreciate each other, and grow together;
+    The growth and development of each employee is our priority, so we have internal programs available for adaptation and training, development of soft skills and leadership abilities that are tailored individually to each employee;
+    We also provide partial compensation for employees participating in external training and conferences;
+    In tourism, it's difficult to grow without an excellent knowledge of English, and we support our employees' language learning goals — we organize group and individual lessons, plus speaking clubs with colleagues from all over the world;
+    And, of course, to encourage you to travel more, we offer corporate prices on hotels and other travel services;
+    We prioritize well-being and are committed to supporting the overall health and work-life balance at ETG. As part of this commitment, we provide MyTime Day Off - an extra day off that is designed to give our employees the flexibility to focus on important matters, whether it’s taking care of their health, mental recharge, addressing personal issues, or any other important activities.
+
+Learn more about our data protection practices in our Privacy Policy: 
+
+Match
+
+21%
+
+Good match
+
+We match every vacancy against your profile and show a fit score — so you instantly know which ones are worth applying to. Sign up and create a resume — it's free.
+
+Estimated salary
+
+Based on 40 similar vacancies
+
+4 372 – 11 157 $/month
+
+4 372 $25%
+
+7 423 $median
+
+11 157 $75%
+
+The range shows the lower and upper market bands: 25% of vacancies pay below the first value, the median is the typical salary, and 75% marks the upper band.
+
+    Engage with the business objectives behind key tasks: pricing for B2B/B2C, forecasting and optimization of financial and operational metrics, incident prioritization, and improving customer journey efficiency (revenue growth, cost savings, business impact).
+    Drive ML projects end-to-end: from problem definition and formalization to modeling, piloting, and presenting results.
+    Collaborate with data engineers to collect the necessary datasets and assess implementation feasibility.
+    Work with analysts on A/B test design: defining metrics, splits, and interpreting results.
+    Develop models (classic ML and DL, time series, uplift modeling), conduct error analysis and performance evaluation.
+    Prepare models and code for transfer to production infrastructure (deployment and releases handled by the technical team).
+    Take ownership of model quality, monitor key metrics, and collaborate with the team on degradation issues and improvement plans.
+
+Requirements
+
+    3+ years of experience as a Data Scientist.
+    Proven experience with end-to-end ML projects (ability to oversee the entire process).
+    Strong knowledge of classical machine learning techniques (feature engineering, classification, regression, boosting, etc.).
+    Hands-on experience with uplift modeling and time series tasks (with real business applications).
+    Experience working with business stakeholders and understanding optimization problems: pricing, B2C, LTV, retention, AB testing, and more.
+    Proficient in Python for DS/ML (writing clean, readable code for models and experiments).
+    Confident SQL user (able to build datasets, write joins, and perform data analysis).
+    Nice to have: experience with MLflow/DVC, pipelines (Airflow or similar), anomaly detection/anti-fraud, deep learning (PyTorch/TensorFlow), and model monitoring.
+
+Benefits
+
+    A fully flexible work schedule — there’s no pressure to start work at exactly 9:00 AM; what matters is achieving results and moving forward;
+    Each person in our team is encouraged to choose their preferred work format. You can work fully remotely, come to the office, or choose a hybrid work model;
+    We are an ambitious and supportive team who love what they do, appreciate each other, and grow together;
+    The growth and development of each employee is our priority, so we have internal programs available for adaptation and training, development of soft skills and leadership abilities that are tailored individually to each employee;
+    We also provide partial compensation for employees participating in external training and conferences;
+    In tourism, it's difficult to grow without an excellent knowledge of English, and we support our employees' language learning goals — we organize group and individual lessons, plus speaking clubs with colleagues from all over the world;
+    And, of course, to encourage you to travel more, we offer corporate prices on hotels and other travel services;
+    We prioritize well-being and are committed to supporting the overall health and work-life balance at ETG. As part of this commitment, we provide MyTime Day Off - an extra day off that is designed to give our employees the flexibility to focus on important matters, whether it’s taking care of their health, mental recharge, addressing personal issues, or any other important activities.
+
+Learn more about our data protection practices in our Privacy Policy:

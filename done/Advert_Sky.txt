@@ -1,0 +1,72 @@
+About the job
+
+Job Description
+
+We believe in better. And we make it happen.
+
+Better content. Better products. And better careers.
+
+Working in Tech, Product or Data at Sky is about building the next and the new. From broadband to broadcast, streaming to mobile, SkyQ to Sky Glass, we never stand still. We optimise and innovate.
+
+We turn big ideas into the products, content and services millions of people love.
+
+And we do it all right here at Sky.
+
+What You'll Do
+
+Join a team that's shaping the future of Sky through data. Using machine learning, AI and advanced analytics, our Data Scientists solve high-impact customer and commercial challenges at scale. From personalised experiences and intelligent decisioning to next-generation AI solutions, we work with cutting-edge technology and vast data assets to deliver measurable business value. If you're passionate about turning data into action and making a real-world impact, you'll thrive in our team.
+
+As Part Of Our Team, You Will
+
+    Be responsible for developing and driving actionable customer intelligence from our core data assets using advanced analytics
+    Develop advanced analytics algorithms exploiting our rich data assets including product holding, demographics, product usage, customer service interactions and customer metrics
+    Develop predictive, forecasting and optimisation models using large-scale customer and commercial data, supporting use cases such as churn prediction, customer lifetime value, segmentation, demand forecasting, elasticity modelling and intelligent decisioning
+    Collaborate with senior data scientists and stakeholders to define project objectives, develop analytical frameworks, and translate business requirements into analytical solutions
+    Engage with our technology teams and data engineers to build compliant, efficient and scalable solutions for managing customer treatments at Sky
+    Strengthen our internal data science capabilities by continuously innovating and driving new ideas, engaging in training
+
+What You'll Bring
+
+    Proven experience in at least two advanced analytical areas including, but not limited to Predictive Modelling, Optimisation, Unsupervised Learning and NLP in a commercial setting
+    Experience building and deploying large-scale data science solutions (preferably within B2C companies) in a cloud environment (we use GCP VertexAI in the team)
+    Very good Python programming skills and experience with Machine Learning libraries such as scikit-learn, XGBoost, Keras, Tensorflow etc
+    Familiarity with ETL concepts and ability to write scalable SQL code (familiarity with BigQuery and working with nested data a plus)
+    Ability to present your results concisely to both technical and non-technical audiences
+    Ability to quickly understand a business objective, problem-solving to deliver a data science solution delivering commercial value
+
+Benefits and perks
+
+There's one thing people can't stop talking about when it comes to life at Sky: the perks. Here’s a taster:
+
+    Free Sky TV or NOW package, including Sky Sports and Sky Cinema     
+    Pension package with up to 9% employer contribution   
+    Private healthcare with mental health support    
+    Aviva Digital GP and dental insurance    
+    Discounts on Sky products, including Sky Mobile, Sky Broadband, Sky Glass and Sky Protect    
+    Sharesave and Tech schemes    
+    A range of Sky VIP rewards and experiences   
+
+
+
+How you’ll work
+
+We've adopted a hybrid working approach to give more flexibility on where and how we work. The hybrid working expectations for this role are 2 days in the office per week
+
+Your Office Space
+
+Osterley
+
+Our Sky Group HQ. Equipped with state-of-the-art technology and workspaces, there’s plenty of space to see your big ideas come to life. Here you’ll find 13 subsidised restaurants and cafes. You can re-energise at our gym, catch the latest films at our cinema, get your car washed and even get pampered at our beauty salon.
+
+Our Osterley Campus is just a 10-minute walk from Syon Lane train station, or you can get one of our free shuttle buses from Osterley, Gunnersbury and Ealing Broadway stations. Plus, there’s free onsite parking available for cars, motorbikes and bicycles.
+
+Who we are
+
+We’re Sky, a leading media and entertainment company who connect millions with entertainment, sports, news and arts through innovative products and services. Working with us means you’ll be bringing the joy of a better experience to more people, every day. All so we can do better and deliver better for our customers, colleagues and society.  
+
+We’re an equal opportunity employer and value diversity at our company. We're a Disability Confident Accredited Employer, and welcome and encourage applications from all candidates. We will look to ensure a fair and consistent experience for all and will make reasonable adjustments to support you where appropriate. Please flag any adjustments you need as early as you can.
+
+Just so you know: if your application is successful, we’ll ask you to complete a criminal record check. And depending on the role you have applied for and the nature of any convictions you may have, we might have to withdraw the offer. 
+
+To be eligible for this role you are required to have the appropriate right to work in the UK. Please be aware Sky does not offer sponsorship for this position.
+

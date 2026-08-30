@@ -1,0 +1,52 @@
+Data Scientist - Python (Remote)
+
+About the job
+
+    Role: Data Scientist - Python (Remote)
+    Location: Remote (Work from Anywhere)
+    Job Type: Full-Time
+    Payout: Competitive, based on experience
+
+
+Role Overview:
+
+We are hiring for one of our clients, seeking a Data Scientist/Analyst to work on a full-time basis. The role involves developing and maintaining high-quality Python code to train and optimize AI models while conducting evaluations to benchmark performance and analyze results. Candidates will collaborate with researchers and annotators to execute reinforcement learning with human feedback and refine reward models.
+
+
+Key Responsibilities:
+
+• Design, develop, and maintain efficient, high-quality code to train and optimize AI models.
+
+• Conduct evaluations to benchmark model performance and analyze results for continuous improvement.
+
+• Evaluate and rank AI model responses to user queries across diverse domains, ensuring alignment with predefined criteria.
+
+• Develop comprehensive explanations and rationales for evaluations, showcasing excellent reasoning and technical expertise.
+
+• Lead efforts in supervised fine-tuning, including creating and maintaining high-quality, task-specific datasets.
+
+
+Required Skills & Qualifications:
+
+• Proficiency in Python for data analysis and model development is required.
+
+• Experience with data science and machine learning techniques is required.
+
+• Ability to use business sense and analytical abilities to extract insights from public databases is required.
+
+• Strong skills in bug fixing and creating thorough technical documentation are required.
+
+• Excellent communication skills to clearly articulate reasoning and logic in Jupyter notebooks or similar formats are required.
+
+
+More About the Opportunity:
+
+This role offers a unique opportunity to work with a global leader in the Technology, Information and Internet industry, contributing to the advancement of cutting-edge AI systems. The position involves solving mission-critical priorities for companies through real-world AI applications.
+
+
+Equal Opportunity Employer:
+
+We hire based on skills and expertise. All qualified candidates are welcome regardless of background, experience, or prior employment history. Applications are reviewed solely on demonstrated technical ability and qualifications.
+
+
+Apply Now!

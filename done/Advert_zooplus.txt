@@ -1,0 +1,63 @@
+Data Scientist - Linear Optimization (All Genders)
+
+About the job
+
+Company Description
+
+With over 25 years’ experience, plus the same enormous passion and ambition we had on day-one, we’re trailblazers in the pet e-commerce industry. Our solutions make over 12 million customers genuinely happier – and that’s something we really care about. We work together to continually adapt; embracing change and the challenges it brings so that we can keep doing better. Join us and discover a place where your potential meets your passion for pets. That’s the power of plus.
+
+Job Description
+
+As a Data Scientist in Linear and Mixed Integer Optimization, you will join the Resource Planning Team and will contribute to crucial outbound logistics processes and systems in the company. You will have an opportunity to create and enhance tools for cost-efficient planning in a continuously growing logistics network with 1.000.000+ parcels weekly.
+
+Here Are Some Things About The Way We Work
+
+    We work in self-organized teams, respecting and valuing everyone´s opinion.
+    We learn from each other through pair programming, code reviews, and knowledge sharing.
+    We deliver value by developing new features, maintaining existing products and improving the infrastructure required for it, so being cross-functional is part of our DNA. 
+    We build quality into our code by following clean code principles and DevOps practices - you build it, you run it.
+    We work in a mature Agile environment, taking a part in entire software development life cycle from discovery through coding, testing, deployment and maintenance.
+    We continuously grow our skillset staying on top of fast-pacing environment, striving for mastery and using state-of-the-art technologies and practices.
+    We embrace diversity, having colleagues from over 50 countries. This means our working language is English.
+
+These are some of the technologies, frameworks, and practices we use:
+
+    Gurobi, Python
+    Oracle, PostgreSQL, Athena
+    Amazon Web Services and Terraform
+    CI/CD with Jenkins pipelines
+    Docker, Kubernetes
+    Grafana, Kibana
+
+Responsibilities
+
+    Design, develop and maintain linear optimization and mixed integer models and integrate them in production
+    Analyze data, run simulations, and present actionable insights to stakeholders across engineering, product, and operations.
+    Contribute to the full SDLC; from ideation and prototyping to deployment, monitoring, and continuous improvement
+    Ensure quality and performance of developed solutions through testing, validation, and monitoring in production.
+
+Qualifications
+
+Requirements:
+
+    BS in Computer Science, Applied Mathematics, or another related field.
+    3+ years of hands-on experience solving linear optimization and mixed-integer problems
+    1+ years of experience with commercial solvers (preferably Gurobi) for building and solving optimization models
+    Solid knowledge of advanced mathematical modeling techniques and experience with simulations
+    Proficiency in Python and scientific computing libraries such as Pandas, NumPy, and SciPy.
+    Knowledge of relational databases and query authoring (SQL)
+    Practical experience working with relational databases and writing SQL queries
+    Strong communication skills and the ability to explain complex technical concepts to non-technical stakeholders.
+    Experience with Forecasting algorithms will be a plus; willingness to learn is equally valued
+    Team player with “can do” attitude
+    Proactive in learning new skills and technologies, confident in challenging status quo to drive continuous improvement
+
+Additional Information
+
+Headquartered in Munich, with offices across Madrid, Krakow, Wroclaw, London and Vienna, we collaborate because we genuinely love working together - so you’ll be at the heart of an incredible, multinational team. We trust each other to get the job done, which means you’ll benefit from hybrid working, spending 60% of your time in the office and 40% at home. There’s an option to work for 20 days abroad in approved countries too.
+
+Add to that development opportunities that help you to shape your own career path, excellent training and support, wellbeing offers, subsidised transport or bike leasing, plus 20% discount across all our products, and you’ll begin to get a sense of what sets us apart. Find out more about the specific benefits at your local office in our blog posts.
+
+A note on compensation: We believe in being transparent about salary ranges. The range shown reflects the full scope that the role can grow into over time, depending on experience, skills, and impact. Most offers are positioned around the midpoint of the range, ensuring a fair and consistent approach across our teams.
+
+At zooplus, we believe in equal opportunity and support everyone to fulfil their potential. We recognise the power of listening and learning from each other and embrace diversity and inclusion of all.

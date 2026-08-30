@@ -1,0 +1,80 @@
+Senior Data Scientist (m/f/d)
+
+About the job
+
+Finmatics – Your AI Accountant With Fin, the AI accountant, Finmatics makes accounting easier, faster, and smarter. Instead of manual routine tasks, our software handles them reliably—specifically designed for accountants in Germany and Austria. Our mission: To give back time, eliminate document chaos, and make workflows efficient, digital, and future-proof. At Finmatics, you get more than just innovative technology: you get an environment that promotes flexibility and gives you the space to contribute your ideas. Together, we ensure that smart technology feels like true relief—making Finmatics the favorite digital product of our customers.
+
+As a Senior Data Scientist (m/f/d), you will work on exciting projects that deliver first-class solutions powered by modern language models. You will have full command of the technical stack necessary for development and deployment, collaborate closely with stakeholders, and play a key role in shaping the company’s data science strategy.
+
+
+Your Key Responsibilities
+
+
+    Shape and implement the company’s data science strategy and drive innovation, with a primary focus on Generative AI and Agentic workflows
+
+    Identify opportunities to leverage data for business value and impact
+
+    Take ownership of the full technical stack for development and deployment
+
+    Design, build, and maintain scalable machine learning models and efficient data pipelines
+
+    Ensure robust data management and engineering practices
+
+    Collaborate with cross-functional teams to gather requirements and deliver insights
+
+    Communicate complex technical concepts clearly to both technical and non-technical stakeholders
+
+
+Required Qualifications
+
+
+    Master’s or Ph.D. in Data Science, Computer Science, Statistics, or related field or equivalent knowledge and experience
+
+    Hands-On experience with Generative AI and Agentic workflows
+
+    Proven experience in taking part in complex projects
+
+    Expertise in modern language models and machine learning frameworks
+
+    Experience with modern LLM-Supporting Frameworks and Tools
+
+    Proficiency in modern LLM Prompting techniques and approaches
+
+    Experience with managing feedback training pipelines and fine-tuning
+
+    Strong command of programming languages such as Python, R or any strongly-typed computer language
+
+    Good knowledge of cloud platforms (AWS, GCP, Azure) and deployment processes
+
+
+Nice to Have
+
+
+    Familiarity with big data technologies like Spark or Hadoop or any other commercial Data Warehouse and/or Data Lake technologies
+
+    Strong background in data architecture and database management.
+
+    Extensive experience with data management and engineering tools
+
+
+What We Offer
+
+
+    Your Workplace: You work fully remote and flexibly from anywhere within Germany. We focus on results—not on where your desk is located.
+
+    Teamwork: Our culture is clear, direct, and appreciative. You will be part of a supportive team with flat hierarchies that grows together, even in a remote setting.
+
+    Structured Onboarding & Buddy: We won’t leave you hanging, even from afar. Your personal Buddy and our structured onboarding process ensure you find your feet quickly and start your journey well-connected.
+
+    Flexible Working Hours: You design your own schedule so that you can be productive while maintaining an optimal work-life balance.
+
+    Modern Equipment: You will receive a company laptop and modern technical equipment to ensure your home setup is just as efficient.
+
+    Mobility & Sports: Take advantage of Lease a Bike and Eversports to stay fit wherever you work. You’ll also have the chance to participate in our annual team-wide sporting events.
+
+    Company Events: Our company and team events take place in Vienna. Remote colleagues are, of course, warmly invited to join us!
+
+    The minimum salary for this position is € 65.000,- overpayment possible depending on qualifications
+
+
+Join us and help shape the future of data science!

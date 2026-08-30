@@ -1,0 +1,45 @@
+Data Scientist
+
+About the job
+
+About The Company
+
+SBS is a global leader in digital banking solutions, partnering with over 1,500 banks, building societies, and specialized finance providers across more than 80 countries. Our mission is to empower financial institutions to develop, deliver, and operationalize their digital transformation strategies effectively. By leveraging our comprehensive suite of digital banking products and services, we enable these organizations to provide exceptional financial services to their clients, fostering innovation, efficiency, and customer satisfaction worldwide.
+
+About The Role
+
+We are looking for a highly experienced Principal Data Scientist specializing in Machine Learning and Artificial Intelligence to join our team on a full-time basis. This leadership role involves designing, developing, and deploying advanced AI and machine learning solutions tailored for the regulated financial sector. The successful candidate will spearhead innovative projects focused on agentic workflows and generative AI systems, ensuring all solutions adhere to strict financial regulations and governance standards. You will collaborate closely with cross-functional teams including engineering, product management, and compliance to translate complex business needs into scalable technical solutions. Additionally, you will mentor junior data scientists and engineers, fostering a culture of continuous learning and technical excellence.
+
+Qualifications
+
+    Strong expertise in Machine Learning, with a proven track record of developing and deploying models
+    Hands-on experience with agentic systems and autonomous workflows
+    Proven experience with Generative AI and Large Language Models (LLMs)
+    Experience working within regulated financial environments such as banking or fintech
+    Proficiency in Python programming language
+    Knowledge of financial regulations, model governance, and compliance standards
+    Excellent problem-solving and analytical skills
+    Strong communication and collaboration abilities
+
+Responsibilities
+
+    Lead the development, training, and deployment of machine learning models for financial applications
+    Design and implement agentic workflows to enable autonomous decision-making systems
+    Architect and scale Generative AI solutions, including systems based on large language models
+    Work closely with stakeholders to understand business requirements and translate them into technical solutions
+    Ensure all models and AI systems comply with relevant financial regulations and internal governance standards
+    Mentor and guide junior data scientists and engineers, fostering a collaborative team environment
+    Collaborate with cross-functional teams including engineering, product, and compliance to ensure seamless integration of AI solutions
+    Stay updated with the latest advancements in AI, ML, and regulatory requirements to continuously enhance solutions
+
+Benefits
+
+    Competitive salary package
+    Health & Wellbeing: Private Medical Insurance, Health Cash Plan, Dental Insurance, Eye Care Vouchers, Flu Vaccinations
+    Finance & Protection: Life Assurance, Critical Illness Cover, Pension Plan, Long Service Awards, Payroll Giving, Fleet car provider
+    Leisure & Lifestyle: Cycle to Work Scheme, Holiday Trading, Travel Insurance
+    Supportive and inclusive work environment committed to diversity and equal opportunity
+
+Equal Opportunity
+
+SBS is dedicated to creating an inclusive workplace that values diversity and promotes equal opportunities for all employees. We do not discriminate based on gender, age, ethnicity, sexual orientation, disability, religion, or any other characteristic protected by applicable laws. We are committed to fostering a respectful and supportive environment where every individual can thrive and contribute to our shared success.

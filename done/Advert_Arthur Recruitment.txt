@@ -1,0 +1,28 @@
+Pricing Manager (Data Scientist) - Remote 
+
+About the job
+
+I am working with a leading Personal Lines Insurer who are seeking a Technical Pricing Manager. The successful candidate will be responsible for the production of specialist statistical risk models across a range of products.
+
+
+As a Technical Pricing Manager, you’ll drive strategic change by enhancing model sophistication and leveraging the latest data science techniques to support profitable business growth.
+
+
+Key Responsibilities:
+
+
+    Develop and refine complex actuarial models to deliver high-impact, innovative pricing solutions
+    Conduct ad-hoc actuarial and statistical analyses, working with stakeholders across the business to address diverse challenges
+    Produce reports, documentation, and presentations to effectively communicate statistical models and insights to key stakeholders
+
+
+
+Requirements:
+
+
+    Proficiency in data science techniques using Python or R
+    Expertise in statistical analysis software, with knowledge of Willis Towers Watson (Emblem, Radar) being highly desirable
+    Strong understanding of pricing and underwriting principles, preferably within personal or commercial lines at a large business scale
+    Ability to oversee pricing model development and maintenance while evaluating the profitability and market positioning of new and existing product propositions
+    Proven experience working collaboratively with teams and senior stakeholders, with excellent communication skills to present complex concepts clearly
+

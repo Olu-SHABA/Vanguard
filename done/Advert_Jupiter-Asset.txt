@@ -1,0 +1,48 @@
+About the job
+
+The Value of Active Minds
+
+About Jupiter
+
+Jupiter is one of the UK’s leading investment management companies with just under 500 employees and £54 billion worth of assets under management (as at 31st December 2025).
+
+Jupiter provides investment services to individual and institutional investors through mutual funds (UK unit trusts, Luxembourg SICAVs and Dublin OEICs), separately managed accounts and sub-advised funds. Jupiter has experienced a period of international growth with offices open in EMEA and APAC.
+
+The majority of our employees are based in our London office located just minutes from Victoria station which provides stair-free access from both the Underground’s Victoria line and National Rail platforms, as well as limited road crossings to the Jupiter office. Our London office was designed to encourage employees to live active, healthy lives with floor-to-ceiling windows that allow for greater natural light and the benefit of a private balcony, table tennis room, cycle storage and on-site shower and locker facilities. The short distance to Green Park and St James' Park also provides employees with a natural space to relax during their lunch break and a healthy alternative to office-based meetings.
+
+We offer our UK employees a 3:2 hybrid working arrangement where Tuesdays, Thursdays and a third day of your choice are worked from the office. The other two days may be worked from home. This facilitates collaboration and allows employees to maximise productivity whilst maintaining a healthy work/life balance.
+
+Background
+
+We are seeking a highly capable and collaborative Data Scientist. This role will be responsible for furthering the team's data strategy by focusing on statistical modelling, generating actionable investment insights, and carrying out alternative data research. You will work in a dynamic environment that values curiosity, communication, and practical impact
+
+Key Responsibilities
+
+    Working with alternative data sources to identify alpha signals not captured by traditional market data.
+    Build predictive models using varied data sources.
+    Build and maintain reproducible data science processes and tools in Python and SQL, ensuring clarity and scalability.
+    Dedicate a portion of time to research initiatives - identifying novel approaches to existing processes.
+    Work directly with investment professionals to identify opportunities, develop hypotheses, and deliver data-driven solutions that enhance investment decision-making.
+    Create compelling visual and written narratives that communicate complex findings clearly to less technical stakeholders.
+    Work with data engineers and data analysts to conduct exploratory data analyses and to assist in the data cleansing and pipeline processes.
+    Contribute to the development of best practices for data access, documentation, and reproducibility across the team.
+
+Desired Skills / Experience
+
+    At least three years of relevant experience in data science.
+    Strong statistics and/or machine learning background.
+    Highly proficient in Python (including packages such as pandas, NumPy, SciPy, matplotlib/seaborn) and SQL for data manipulation and analysis.
+    Demonstrated interest in financial markets and fundamental investing.
+    Experience with cloud-based data tools (ideally Azure).
+    Familiarity with large language models (LLMs) and their practical applications.
+    Strong communication skills and the ability to engage confidently with stakeholders across the business, especially investment teams.
+    Experience working with company fundamentals data feeds from major market data provider(s).
+    Familiarity with alternative data sources and a keen interest in expanding this capability.
+    A track record of applying data-driven methods to financial, economic, or business problems, ideally within an asset management, hedge fund, or investment-focused environment.
+    Experience with business intelligence platforms (ideally Power BI).
+    Degree in a quantitative/STEM discipline.
+    Interest in working towards IMC or CFA qualification.
+
+Additional Role Details
+
+    This role is subject to the Conduct Rules set by the FCA.

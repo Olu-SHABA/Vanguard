@@ -1,0 +1,99 @@
+Senior Data Scientist
+
+About the job
+
+Location: London or Nottingham, Hybrid (two days per week in office)
+
+Salary: From £70k+ & 10% discretionary bonus
+
+Level: Senior-level technical leadership role, with responsibility for advanced analytics capability and management of a small team of analysts and data scientists.
+
+
+Who are we?
+
+We’re the original pioneers in connected commerce marketing. Since 2008, we’ve been partnering with major retailers, powering global brands, and building meaningful connections with shoppers.
+
+We simplify the mind-boggling complexity of today’s retail media landscape. We deliver impactful campaigns that connect with people where it matters. We create seamless and personalised shopping experiences. Above all, we deliver amazing results for our partners, driven by our unshakeable desire for growth. Time after time, we change the game. SMG is home to a world-class suite of commerce advertising capabilities powered by data and cutting-edge technology. We constantly push ourselves, our tech and our industry to discover innovative new ways to connect, sell and grow.
+
+
+About the role
+
+
+We are looking for a Senior Data Scientist to join SMG. In this role, you will lead the technical development of our measurement and advanced analytics capability, creating robust methodologies and models that improve how retail media is measured across our Retail Media Networks.
+
+
+You’ll be a hands-on technical authority, designing, coding, testing and validating analytical solutions, while developing a small team and partnering with Data Engineering, Platform and Product to turn great methodologies into scalable, production-ready solutions.
+
+
+What you’ll do
+
+
+Your days will be dynamic. You might find yourself:
+
+
+    Leading the design and development of advanced retail media measurement methodologies using customer, transaction, campaign and exposure data.
+    Developing our capabilities across areas including attribution, incrementality and causal inference, deduplicated reach and frequency, customer lifetime value, optimisation and dynamic impression modelling.
+    Identifying gaps in our measurement capability and exploring emerging statistical and machine-learning techniques, taking promising ideas from feasibility through to validated prototypes.
+    Partnering with Data Engineering, Platform and Product teams to turn proven methodologies into scalable, production-ready solutions.
+    Making existing analytical solutions more efficient and reliable through reusable code, robust QA, clear documentation and reduced manual intervention.
+    Acting as a technical authority on advanced measurement, advising teams on complex analytical challenges and ensuring approaches are rigorous and commercially useful.
+    Leading and developing a small team of data analysts and data scientists, setting priorities, reviewing methodology and code, and supporting their professional growth.
+
+
+What we’re looking for
+
+
+    Experience in marketing effectiveness or advanced analytics, with expertise across areas such as attribution, experimental design, causal inference, regression, forecasting, segmentation and machine learning.
+    Advanced Python and SQL skills, with experience building modular, well-tested and maintainable analytical code.
+    Practical experience with cloud data platforms such as Snowflake, Databricks and/or Abacus.
+    Excellent communication skills, with the ability to make complex methodologies and findings clear and meaningful to non-technical audiences and senior stakeholders.
+    Ideally, experience leading or mentoring analysts or data scientists and reviewing methodology, code and output quality.
+    Ideally, experience working with large-scale customer, transaction, campaign and first-party datasets, particularly within retail media or marketing measurement.
+    Familiarity with digital advertising and measurement platforms, such as Google Analytics, Criteo, ad servers or retail media platforms, would be a plus.
+
+
+We're looking for people who enjoy the buzz of change, the satisfaction of building something better, and the joy of working with a close-knit, values-driven team. If you love variety, thrive in a fast-paced environment, and embrace change with energy, this could be your right role.
+
+
+Don’t meet every single requirement? We still want to hear from you. If you believe you’d thrive in this role, your unique perspective might be just what we’re looking for.
+
+
+Why SMG?
+
+
+At SMG, we hire for the future, which is fast-moving and changing shape. Do you have the potential to help shape our business? We’re looking for brilliant, diverse talent who want to grow with us - people who are curious, ambitious, and eager to learn, whether as specialists or across teams.
+
+
+We value those who take ownership of their growth and bring fresh perspectives. That’s why we’re committed to equity, inclusion, and building a place where everyone feels empowered to grow. At SMG, it’s not just about filling a role but building the future together.
+
+
+● 10% discretionary bonus
+
+● £1,800 yearly wellbeing fund (on top of your salary!)
+
+● Free Headspace subscription
+
+● £500 yearly “Uni Fund” for learning
+
+● 4 extra Wellbeing Days off per year
+
+● Annual Summer conference + year-round celebrations
+
+● 4pm finishes every Friday
+
+● Flexible and hybrid working
+
+
+Explore all our benefits here
+
+
+Useful Links Before You Apply
+
+    Learn about our agencies
+    Our values
+    Our hiring process
+    EDI at SMG
+    FAQs
+
+
+Our full data retention policy can be found here.

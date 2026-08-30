@@ -515,49 +515,6 @@ def test_the_input_has_room_in_the_css() -> None:
     assert "height: 3" in bar, "an Input needs three rows — border, text, border"
 
 
-def test_every_command_needing_an_argument_is_named() -> None:
-    """A key that fires a command bare, where that command needs an argument,
-    produces an error and looks broken."""
-    from vanguard.panes import MENU
-    from vanguard.tui import NEEDS_ARGUMENT
-
-    # These genuinely work with nothing after them.
-    standalone = {"run", "poll", "session", "resolve", "rescore", "boards",
-                  "diagnose", "stats", "funnel", "logs", "archive",
-                  "registrations", "responses", "interviews"}
-
-    for name, _hint, actions, _is_stage in MENU:
-        for _key, command, _action_hint in actions:
-            assert command in NEEDS_ARGUMENT or command in standalone, (
-                f"{name}/{command}: does it need an argument? Say so in "
-                "NEEDS_ARGUMENT, or add it to the standalone set")
-
-
-def test_the_hints_say_what_is_missing() -> None:
-    """A prefilled command with no hint leaves the operator guessing."""
-    from vanguard.tui import NEEDS_ARGUMENT
-
-    for command, hint in NEEDS_ARGUMENT.items():
-        assert command in main.commands, command
-        assert len(hint) > 8, f"{command}: {hint!r} says nothing useful"
-
-
-def test_a_key_prefills_rather_than_runs() -> None:
-    """Prefilling is honest about what is about to happen: the command is on
-    screen, editable, and runs when Enter is pressed. A key that silently
-    dispatched an application would be worse."""
-    from pathlib import Path
-
-    import vanguard.tui as module
-
-    source = Path(module.__file__).read_text(encoding="utf-8")
-    on_key = source[source.index("def on_key("):source.index("def on_list_view_highlighted(")]
-
-    assert "self.bar.value = command" in on_key
-    assert "run_in_terminal" not in on_key, (
-        "a keystroke must not run a command directly — it prefills")
-
-
 def test_the_return_prompt_is_only_for_failures() -> None:
     """It existed so output could be read before the panes covered it, and
     the console now shows what the command did. One keystroke buying
@@ -572,3 +529,74 @@ def test_the_return_prompt_is_only_for_failures() -> None:
 
     assert "if failed:" in run
     assert run.index("if failed:") < run.index("[Enter] to return")
+
+
+# ---------------------------------------------------------------------------
+# A key opens a form
+#
+# Firing the command bare failed — `search` wants keywords, `paste` a file,
+# `discover` a board. Prefilling the console fixed that and still left the
+# operator typing syntax, and an option nobody looks up is an option nobody
+# uses.
+# ---------------------------------------------------------------------------
+
+def test_a_key_opens_a_form() -> None:
+    from pathlib import Path
+
+    import vanguard.tui as module
+
+    source = Path(module.__file__).read_text(encoding="utf-8")
+    on_key = source[source.index("def on_key("):source.index("def on_list_view_highlighted(")]
+
+    assert "_open_form" in on_key
+    assert "self.bar.value = command" not in on_key, (
+        "a key opens a form; it no longer prefills the console")
+
+
+def test_every_stage_action_has_a_form() -> None:
+    """A key that opens nothing is worse than a key that does nothing."""
+    from vanguard.forms import form_for
+    from vanguard.panes import MENU
+
+    for name, _hint, actions, _is_stage in MENU:
+        for _key, command, _action_hint in actions:
+            assert form_for(command) is not None, f"{name}/{command}"
+
+
+def test_form_widgets_are_removed_not_hidden() -> None:
+    """A hidden input still takes Tab and still holds a value, so the next
+    form would open with the last one's answers underneath it."""
+    from pathlib import Path
+
+    import vanguard.tui as module
+
+    source = Path(module.__file__).read_text(encoding="utf-8")
+    close = source[source.index("def _close_form("):source.index("def _open_form(")]
+
+    assert ".remove()" in close
+    assert "display = False" not in close
+
+
+def test_escape_closes_a_form_before_restoring() -> None:
+    """Escape is what people press to get out of the thing in front of them,
+    which is the form, not the layout."""
+    from pathlib import Path
+
+    import vanguard.tui as module
+
+    source = Path(module.__file__).read_text(encoding="utf-8")
+    cancel = source[source.index("def action_cancel("):source.index("def action_restore(")]
+
+    assert "_close_form" in cancel
+    assert cancel.index("_close_form") < cancel.index("action_restore")
+
+
+def test_needs_argument_is_gone() -> None:
+    """It restated what each command needs. The schema reads that from the
+    command, so restating it could only drift."""
+    from pathlib import Path
+
+    import vanguard.tui as module
+
+    source = Path(module.__file__).read_text(encoding="utf-8")
+    assert "NEEDS_ARGUMENT: dict" not in source

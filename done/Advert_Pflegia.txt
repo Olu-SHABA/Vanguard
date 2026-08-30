@@ -1,0 +1,99 @@
+Data Scientist - AI & Experimentation (m/f/d)
+
+
+About the job
+
+At Pflegia we are building and operating an innovative job-matching platform, which intelligently brings together caregivers and healthcare employers. Our vision is to become Europe's leading job platform for nursing professions and to fight the nursing crisis! Become part of the team and shape the nursing job market together with us!
+
+About The Role
+
+We're looking for a Data Scientist who treats AI as a working tool, not a buzzword. You'll sit at the intersection of statistics, machine learning, and product: building predictive models, improving our LLM- and RAG-based systems, and running experiments that directly shape how our platform matches supply and demand. Your work won't end at a slide deck. You'll define the metrics, ship the analysis, and follow through until the impact shows up in the numbers.
+
+Tasks
+
+    Build, validate, and ship statistical and predictive models that directly inform pricing, matching, and growth decisions
+    Develop and improve LLM-powered features, from retrieval-augmented generation (RAG) pipelines to applications of new AI technologies that open up product innovation
+    Own the reliability of our AI features: design prompt and evaluation workflows, measure output quality, and catch regressions before users do
+    Turn open questions into testable hypotheses and design experiments (e.g., A/B tests) that give clear, decision-ready answers
+    Dig into funnels and user journeys to find drop-offs and friction points, and quantify where supply and demand can be better matched
+    Team up with performance marketing to sharpen targeting, attribution, and campaign efficiency with data
+    Define the KPIs that matter, build the dashboards and monitoring behind them (AWS QuickSight), and make business impact visible and measurable
+    Keep your work transparent and traceable: document, prioritize, and communicate progress in Jira across product, engineering, and marketing
+    Present findings to stakeholders as concrete recommendations, then stay involved until they're implemented
+
+Requirements
+
+    You love to work with data: explore it, model it, improve its quality.
+    Deep grounding in statistics: you know which method fits which problem and can defend your assumptions, not just run the library defaults
+    Fluent in Python (pandas, scikit-learn, NumPy) and SQL, with a track record of applying them to real business problems rather than toy datasets
+    Hands-on experience taking ML and modern AI techniques from idea to a working solution that someone actually uses
+    Practical experience with LLMs and RAG systems in production or near-production settings, including prompting, retrieval quality, and output evaluation
+    Solid command of A/B testing: sample sizing, significance, common pitfalls, and knowing when an experiment is the wrong tool
+    Working knowledge of performance marketing concepts such as CAC, ROAS, and attribution logic
+    Project experience in at least one of: anomaly detection, trend analysis, marketing mix modeling, or multi-touch attribution
+    Background in e-commerce, marketplaces, or other platform-based businesses, ideally with exposure to supply and demand dynamics
+    Bonus: degree in mathematics, statistics, physics, computer science, or a related quantitative field
+
+Benefits
+
+    Flat hierarchies with short decision-making paths (start-up mentality) and an open corporate culture with helpful & communicative colleagues
+    Regular feedback conversations
+    A pleasant workplace (open-plan office centrally located in Berlin-Mitte) with home office option
+    A very nice and cooperative working atmosphere
+    Free drinks
+
+Sound like you? Send us your CV and a short note on the most interesting model or experiment you've shipped recently.
+
+Hiring Team,
+Pflegia
+
+Dear Pflegia Team,
+
+I am writing to apply for the Data Scientist position. I like your approach of treating AI as a practical working tool rather than a buzzword. I have extensive experience cleaning messy datasets, building low-latency automation pipelines, and applying machine learning to real-world matching and retention problems.
+
+The core technical tasks for your job-matching platform align directly with what I have been building recently:
+
+- Matching Systems and GenAI: I recently built and open-sourced Vanguard, a semi-autonomous application pipeline. It uses Python, sentence-transformers, and vector databases to parse CVs and match candidate profiles directly to job roles based on semantic similarity. I am highly comfortable building, prompting, and evaluating retrieval quality in these pipelines to prevent regressions.
+
+- Funnels and Behavioral Data: At Amdari Inc., my work focused on customer lifetime value and churn analytics. I am used to digging into user data to spot friction points, trace drop-offs, and build predictive models that help optimize platform retention and balance user demand.
+
+- Data Quality and Speed: I write clean, reproducible Python and SQL. I previously engineered a vectorized data engine that compressed a manual 90-minute data validation cycle down to under 2 seconds on annual datasets exceeding 800,000 rows. I built strict validation and time-based null-imputation logic into this pipeline to protect data integrity before it hits any models.
+
+I hold a B.Sc. in Civil Engineering, which provided me with a strong foundation in statistics and network optimization. I live in Stirling, hold a postgraduate dependent visa with full and unrestricted right to work, and am fully comfortable working in a collaborative hybrid or remote setup.
+
+You can review my code, pipeline architectures, and commit history directly on my public GitHub profile at github.com.
+
+I would love to jump on a brief call to discuss how my experience building automated matching tools can support your platform. Thank you for your time.
+
+Best regards,
+Olumide Shaba
+
+
+The most interesting system I built recently is Vanguard, a tool that automates profile-to-role matching.
+
+Instead of relying on simple keyword matching, I used Python and sentence-transformers to calculate vector embeddings. This allows the system to evaluate text by its actual semantic meaning and score how well a candidate's background matches a specific job role.
+
+I designed the scoring system to gate on absolute requirement coverage rather than broad document similarity. This means the system doesn't just output a generic matching score; it isolates and outputs exactly which requirements are missing. I also integrated IMAP and Gmail polling with a four-stage message tracking logic so the script can autonomously follow an application through from ingest to the final outcome.
+
+You can inspect the source code, architecture, and my commit history directly at https://github.com/Olu-SHABA/Vanguard.
+
+
+Hiring Team,
+Pflegia
+
+Dear Pflegia Team,
+
+I am writing to apply for the Data Scientist position. I like your approach of treating AI as a practical working tool rather than a buzzword. I have extensive experience cleaning messy datasets, building low-latency automation pipelines, and applying machine learning to real-world matching and retention problems.
+
+To answer your prompt about the most interesting model I have shipped recently: I built and open-sourced Vanguard, a tool that automates profile-to-role matching. Instead of relying on simple keyword matching, I used Python and sentence-transformers to calculate vector embeddings. This allows the system to evaluate text by its actual semantic meaning and score how well a candidate's background matches a specific job role. I designed the scoring system to gate on absolute requirement coverage rather than broad document similarity. This means the system doesn't just output a generic matching score; it isolates and outputs exactly which requirements are missing. I also integrated IMAP and Gmail polling with a four-stage message tracking logic so the script can autonomously follow an application through from ingest to the final outcome.
+
+Beyond this project, my work at Amdari Inc. focused on customer lifetime value and churn analytics. I am used to digging into user data to spot friction points, trace drop-offs, and build predictive models that help optimize platform retention and balance user demand. I write clean, reproducible Python and SQL. In my previous infrastructure roles, I engineered a vectorized data engine that compressed a manual 90-minute data validation cycle down to under 2 seconds on annual datasets exceeding 800,000 rows, utilizing strict time-based null-imputation to protect data quality.
+
+I hold a B.Sc. in Civil Engineering, which provided me with a strong foundation in statistics and network optimization. I live in Stirling, hold a postgraduate dependent visa with full and unrestricted right to work in the UK, and am fully comfortable working in a collaborative hybrid or remote setup.
+
+You can review the source code, pipeline architectures, and my full commit history for Vanguard directly on my public GitHub profile at https://github.com/Olu-SHABA.
+
+I would welcome a brief call to discuss how my experience building automated matching tools can support your platform. Thank you for your time.
+
+Best regards,
+Olumide Shaba
