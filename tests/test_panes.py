@@ -480,3 +480,95 @@ def test_the_menu_marks_its_two_groups() -> None:
     assert "is_stage else" in source, (
         "is_stage is read and discarded again — nothing distinguishes the "
         "six pipeline stages from the three support groups")
+
+
+# ---------------------------------------------------------------------------
+# The console and the stage keys
+#
+# Three faults with one cause. The console was four rows: two for its border,
+# one for the hint, leaving one — and a Textual Input needs three. So the
+# operator typed into a widget that was never drawn.
+#
+# And a key fired its command bare. `search` wants keywords, `paste` a file,
+# `discover` a board — only `run` happened to work without any, which is why
+# only `run` appeared to.
+# ---------------------------------------------------------------------------
+
+def test_the_console_fits_an_input() -> None:
+    """Border, hint and a three-row Input. Four rows squeezed the Input out
+    of the layout entirely."""
+    from vanguard.tui import CONSOLE_IDLE
+
+    assert CONSOLE_IDLE >= 7, (
+        f"{CONSOLE_IDLE} rows: 2 border + 1 hint + 3 Input needs 6 minimum, "
+        "and one spare line makes it usable")
+
+
+def test_the_input_has_room_in_the_css() -> None:
+    from pathlib import Path
+
+    import vanguard.tui as module
+
+    source = Path(module.__file__).read_text(encoding="utf-8")
+    css = source[source.index('CSS = """'):source.index('"""', source.index('CSS = """') + 10)]
+    bar = css.split("#bar")[1].split("}")[0]
+    assert "height: 3" in bar, "an Input needs three rows — border, text, border"
+
+
+def test_every_command_needing_an_argument_is_named() -> None:
+    """A key that fires a command bare, where that command needs an argument,
+    produces an error and looks broken."""
+    from vanguard.panes import MENU
+    from vanguard.tui import NEEDS_ARGUMENT
+
+    # These genuinely work with nothing after them.
+    standalone = {"run", "poll", "session", "resolve", "rescore", "boards",
+                  "diagnose", "stats", "funnel", "logs", "archive",
+                  "registrations", "responses", "interviews"}
+
+    for name, _hint, actions, _is_stage in MENU:
+        for _key, command, _action_hint in actions:
+            assert command in NEEDS_ARGUMENT or command in standalone, (
+                f"{name}/{command}: does it need an argument? Say so in "
+                "NEEDS_ARGUMENT, or add it to the standalone set")
+
+
+def test_the_hints_say_what_is_missing() -> None:
+    """A prefilled command with no hint leaves the operator guessing."""
+    from vanguard.tui import NEEDS_ARGUMENT
+
+    for command, hint in NEEDS_ARGUMENT.items():
+        assert command in main.commands, command
+        assert len(hint) > 8, f"{command}: {hint!r} says nothing useful"
+
+
+def test_a_key_prefills_rather_than_runs() -> None:
+    """Prefilling is honest about what is about to happen: the command is on
+    screen, editable, and runs when Enter is pressed. A key that silently
+    dispatched an application would be worse."""
+    from pathlib import Path
+
+    import vanguard.tui as module
+
+    source = Path(module.__file__).read_text(encoding="utf-8")
+    on_key = source[source.index("def on_key("):source.index("def on_list_view_highlighted(")]
+
+    assert "self.bar.value = command" in on_key
+    assert "run_in_terminal" not in on_key, (
+        "a keystroke must not run a command directly — it prefills")
+
+
+def test_the_return_prompt_is_only_for_failures() -> None:
+    """It existed so output could be read before the panes covered it, and
+    the console now shows what the command did. One keystroke buying
+    nothing — except where the command failed, since an error nobody sees is
+    worse than a pause."""
+    from pathlib import Path
+
+    import vanguard.tui as module
+
+    source = Path(module.__file__).read_text(encoding="utf-8")
+    run = source[source.index("def run_in_terminal("):source.index("# -- enlarging")]
+
+    assert "if failed:" in run
+    assert run.index("if failed:") < run.index("[Enter] to return")

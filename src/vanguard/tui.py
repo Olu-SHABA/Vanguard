@@ -83,12 +83,38 @@ TEXTUAL_MISSING = (
 #: keybinding that never fired, leaving nothing on screen to diagnose. And
 #: growing only when used, so it does not cost a third of a short terminal
 #: while empty.
-CONSOLE_IDLE = 4
-CONSOLE_OPEN = 14
+#: A Textual `Input` occupies THREE rows — a border, the text, a border. At
+#: four rows total the console had two usable, the hint took one, and the
+#: Input was squeezed out: the operator typed into a widget that was not
+#: drawn.
+CONSOLE_IDLE = 8
+CONSOLE_OPEN = 18
 
 
 def console_height(has_output: bool) -> int:
     return CONSOLE_OPEN if has_output else CONSOLE_IDLE
+
+
+#: Commands a key cannot usefully fire on its own, and what they still need.
+#:
+#: Pressing `s` ran `vanguard search` with no keywords, which errors. `paste`
+#: wants a file, `discover` a board. Prefilling the console with the command
+#: leaves the operator to supply the rest.
+NEEDS_ARGUMENT: dict[str, str] = {
+    "search": "keywords, e.g. search data scientist --within 24h",
+    "paste": "--file path\\to\\advert.txt, or --url",
+    "discover": "--board adzuna",
+    "approve": "a vacancy id, or --status PENDING --min-coverage 0.6",
+    "reject": "a vacancy id, or --status FLAGGED",
+    "override": "a vacancy id and a state",
+    "draft": "a vacancy id",
+    "apply": "a vacancy id",
+    "dispatch": "a vacancy id",
+    "feedback": "a vacancy id, --name and --contact",
+    "evidence": "--repo <path or url>",
+    "interview": "a vacancy id and --phase",
+    "sql": 'a query, e.g. sql "SELECT status, COUNT(*) FROM queue GROUP BY status"',
+}
 
 
 def run_app(db: str) -> None:
@@ -112,10 +138,13 @@ def run_app(db: str) -> None:
         #queue { width: 3fr; border: round $primary; padding: 0 1; }
         #progress { width: 2fr; border: round $primary; padding: 0 1; }
         #result { height: 1fr; border: round $primary; padding: 0 1; }
-        #console { height: 4; border: round $accent; padding: 0 1; }
-        #console.open { height: 14; }
+        #console { height: 8; border: round $accent; padding: 0 1; }
+        #console.open { height: 18; }
+        #console-body { height: 1fr; }
         #queue:focus-within, #result:focus-within { border: round $accent; }
-        #bar { dock: bottom; height: 1; }
+        /* Three rows, which is what an Input needs. Docked so it stays
+           visible however much output is above it. */
+        #bar { dock: bottom; height: 3; }
         """
 
         BINDINGS = [
@@ -174,7 +203,8 @@ def run_app(db: str) -> None:
                 # as a context manager. The latter rendered nothing.
                 with Vertical(id="console"):
                     self.console_body = Static(
-                        "type a command below — `cls` clears this")
+                        "type a command below — `cls` clears this",
+                        id="console-body")
                     yield self.console_body
                     self.bar = Input(placeholder="> ", id="bar")
                     yield self.bar
@@ -302,13 +332,24 @@ def run_app(db: str) -> None:
                 return
 
             event.prevent_default()
-            if command in INTERACTIVE:
-                self.run_in_terminal([command])
-            else:
-                self._echo(f"> {command}")
-                self._echo(render_command(
-                    [command], db=self.db_path,
-                    width=self._pane_width(self.query_one("#console"))))
+
+            # PREFILL, do not run.
+            #
+            # Most of these need arguments — `search` wants keywords, `paste`
+            # a file, `discover` a board — so firing them bare produced an
+            # error and looked broken. Only `run` happened to work without
+            # any, which is why only `run` appeared to.
+            #
+            # Prefilling is also honest about what is about to happen: the
+            # command is on screen, editable, and runs when Enter is pressed.
+            # A key that silently dispatched an application would be worse
+            # still.
+            self.bar.value = command + (" " if NEEDS_ARGUMENT.get(command) else "")
+            self.bar.focus()
+
+            hint = NEEDS_ARGUMENT.get(command)
+            if hint:
+                self._echo(f"> {command} — {hint}")
 
         def on_list_view_highlighted(self, event) -> None:
             index = event.list_view.index or 0
@@ -331,17 +372,31 @@ def run_app(db: str) -> None:
             import subprocess
             import sys
 
+            failed = False
             with self.suspend():
                 print()
                 try:
-                    subprocess.call(
+                    code = subprocess.call(
                         [sys.executable, "-m", "vanguard.cli", *words])
+                    failed = code != 0
                 except Exception as exc:
                     print(f"could not run: {exc}")
-                try:
-                    input("\n[Enter] to return to the panes ")
-                except (EOFError, KeyboardInterrupt):
-                    pass
+                    failed = True
+
+                if failed:
+                    # An error the operator never sees is worse than a pause.
+                    try:
+                        input("\n[Enter] to return to the panes ")
+                    except (EOFError, KeyboardInterrupt):
+                        pass
+
+                # No "press Enter" any more. It existed so the output could be
+                # read before the panes covered it, and the console now shows
+                # what the command did — so the prompt was one keystroke
+                # buying nothing.
+                #
+                # Kept only where the command FAILED, because an error the
+                # operator never sees is worse than a pause.
 
             self.action_refresh()
 

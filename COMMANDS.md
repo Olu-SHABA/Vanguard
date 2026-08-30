@@ -648,6 +648,19 @@ a hint, not a path.
 | Accounts | `registrations` |
 | System | `logs` `archive` |
 
+### A key prefills the console; Enter runs it
+
+Press `s` on Find and the console reads `search ` with the cursor after it,
+plus a hint saying what is still needed. Type the keywords, press Enter.
+
+**Firing the command bare was the bug.** `search` wants keywords, `paste` a
+file, `discover` a board — only `run` happened to work with nothing after it,
+which is why only `run` appeared to work at all.
+
+Prefilling is also honest about what is about to happen: the command is on
+screen, editable, and runs when you press Enter. A key that silently
+dispatched an application would be worse.
+
 ### Keys belong to the stage that owns them
 
 **`r` runs on Find and does nothing on Track.**
@@ -666,15 +679,23 @@ from an unscored PENDING one.
 
 ### The console
 
-Always visible, four rows when idle, growing when it has output and
+Always visible, eight rows when idle, growing when it has output and
 collapsing on `cls`.
+
+Eight because a Textual `Input` occupies three rows on its own — a border, the
+text, a border. At four the Input was squeezed out of the layout, so anything
+typed went into a widget that was never drawn.
 
 **Output appears where you typed it.** The previous version typed at the
 bottom and answered in RESULT, so a query destroyed whatever record was being
 read — and a shell that answers somewhere else is not a shell.
 
 Any command works, options and all. Anything that streams or asks suspends
-the panes and runs for real.
+the panes and runs for real, then returns straight away — the console shows
+what it did, so there is nothing to read before the panes come back.
+
+A failed command pauses first, because an error nobody sees is worse than a
+pause.
 
 ### Nothing changes state without its confirmation
 
