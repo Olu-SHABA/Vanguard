@@ -121,3 +121,6 @@ vanguard session
 ---
 
 *Single job: `HOW_TO_ADD_A_JOB.md`. Full reference: `COMMANDS.md`.*
+
+Fifty records one at a time is a poor use of an evening — every acting command
+takes a filter and a `--dry-run`. See `COMMANDS.md`, *Acting on many records*.

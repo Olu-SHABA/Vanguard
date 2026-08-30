@@ -18,6 +18,7 @@ what.
 | [Accounts](#accounts) | `registrations` |
 | [Responses](#responses) | `poll` · `responses` · `funnel` · `mail` · `dormant` · `feedback` · `interview` · `interviews` |
 | [Operations](#operations) | `logs` · `archive` |
+| [Acting on many records](#acting-on-many-records) | Filters, dry runs, and what they will not let you do |
 | [What grows](#what-grows-and-what-does-not) | Which files accumulate, and when to act |
 
 ---
@@ -39,6 +40,93 @@ This document is the reference — what each command *is*. For what to *do*:
 
 ---
 
+## Acting on many records
+
+Eight commands take a filter and act on everything that matches. With five
+hundred records in the queue, that is the difference between a session and an
+afternoon.
+
+| Command | Filters | Changes state? |
+|---|---|---|
+| `approve` | `--status` `--min-coverage` `--employer` | **yes** |
+| `reject` | `--status` `--max-coverage` `--employer` `--include-unmeasured` | **yes** |
+| `rescore` | `--status` `--all` | rewrites scores |
+| `session` | `--status` `--min-coverage` `--employer` | walks them one at a time |
+| `review` | `--status` `--sort` `--limit` | no — a viewer |
+| `responses` | `--status` `--sort` | no |
+| `interviews` | `--all` | no |
+| `adverts ingest` | `--dry-run` `--move-to` | adds records |
+
+### Always dry-run first
+
+```powershell
+vanguard reject --status FLAGGED --include-unmeasured --dry-run
+```
+
+It lists exactly what would change and does nothing. Drop `--dry-run` when the
+list is right; `--yes` skips the confirmation after that.
+
+### The asymmetry between approve and reject
+
+| | |
+|---|---|
+| `reject` | `--max-coverage` **and** `--include-unmeasured` |
+| `approve` | `--min-coverage` only |
+
+**Rejecting an unmeasured record is reasonable** — you have decided not to
+chase what could not be parsed.
+
+**Approving one is not.** No coverage, no gap list, no idea whether you match.
+That is not something anyone should be able to apply to five hundred records
+at once, so there is no flag for it. Name the vacancy if you want it anyway:
+
+```powershell
+vanguard approve linkedin:a2d5ad4b790ce89c
+```
+
+`--min-coverage` excludes unmeasured records implicitly, since a record with
+no score cannot clear a floor.
+
+### `--include-unmeasured` includes, it does not isolate
+
+```powershell
+vanguard reject --status FLAGGED --include-unmeasured
+```
+
+rejects **every** FLAGGED record — measured and unmeasured alike. For the
+unmeasured ones only, add a ceiling they cannot clear:
+
+```powershell
+vanguard reject --status FLAGGED --include-unmeasured --max-coverage 0.0
+```
+
+The dry run shows which reading you are getting.
+
+### Before rejecting FLAGGED in bulk
+
+**FLAGGED means the advert could not be parsed, not that the job was
+unsuitable** — often a heading style the extractor does not recognise, which
+is B-17 and still affects about a third of adverts.
+
+```powershell
+vanguard diagnose
+```
+
+first. If they share one fixable cause, that is a lot of vacancies recovered
+rather than closed.
+
+### Approving FLAGGED is usually wrong
+
+A record is FLAGGED because something needs resolving. `vanguard resolve`
+walks those and clears them to PENDING, which is the intended route. Bulk
+approve is for PENDING:
+
+```powershell
+vanguard approve --status PENDING --min-coverage 0.6 --dry-run
+```
+
+---
+
 ## Conventions
 
 **Two execution contexts.** `run` is autonomous — it never blocks, never
@@ -48,6 +136,10 @@ for you is correct.
 **Vanguard never transmits.** No command sends an email or submits an
 application. `dispatch` records that *you* did; `feedback` drafts text for you
 to send yourself.
+
+**Some commands act on many records at once.** Every one of them takes
+`--dry-run`, and every one that changes state confirms before it does.
+See [Acting on many records](#acting-on-many-records).
 
 **Accessibility.** Presentation adapts to the terminal, and status is always
 shown as a **symbol and a word** — never colour alone. Nothing in the output
