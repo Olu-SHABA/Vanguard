@@ -415,34 +415,6 @@ def test_a_broken_store_does_not_raise(tmp_path: Path) -> None:
 # not.
 # ---------------------------------------------------------------------------
 
-def test_every_region_is_titled() -> None:
-    """A pane nobody has named is a pane nobody knows the purpose of."""
-    from pathlib import Path
-
-    import vanguard.tui as module
-
-    source = Path(module.__file__).read_text(encoding="utf-8")
-    for region in ("INPUT", "QUEUE", "PROGRESS", "RESULT", "CONSOLE"):
-        assert f'border_title = "{region}"' in source or (
-            f'border_title = f"{region}' in source), f"{region} has no title"
-
-
-def test_the_menu_is_drawn_as_two_groups() -> None:
-    """Six stages, a rule, then three reachable any time.
-
-    A ListItem carrying the rule would be selectable and select nothing, so
-    the rule is a separate widget and the list is split in two.
-    """
-    from pathlib import Path
-
-    import vanguard.tui as module
-
-    source = Path(module.__file__).read_text(encoding="utf-8")
-    assert 'id="stages"' in source
-    assert 'id="support"' in source
-    assert 'id="rule"' in source
-
-
 def test_the_two_groups_partition_the_menu() -> None:
     """Every entry is in exactly one group. A menu entry in neither would be
     invisible; in both, selectable twice."""
@@ -455,26 +427,56 @@ def test_the_two_groups_partition_the_menu() -> None:
     assert {e[0] for e in stages} & {e[0] for e in support} == set()
 
 
-def test_the_console_height_is_not_duplicated() -> None:
-    """It was: the constants said 4 and 14 while the CSS said 6 and 16,
-    within one edit. The height now derives from the constants."""
+
+
+# ---------------------------------------------------------------------------
+# What the blank screen cost
+#
+# Two cosmetic changes — a border title on the console, and splitting the menu
+# into two lists with a rule between them — left `vanguard panes` displaying
+# NOTHING. No error, no partial layout, nothing to diagnose from.
+#
+# Rolled back on 23 Aug 2026. The grouping is not worth a layout that does not
+# render, and the two groups are shown by a leading marker instead.
+#
+# The lesson is not about Textual. It is that a change to a layer the build
+# environment cannot execute must be small enough to attribute — two changes
+# in one edit, and neither could be ruled out.
+# ---------------------------------------------------------------------------
+
+def test_the_menu_is_one_list() -> None:
+    """Splitting it into two ListViews with a rule between them rendered
+    nothing. The groups are shown by a marker on the row instead."""
     from pathlib import Path
 
     import vanguard.tui as module
 
     source = Path(module.__file__).read_text(encoding="utf-8")
-    css_start = source.index('CSS = """')
-    css_end = source.index('"""', css_start + 10)
-    css = source[css_start:css_end]
+    compose = source[source.index("def compose("):source.index("def on_mount(")]
 
-    assert "#console" in css
-    assert "height:" not in css.split("#console")[1].split("}")[0], (
-        "the console height is in CSS as well as in the constants")
+    assert compose.count("ListView(") == 1, (
+        "the menu is one list — two rendered nothing")
+    assert "self.support" not in source
 
 
-def test_the_console_is_tall_enough_for_its_title(tmp_path: Path) -> None:
-    """Four rows clipped the prompt once the region gained a border title."""
-    from vanguard.tui import CONSOLE_IDLE
+def test_the_console_is_an_inline_container() -> None:
+    """A pre-built widget used as a context manager rendered nothing."""
+    from pathlib import Path
 
-    assert CONSOLE_IDLE >= 5, (
-        "border, title, hint and prompt need five rows between them")
+    import vanguard.tui as module
+
+    source = Path(module.__file__).read_text(encoding="utf-8")
+    assert 'with Vertical(id="console")' in source
+    assert "with self.console:" not in source
+
+
+def test_the_menu_marks_its_two_groups() -> None:
+    """The grouping survives the rollback, as a marker rather than a rule."""
+    from pathlib import Path
+
+    import vanguard.tui as module
+
+    source = Path(module.__file__).read_text(encoding="utf-8")
+    assert "is_stage else" in source, (
+        "is_stage is read and discarded again — nothing distinguishes the "
+        "six pipeline stages from the three support groups")

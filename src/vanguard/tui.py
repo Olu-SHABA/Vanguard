@@ -83,10 +83,8 @@ TEXTUAL_MISSING = (
 #: keybinding that never fired, leaving nothing on screen to diagnose. And
 #: growing only when used, so it does not cost a third of a short terminal
 #: while empty.
-#: Six rows idle: a border, a title, the hint, the prompt. Four clipped the
-#: prompt once the region gained a title.
-CONSOLE_IDLE = 6
-CONSOLE_OPEN = 16
+CONSOLE_IDLE = 4
+CONSOLE_OPEN = 14
 
 
 def console_height(has_output: bool) -> int:
@@ -108,15 +106,14 @@ def run_app(db: str) -> None:
         CSS = """
         Screen { layout: horizontal; }
         #menu { width: 20; border-right: solid $primary; }
-        #stages, #support { height: auto; }
-        #rule { color: $text-muted; padding: 0 1; height: 1; }
         #right { width: 1fr; }
         #input { height: 5; border: round $primary; padding: 0 1; }
         #upper { height: 1fr; }
         #queue { width: 3fr; border: round $primary; padding: 0 1; }
         #progress { width: 2fr; border: round $primary; padding: 0 1; }
         #result { height: 1fr; border: round $primary; padding: 0 1; }
-        #console { border: round $accent; padding: 0 1; }
+        #console { height: 4; border: round $accent; padding: 0 1; }
+        #console.open { height: 14; }
         #queue:focus-within, #result:focus-within { border: round $accent; }
         #bar { dock: bottom; height: 1; }
         """
@@ -144,31 +141,16 @@ def run_app(db: str) -> None:
             yield Header()
 
             with Vertical(id="menu"):
-                # Six stages, a rule, then three reachable any time.
+                # ROLLED BACK 23 Aug 2026. Splitting this into two ListViews
+                # with a rule between them left the whole screen blank, and
+                # the grouping is not worth a layout that does not render.
                 #
-                # `is_stage` was read and then discarded — both groups got the
-                # same blank prefix, so nine identical rows gave no hint that
-                # the first six are a sequence and the last three are not.
-                #
-                # A ListItem carrying the rule would be selectable and select
-                # nothing, so the rule is drawn as a separate widget and the
-                # ListView is split in two.
-                stages = [e for e in MENU if e[3]]
-                support = [e for e in MENU if not e[3]]
-
-                self.menu = ListView(
-                    *[ListItem(Static(f" {name}"))
-                      for name, _h, _a, _s in stages],
-                    id="stages")
+                # The two groups are shown by the leading marker instead: a
+                # stage is prefixed, a support group is not.
+                self.menu = ListView(*[
+                    ListItem(Static(f" {'·' if is_stage else ' '} {name}"))
+                    for name, _hint, _actions, is_stage in MENU])
                 yield self.menu
-
-                yield Static("─" * 16, id="rule")
-
-                self.support = ListView(
-                    *[ListItem(Static(f" {name}"))
-                      for name, _h, _a, _s in support],
-                    id="support")
-                yield self.support
 
             with Vertical(id="right"):
                 self.input = Static("", id="input")
@@ -188,12 +170,9 @@ def run_app(db: str) -> None:
                 self.result.border_title = "RESULT"
                 yield self.result
 
-                # Height set from the constants rather than in CSS, so the
-                # two cannot drift — they did, within one edit.
-                self.console = Vertical(id="console")
-                self.console.border_title = "CONSOLE"
-                self.console.styles.height = CONSOLE_IDLE
-                with self.console:
+                # An inline `with Vertical(...)`, not a pre-built widget used
+                # as a context manager. The latter rendered nothing.
+                with Vertical(id="console"):
                     self.console_body = Static(
                         "type a command below — `cls` clears this")
                     yield self.console_body
@@ -273,15 +252,12 @@ def run_app(db: str) -> None:
             self.console_lines.append(text)
             self.console_lines = self.console_lines[-200:]
             self.console_body.update("\n".join(self.console_lines))
-            self.console.styles.height = CONSOLE_OPEN
-            self.console.border_title = (
-                f"CONSOLE  ·  {len(self.console_lines)} line(s)")
+            self.query_one("#console").add_class("open")
 
         def _clear_console(self) -> None:
             self.console_lines = []
             self.console_body.update("type a command below — `cls` clears this")
-            self.console.styles.height = CONSOLE_IDLE
-            self.console.border_title = "CONSOLE"
+            self.query_one("#console").remove_class("open")
 
         def on_input_submitted(self, event) -> None:
             typed = (event.value or "").strip()
@@ -307,7 +283,7 @@ def run_app(db: str) -> None:
 
             self._echo(render_command(
                 words, db=self.db_path,
-                width=self._pane_width(self.console)))
+                width=self._pane_width(self.query_one("#console"))))
 
         def on_key(self, event) -> None:
             """Stage keys, ignored while the console has focus.
@@ -332,19 +308,13 @@ def run_app(db: str) -> None:
                 self._echo(f"> {command}")
                 self._echo(render_command(
                     [command], db=self.db_path,
-                    width=self._pane_width(self.console)))
+                    width=self._pane_width(self.query_one("#console"))))
 
         def on_list_view_highlighted(self, event) -> None:
             index = event.list_view.index or 0
-
             if event.list_view is self.menu:
-                stages = [e for e in MENU if e[3]]
-                if 0 <= index < len(stages):
-                    self._show_stage(stages[index][0])
-            elif event.list_view is self.support:
-                support = [e for e in MENU if not e[3]]
-                if 0 <= index < len(support):
-                    self._show_stage(support[index][0])
+                if 0 <= index < len(MENU):
+                    self._show_stage(MENU[index][0])
             elif event.list_view is self.list_view:
                 self._show_record(index)
 
@@ -380,7 +350,7 @@ def run_app(db: str) -> None:
                 self._echo(f"> {' '.join(after)}")
                 self._echo(render_command(
                     list(after), db=self.db_path,
-                    width=self._pane_width(self.console)))
+                    width=self._pane_width(self.query_one("#console"))))
 
         # -- enlarging ------------------------------------------------------
 

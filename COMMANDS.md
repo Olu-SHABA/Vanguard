@@ -602,26 +602,25 @@ vanguard panes
 
 ```
 ┌ MENU ────┬ INPUT · Find ──────────────────────────────┐
-│ ▸ Find   │  [r] run  [s] search  [p] paste  [d] disc… │
-│   Set up ├────────────────────────┬───────────────────┤
-│   Assess │ QUEUE · all states · 41│ PROGRESS          │
-│   Decide │  0.62 Sanderson PEND   │  20 dispatched    │
-│   Apply  │  0.58 Acme      PEND   │  none past CV     │
-│   Track  ├────────────────────────┴───────────────────┤
-│ ──────── │ RESULT · linkedin:a2d5                     │
-│   Analyse│  coverage 0.62 · unmet: Azure, Docker…     │
-│   Account├────────────────────────────────────────────┤
-│   System │ CONSOLE · 12 line(s)                       │
+│ ▸· Find  │  [r] run  [s] search  [p] paste  [d] disc… │
+│  · Set up├────────────────────────┬───────────────────┤
+│  · Assess│ QUEUE · all states · 41│ PROGRESS          │
+│  · Decide│  0.62 Sanderson PEND   │  20 dispatched    │
+│  · Apply │  0.58 Acme      PEND   │  none past CV     │
+│  · Track ├────────────────────────┴───────────────────┤
+│   Analyse│ RESULT · linkedin:a2d5                     │
+│   Account│  coverage 0.62 · unmet: Azure, Docker…     │
+│   System ├────────────────────────────────────────────┤
 │          │  > stats                                   │
 │          │  > _                                       │
 └──────────┴────────────────────────────────────────────┘
 
-**Five regions, all named**, and each title carries what it currently shows —
-`QUEUE · all states · 41`, `RESULT · linkedin:a2d5`, `CONSOLE · 12 line(s)`.
+Each region title carries what it currently shows — `QUEUE · all states · 41`,
+`RESULT · linkedin:a2d5`.
 
-**The menu is drawn as two groups**, separated by a rule: six pipeline stages
-above it, three reachable any time below. The rule is a plain widget rather
-than a list item, so it cannot be selected and select nothing.
+**The menu marks its two groups with a leading `·`** on the six pipeline
+stages. Drawing them as two lists with a rule between rendered nothing at
+all, and the grouping is not worth a layout that does not appear.
 ```
 
 ### The order
@@ -697,6 +696,16 @@ they see here.** No keystroke silently changes a state.
 They are not things to invoke. **QUEUE is `review`; the pane view as a whole
 is `status`.** Two commands turn out to be the interface rather than items in
 it.
+
+### If it fails
+
+```bash
+vanguard panes --trace
+```
+
+A blank screen is the worst failure mode — the app starts, lays out to
+nothing, and says nothing about why. Any layout failure now reports itself,
+and `--trace` prints the full traceback.
 
 ### Textual is optional
 

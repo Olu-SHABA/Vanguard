@@ -3974,7 +3974,9 @@ def status_cmd(db) -> None:
 
 @main.command("panes")
 @click.option("--db", default=DEFAULTS["db"])
-def panes_cmd(db) -> None:
+@click.option("--trace", is_flag=True,
+              help="Show the full traceback if the layout fails.")
+def panes_cmd(db, trace) -> None:
     """The pane view — a menu of stages, four regions, and a console.
 
     Six pipeline stages then three support groups; INPUT shows the selected
@@ -3991,6 +3993,21 @@ def panes_cmd(db) -> None:
         run_app(db)
     except ImportError:
         click.echo(TEXTUAL_MISSING)
+        raise SystemExit(1)
+    except Exception as exc:
+        # A blank screen is the worst failure mode: the app started, laid out
+        # to nothing, and said nothing about why. Anything that goes wrong
+        # inside the layout is reported here rather than swallowed.
+        if trace:
+            import traceback
+
+            traceback.print_exc()
+            raise SystemExit(1)
+        click.echo(f"\n  the pane view failed: {exc}\n")
+        click.echo("  every command still works — the panes are an extra way "
+                   "in, not a replacement.")
+        click.echo("  for the full traceback:\n")
+        click.echo("      vanguard panes --trace")
         raise SystemExit(1)
 
 
