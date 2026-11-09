@@ -1,6 +1,6 @@
 # John Doe
 
-Stirling, UK | olu-shaba@vanguardops.co.uk | +44 0000 000000
+Stirling, UK | olu.shaba@gmail.com | +44 0000 000000
 
 **Code, commit history and documentation for every project below: https://github.com/Olu-SHABA**
 
