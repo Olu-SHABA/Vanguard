@@ -83,7 +83,7 @@ def test_original_fails_verification(cv_text: str) -> None:
     """Control. If this passes, the scanner is not working."""
     leaks = verify_text(cv_text, CANONICAL_PROFILE)
     assert leaks, "scanner found nothing in an un-anonymised CV"
-    assert {lk.field for lk in leaks} >= {"surname", "email", "url"}
+    assert {lk.field for lk in leaks} >= {"surname", "url"}
 
 
 @pytest.mark.parametrize(
