@@ -861,7 +861,7 @@ def test_expired_vacancies_dropped_before_hydration(registry) -> None:
     adapter.fetch = lambda q: [
         RawVacancy("reed", {"jobId": 1, "jobTitle": "Open", "employerName": "E",
                             "locationName": "L",
-                            "jobDescription": "<p>Closing Date</p><p>30 September 2026</p>"
+                            "jobDescription": "<p>Closing Date</p><p>30 September 2027</p>"
                                               "<ul><li>Python and SQL</li></ul>"}),
         RawVacancy("reed", {"jobId": 2, "jobTitle": "Expired", "employerName": "E",
                             "locationName": "L",

@@ -1,6 +1,6 @@
 # John Doe
 
-Stirling, UK | placeholder@example.com | +44 0000 000000
+Stirling, UK | janesmith@vanguardops.co.uk | +44 0000 000000
 
 **Code, commit history and documentation for every project below: https://github.com/Olu-SHABA**
 
