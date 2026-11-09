@@ -41,7 +41,7 @@ coverage.xml
 # machine. If this repository is ever made public, commit a REDACTED copy
 # produced by render.anonymise() instead — see OUTSTANDING.md S-05.
 # ---------------------------------------------------------------------------
-data/canonical_cv.md
+
 data/*.db
 data/*.sqlite
 data/*.sqlite3
